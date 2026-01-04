@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8" />
+    <title>휴가(결무) 신청서</title>
+    <style>
+        @page {
+            size: A4;
+            margin: 20mm;
+        }
+        
+        body {
+            font-family: "NanumGothic", "Nanum Gothic", "나눔고딕", "Malgun Gothic", "맑은 고딕", Arial, sans-serif;
+            font-size: 10pt;
+            line-height: 1.6;
+            margin: 0;
+            padding: 0;
+        }
+        
+        * {
+            font-family: "NanumGothic", "Nanum Gothic", "나눔고딕", "Malgun Gothic", "맑은 고딕", Arial, sans-serif;
+        }
+        
+        .company-header {
+            width: 100%;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #ccc;
+            overflow: hidden;
+        }
+        
+        .company-logo-container {
+            float: left;
+            width: 2.8cm;
+        }
+        
+        .company-logo {
+            width: 2.8cm;
+            height: 1.5cm;
+            opacity: 0.9;
+            object-fit: contain;
+        }
+        
+        .company-address {
+            float: right;
+            text-align: right;
+            font-size: 9pt;
+            color: #333;
+            line-height: 1.5;
+        }
+        
+        .clearfix::after {
+            content: "";
+            display: table;
+            clear: both;
+        }
+        
+        .form-title {
+            text-align: center;
+            font-size: 28pt;
+            font-weight: bold;
+            margin: 20px 0;
+            text-decoration: underline;
+        }
+        
+        .main-table {
+            width: 100%;
+            border-collapse: collapse;
+            border: 1px solid #000;
+            margin-bottom: 15px;
+        }
+        
+        .main-table th, .main-table td {
+            border: 1px solid #000;
+            padding: 8px;
+            text-align: center;
+            vertical-align: middle;
+        }
+        
+        .main-table th {
+            background-color: #D9D9D9;
+            font-weight: bold;
+            width: 92px;
+            text-align: center;
+            padding: 8px 8px;
+            letter-spacing: 0;
+        }
+        
+        .main-table th:not(.approval-header) {
+            text-align: center;
+            padding-left: 8px;
+            padding-right: 8px;
+        }
+        
+        .main-table th.approval-header {
+            text-align: center;
+        }
+        
+        .main-table td {
+            background-color: #fff;
+        }
+        
+        .approval-column {
+            background-color: #CCCCCC;
+            width: 30px;
+            text-align: center;
+            font-weight: bold;
+            vertical-align: middle;
+        }
+        
+        .approval-header {
+            background-color: #CCCCCC;
+            font-weight: bold;
+        }
+        
+        .approval-cell {
+            background-color: #fff;
+            height: 60px;
+        }
+        
+        .period-cell {
+            text-align: left;
+            padding-left: 20px;
+        }
+        
+        .vacation-type-cell {
+            text-align: left;
+            padding-left: 20px;
+            white-space: nowrap;
+        }
+        
+        .vacation-type-options {
+            font-size: 9pt;
+            color: #666;
+            margin-top: 5px;
+        }
+        
+        .reason-cell {
+            text-align: center;
+            height: 70px;
+        }
+        
+        .notes-cell {
+            text-align: left;
+            padding: 10px;
+            vertical-align: top;
+        }
+        
+        .notes-content {
+            font-size: 10pt;
+            line-height: 1.8;
+            margin: 5px 0;
+            text-align: left;
+        }
+        
+        .notes-label {
+            display: inline-block;
+            width: 180px;
+            padding-right: 10px;
+        }
+        
+        .notes-value {
+            text-align: right;
+            display: inline-block;
+            min-width: 50px;
+        }
+        
+        .notes-list {
+            margin-left: 30px;
+            margin-top: 10px;
+        }
+        
+        .notes-list-spacer {
+            height: 120px;
+            min-height: 120px;
+        }
+        
+        .notes-list li {
+            margin-bottom: 5px;
+        }
+    </style>
+</head>
+<body>
+    <!-- 회사 헤더: 로고와 주소 -->
+    <div class="company-header clearfix">
+        <div class="company-logo-container">
+            <img th:src="${companyLogoBase64}" alt="회사 로고" class="company-logo" />
+        </div>
+        <div class="company-address">
+            <div>㈜날리지포인트 (www.knowledgepoint.co.kr)</div>
+            <div>(137-878) 서울시 서초구 사임당로8길 16, 2층(서초동, 성재빌딩)</div>
+            <div>전화: (070) 4325-4033 팩스: (02) 6937-1035</div>
+        </div>
+    </div>
+    
+    <!-- 제목 -->
+    <div class="form-title">휴가(결무) 신청서</div>
+    
+    <!-- 메인 테이블 -->
+    <table class="main-table">
+        <!-- 첫 번째 행: 문서번호, 결재 -->
+        <tr>
+            <th>문서&nbsp;&nbsp;번호</th>
+            <td th:text="${documentNumber}" style="width: 189px;">KP-20250901-01</td>
+            <td class="approval-column" rowspan="4" style="width: 30px; background-color: #CCCCCC;">
+                <div style="line-height: 1.2; letter-spacing: 5px; ">결<br /><br />재</div>
+            </td>
+            <th class="approval-header">담당</th>
+            <th class="approval-header">팀장</th>
+            <th class="approval-header">부장</th>
+            <th class="approval-header">대표이사</th>
+        </tr>
+        <!-- 두 번째 행: 신청일자 -->
+        <tr>
+            <th>신청&nbsp;&nbsp;일자</th>
+            <td th:text="${applicationDate}">2025년 09월 01일</td>
+            <td class="approval-cell" rowspan="2"></td>
+            <td class="approval-cell" rowspan="2"></td>
+            <td class="approval-cell" rowspan="2"></td>
+            <td class="approval-cell" rowspan="2"></td>
+        </tr>
+        <!-- 세 번째 행: 소속 -->
+        <tr>
+            <th>소&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;속</th>
+            <td th:text="${department}" style="padding: 4px 8px; white-space: nowrap; overflow: hidden;">서비스본부/서비스개발2팀</td>
+        </tr>
+        <!-- 네 번째 행: 신청자 -->
+        <tr>
+            <th>신&nbsp;&nbsp;청&nbsp;&nbsp;자</th>
+            <td th:text="${applicant}">천병재</td>
+            <td class="approval-cell2"></td>
+            <td class="approval-cell2"></td>
+            <td class="approval-cell2"></td>
+            <td class="approval-cell2"></td>
+        </tr>
+        <!-- 다섯 번째 행: 기간 -->
+        <tr>
+            <th>기&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;간</th>
+            <td class="period-cell" colspan="4" th:text="${period}">2025년 09월 05일 ~ 2025년 09월 05일</td>
+            <td colspan="2" style="text-align: center; font-weight: bold;">( 1 ) 일간</td>
+        </tr>
+        <!-- 여섯 번째 행: 휴가 구분 -->
+        <tr>
+            <th>휴가&nbsp;&nbsp;구분</th>
+            <td class="vacation-type-cell" colspan="6">
+                <span th:text="${vacationType}" style="margin-left: 20px;">연차</span>
+                <span style="float: right; font-size: 9pt; color: #666; margin-right: 20px;">
+                    (연차/경조/출산/결근/병가/기타/예비군)
+                </span>
+            </td>
+        </tr>
+        <!-- 일곱 번째 행: 사유 -->
+        <tr>
+            <th>사&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;유</th>
+            <td class="reason-cell" colspan="6" th:text="${reason}">개인 사정</td>
+        </tr>
+        <!-- 여덟 번째 행: 비고 (연차일수 정보) -->
+        <tr>
+            <th>비&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;고</th>
+            <td class="notes-cell" colspan="6">
+                <div class="notes-content">
+                    <span class="notes-label"><strong th:text="${currentYear} + '년 총 연차일수:'">2025년 총 연차일수:</strong></span>
+                    <span class="notes-value">
+                        <span th:if="${totalVacationDays != null and totalVacationDays % 1 == 0}" th:text="${totalVacationDays.intValue()}">18</span>
+                        <span th:if="${totalVacationDays != null and totalVacationDays % 1 != 0}" th:text="${#numbers.formatDecimal(totalVacationDays, 1, 1)}">18.5</span>
+                        <span th:if="${totalVacationDays == null}">0</span> 일
+                    </span>
+                </div>
+                <div class="notes-content">
+                    <span class="notes-label"><strong>직전 잔여 연차 일수:</strong></span>
+                    <span class="notes-value">
+                        <span th:if="${previousRemainingDays != null and previousRemainingDays % 1 == 0}" th:text="${previousRemainingDays.intValue()}">8</span>
+                        <span th:if="${previousRemainingDays != null and previousRemainingDays % 1 != 0}" th:text="${#numbers.formatDecimal(previousRemainingDays, 1, 1)}">8.5</span>
+                        <span th:if="${previousRemainingDays == null}">0</span> 일
+                    </span>
+                </div>
+                <div class="notes-content">
+                    <span class="notes-label"><strong>금회 신청 연차일수:</strong></span>
+                    <span class="notes-value">
+                        <span th:if="${requestedVacationDays != null and requestedVacationDays % 1 == 0}" th:text="${requestedVacationDays.intValue()}">1</span>
+                        <span th:if="${requestedVacationDays != null and requestedVacationDays % 1 != 0}" th:text="${#numbers.formatDecimal(requestedVacationDays, 1, 1)}">1.5</span>
+                        <span th:if="${requestedVacationDays == null}">0</span> 일
+                    </span>
+                </div>
+                <div class="notes-content">
+                    <span class="notes-label"><strong>잔여 연차일수:</strong></span>
+                    <span class="notes-value">
+                        <span th:if="${finalRemainingDays != null and finalRemainingDays % 1 == 0}" th:text="${finalRemainingDays.intValue()}">7</span>
+                        <span th:if="${finalRemainingDays != null and finalRemainingDays % 1 != 0}" th:text="${#numbers.formatDecimal(finalRemainingDays, 1, 1)}">7.5</span>
+                        <span th:if="${finalRemainingDays == null}">0</span> 일
+                    </span>
+                </div>
+            </td>
+        </tr>
+        <!-- 아홉 번째 행: 비고 (안내사항) -->
+        <tr>
+            <td class="notes-cell" colspan="7" style="text-align: left; padding: 15px 30px; min-height: 200px;">
+                <div class="notes-list">
+                    <div style="margin-bottom: 8px;">
+                        1. 예비군 훈련으로 인한 휴가는 연차 사용 일수에 포함 안됨.
+                    </div>
+                    <div style="margin-bottom: 8px;">
+                        2. 경조/출산/병가/기타 등 별도 품의에 의해 인가 받은 휴가는 연차 사용 일수에 포함 안됨.
+                    </div>
+                    <div style="margin-bottom: 8px;">
+                        3. "해당 연도의 총 연차일수" 와 "직전 잔여 연차 일수"는 소속 팀장/본부장 등을 통하여 정확한 일수를 확인 후 기입 하여야 함.
+                    </div>
+                    <div class="notes-list-spacer"></div>
+                </div>
+            </td>
+        </tr>
+    </table>
+    
+    <!-- 꼬리말 구분선 -->
+    <div style="border-top: 1px solid #000; margin-top: 20px; width: 100%;"></div>
+</body>
+</html>
