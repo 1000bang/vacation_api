@@ -1,5 +1,6 @@
 package com.vacation.api.validation;
 
+import com.vacation.api.domain.sample.request.VacationSampleRequest;
 import jakarta.validation.ConstraintValidator;
 import jakarta.validation.ConstraintValidatorContext;
 import java.lang.annotation.ElementType;
@@ -36,12 +37,12 @@ public @interface DateRangeValidator {
             }
 
             try {
-                if (!(value instanceof com.vacation.api.domain.vacation.request.VacationSampleRequest)) {
+                if (!(value instanceof VacationSampleRequest)) {
                     return true;
                 }
 
-                com.vacation.api.domain.vacation.request.VacationSampleRequest request = 
-                    (com.vacation.api.domain.vacation.request.VacationSampleRequest) value;
+                VacationSampleRequest request =
+                    (VacationSampleRequest) value;
 
                 LocalDate startDate = request.getStartDate();
                 LocalDate endDate = request.getEndDate();

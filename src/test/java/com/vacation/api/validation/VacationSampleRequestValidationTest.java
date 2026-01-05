@@ -1,6 +1,6 @@
 package com.vacation.api.validation;
 
-import com.vacation.api.domain.vacation.request.VacationSampleRequest;
+import com.vacation.api.domain.sample.request.VacationSampleRequest;
 import com.vacation.api.enums.VacationType;
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.Validator;

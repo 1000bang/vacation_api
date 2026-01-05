@@ -1,4 +1,4 @@
-package com.vacation.api.domain.vacation.request;
+package com.vacation.api.domain.sample.request;
 
 import com.vacation.api.enums.VacationType;
 import com.vacation.api.validation.DateRangeValidator;
@@ -80,5 +80,11 @@ public class VacationSampleRequest {
      */
     @NotNull(message = "신청 연차일수는 필수입니다.")
     private Double requestedVacationDays;
+
+    /**
+     * PDF 변환 여부 (기본값: false, false면 DOCX, true면 PDF 반환)
+     */
+    private Boolean isPdf = false;
+
 }
 

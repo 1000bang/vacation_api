@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8" />
+    <title>월세지원 비용 신청서</title>
+    <style>
+        @page {
+            size: A4;
+            margin: 20mm;
+        }
+        
+        body {
+            font-family: "NanumGothic", "Nanum Gothic", "나눔고딕", "Malgun Gothic", "맑은 고딕", Arial, sans-serif;
+            font-size: 10pt;
+            line-height: 1.6;
+            margin: 0;
+            padding: 0;
+        }
+        
+        * {
+            font-family: "NanumGothic", "Nanum Gothic", "나눔고딕", "Malgun Gothic", "맑은 고딕", Arial, sans-serif;
+        }
+        
+        .company-header {
+            width: 100%;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #ccc;
+            overflow: hidden;
+        }
+        
+        .company-logo-container {
+            float: left;
+            width: 2.8cm;
+        }
+        
+        .company-logo {
+            width: 2.8cm;
+            height: 1.5cm;
+            opacity: 0.9;
+            object-fit: contain;
+        }
+        
+        .company-address {
+            float: right;
+            text-align: right;
+            font-size: 9pt;
+            color: #333;
+            line-height: 1.5;
+        }
+        
+        .clearfix::after {
+            content: "";
+            display: table;
+            clear: both;
+        }
+        
+        .form-title {
+            text-align: center;
+            font-size: 20pt;
+            font-weight: bold;
+            margin: 20px 0;
+        }
+        
+        .main-table {
+            width: 100%;
+            border-collapse: collapse;
+            border: 1px solid #000;
+            margin-bottom: 15px;
+        }
+        
+        .main-table th, .main-table td {
+            border: 1px solid #000;
+            padding: 8px;
+            text-align: center;
+            vertical-align: middle;
+        }
+        
+        .main-table th {
+            background-color: #D9D9D9;
+            font-weight: bold;
+            text-align: center;
+            padding: 8px;
+        }
+        
+        .main-table td {
+            background-color: #fff;
+        }
+        
+        .approval-column {
+            background-color: #CCCCCC;
+            width: 30px;
+            text-align: center;
+            font-weight: bold;
+            vertical-align: middle;
+        }
+        
+        .approval-header {
+            background-color: #CCCCCC;
+            font-weight: bold;
+        }
+        
+        .approval-cell {
+            background-color: #fff;
+            height: 40px;
+        }
+        
+        .text-left {
+            text-align: left;
+            padding-left: 10px;
+        }
+        
+        .text-right {
+            text-align: right;
+            padding-right: 10px;
+        }
+        
+        .notes-cell {
+            text-align: left;
+            padding: 15px;
+            vertical-align: top;
+        }
+        
+        .notes-list {
+            margin-left: 0;
+            margin-top: 10px;
+        }
+        
+        .notes-list div {
+            margin-bottom: 8px;
+            line-height: 1.6;
+        }
+    </style>
+</head>
+<body>
+    <!-- 회사 헤더: 로고와 주소 -->
+    <div class="company-header clearfix">
+        <div class="company-logo-container">
+            <img th:src="${companyLogoBase64}" alt="회사 로고" class="company-logo" />
+        </div>
+        <div class="company-address">
+            <div>㈜날리지포인트 (www.knowledgepoint.co.kr)</div>
+            <div>(137-878) 서울시 서초구 사임당로8길 16, 2층(서초동, 성재빌딩)</div>
+            <div>전화: (070) 4325-4033 팩스: (02) 6937-1035</div>
+        </div>
+    </div>
+    
+    <!-- 제목 -->
+    <div class="form-title">월세지원 비용 신청서 (<span th:text="${month}">12</span>월)</div>
+    
+    <!-- 메인 테이블 -->
+    <table class="main-table">
+        <!-- 첫 번째 행: 문서번호, 결재 -->
+        <tr>
+            <th>문서&nbsp;&nbsp;번호</th>
+            <td th:text="${documentNumber}" style="width: 189px;">KP-20260102-01</td>
+            <td class="approval-column" rowspan="4" style="width: 30px; background-color: #CCCCCC;">
+                <div style="line-height: 1.2; letter-spacing: 5px;">결<br /><br />재</div>
+            </td>
+            <th class="approval-header" style="width: 1%;">담당</th>
+            <th class="approval-header" style="width: 1%;">팀장</th>
+            <th class="approval-header" style="width: 1%;">본부장</th>
+            <th class="approval-header" style="width: 1%;">대표이사</th>
+        </tr>
+        <!-- 두 번째 행: 신청일자 -->
+        <tr>
+            <th>신청&nbsp;&nbsp;일자</th>
+            <td th:text="${requestDate}">2026년 1월 2일</td>
+            <td class="approval-cell" rowspan="2" style="width: 1%;"></td>
+            <td class="approval-cell" rowspan="2" style="width: 1%;"></td>
+            <td class="approval-cell" rowspan="2" style="width: 1%;"></td>
+            <td class="approval-cell" rowspan="2" style="width: 1%;"></td>
+        </tr>
+        <!-- 세 번째 행: 소속 -->
+        <tr>
+            <th>소&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;속</th>
+            <td th:text="${department}" style="white-space: nowrap; overflow: hidden;">서비스 본부/ 서비스개발 2팀</td>
+        </tr>
+        <!-- 네 번째 행: 신청자 -->
+        <tr>
+            <th>신&nbsp;&nbsp;청&nbsp;&nbsp;자</th>
+            <td th:text="${applicant}">천병재</td>
+            <td class="approval-cell" style="width: 1%;"></td>
+            <td class="approval-cell" style="width: 1%;"></td>
+            <td class="approval-cell" style="width: 1%;"></td>
+            <td class="approval-cell" style="width: 1%;"></td>
+        </tr>
+        <!-- 다섯 번째 행: 신청 내용 -->
+        <tr>
+            <td class="text-left" colspan="7" style="text-align: center; padding-left: 10px;">
+                아래와 같이 월세지원 비용을 신청합니다.
+            </td>
+        </tr>
+        <!-- 여섯 번째 행: 월세 총 계약 기간 -->
+        <tr>
+            <th>월세 총 계약 기간</th>
+            <td class="text-left" colspan="4" th:text="${contractPeriod}">2025년 06월 27일 - 2027년 06월 27일</td>
+            <td colspan="2" th:text="'(총 계약 기간 : ' + ${contractYears} + ' 년)'">(총 계약 기간 : 02 년)</td>
+        </tr>
+        <!-- 일곱 번째 행: 계약 월세 금액 -->
+        <tr>
+            <th>계약 월세 금액(원)</th>
+            <td class="text-right" th:text="${#numbers.formatInteger(contractMonthlyRent, 0, 'COMMA')}">350,000</td>
+            <td colspan="2">선불/후불</td>
+            <td th:text="${paymentType}">후불</td>
+            <td colspan="2"></td>
+        </tr>
+        <!-- 여덟 번째 행: 월세 청구 개시일 -->
+        <tr>
+            <th>월세 청구 개시일</th>
+            <td class="text-left" th:text="${billingStartDate}">2025년 6월 27일</td>
+            <td colspan="5"></td>
+        </tr>
+        <!-- 열 번째 행: 청구 월세 기간 -->
+        <tr>
+            <th>청구 월세 기간</th>
+            <td class="text-left" th:text="${billingPeriodStart}">2025.11.27</td>
+            <td style="width: 30px;">~</td>
+            <td class="text-left" th:text="${billingPeriodEnd}">2025.12.26</td>
+            <td th:text="'(' + ${billingDays} + '/' + ${billingDays} + ' 일)'">(30/30 일)</td>
+            <td th:text="${billingPercentage} + '%'">100.00%</td>
+            <td></td>
+        </tr>
+        <!-- 열한 번째 행: 월세 납입일 -->
+        <tr>
+            <th>월세 납입일</th>
+            <td class="text-left" th:text="${paymentDate}">2025.12.27</td>
+            <td></td>
+            <th>월세 납입 금액(원)</th>
+            <td class="text-right" th:text="${#numbers.formatInteger(paymentAmount, 0, 'COMMA')}">300,000</td>
+            <td></td>
+            <td></td>
+        </tr>
+        <!-- 열두 번째 행: 월세 청구 금액 -->
+        <tr>
+            <th>월세 청구 금액</th>
+            <td class="text-right" th:text="${#numbers.formatInteger(billingAmount, 0, 'COMMA')}">150,000</td>
+            <td></td>
+            <td>원</td>
+            <td></td>
+            <td></td>
+        </tr>
+        <!-- 열세 번째 행: 비고 -->
+        <tr>
+            <th>비&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;고</th>
+            <td class="notes-cell" colspan="6">
+                <div class="notes-list">
+                    <div>
+                        1. "월세 지원 비용" 청구는 사전 "월세 지원 요청 품의서"의 결제가 완료 되었을 경우에만 가능합니다.
+                    </div>
+                    <div>
+                        2. "월세 청구 개시일"은 결제 완료된 "월세 지원 요청 품의서"를 참조하며, "월세 청구 개시일" 이전의 월세는 청구 금액에서 제외 됩니다.
+                    </div>
+                    <div>
+                        3. 기존 "월세 계약"에 변경(해지/변경/종료 등) 사항이 있을 경우, 변경된 "월세 계약"에 대해 신규 품의 및 결재 후 "월세 지원 비용" 청구가 가능합니다.
+                    </div>
+                    <div>
+                        4. "월세 지원 비용"은 월세 금액의 50%(최대 금액 250,000원) 까지 신청 가능합니다.
+                    </div>
+                    <div>
+                        5. 요청한 "월세 지원 비용"은 청구 익월 급여일에 지급됩니다.
+                    </div>
+                </div>
+                <div style="margin-top: 15px;">
+                    ※ 첨부 문서 - 월세 지급 증빙 자료 (카드영수증, 현금 영수증, 이체확인증 등)
+                </div>
+            </td>
+        </tr>
+    </table>
+</body>
+</html>
+

@@ -213,7 +213,7 @@
         <!-- 두 번째 행: 신청일자 -->
         <tr>
             <th>신청&nbsp;&nbsp;일자</th>
-            <td th:text="${applicationDate}">2025년 09월 01일</td>
+            <td th:text="${requestDate}">2025년 09월 01일</td>
             <td class="approval-cell" rowspan="2"></td>
             <td class="approval-cell" rowspan="2"></td>
             <td class="approval-cell" rowspan="2"></td>
@@ -237,7 +237,7 @@
         <tr>
             <th>기&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;간</th>
             <td class="period-cell" colspan="4" th:text="${period}">2025년 09월 05일 ~ 2025년 09월 05일</td>
-            <td colspan="2" style="text-align: center; font-weight: bold;">( 1 ) 일간</td>
+            <td colspan="2" style="text-align: center; font-weight: bold;" th:text="'(' + ${reqDays} + ') 일간'">( 1 ) 일간</td>
         </tr>
         <!-- 여섯 번째 행: 휴가 구분 -->
         <tr>
@@ -303,7 +303,7 @@
                         2. 경조/출산/병가/기타 등 별도 품의에 의해 인가 받은 휴가는 연차 사용 일수에 포함 안됨.
                     </div>
                     <div style="margin-bottom: 8px;">
-                        3. "해당 연도의 총 연차일수" 와 "직전 잔여 연차 일수"는 소속 팀장/본부장 등을 통하여 정확한 일수를 확인 후 기입 하여야 함.
+                        3. <span style="color: red; text-decoration: underline;">"해당 연도의 총 연차일수"</span> 와 <span style="color: red; text-decoration: underline;">"직전 잔여 연차 일수"</span>는 소속 팀장/본부장 등을 통하여 정확한 일수를 확인 후 기입 하여야 함.
                     </div>
                     <div class="notes-list-spacer"></div>
                 </div>
