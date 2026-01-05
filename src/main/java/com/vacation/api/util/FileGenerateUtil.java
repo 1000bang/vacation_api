@@ -2,13 +2,15 @@ package com.vacation.api.util;
 
 import com.vacation.api.domain.sample.request.RentalSupportSampleRequest;
 import com.vacation.api.domain.sample.request.VacationSampleRequest;
+import com.vacation.api.enums.DocumentPlaceholder;
+import com.vacation.api.enums.SignaturePlaceholder;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.poi.ss.usermodel.*;
-import org.apache.poi.xssf.usermodel.XSSFRichTextString;
-import org.apache.poi.xssf.usermodel.XSSFWorkbook;
+import org.apache.poi.xssf.usermodel.*;
 import org.apache.poi.xwpf.usermodel.*;
 import org.springframework.core.io.ClassPathResource;
 
+import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 import java.time.LocalDate;
@@ -35,6 +37,17 @@ public class FileGenerateUtil {
      * @return DOCX 바이트 배열
      */
     public static byte[] generateVacationApplicationDoc(VacationSampleRequest request) {
+        return generateVacationApplicationDoc(request, null);
+    }
+
+    /**
+     * 연차 신청서 Doc 생성 (서명 이미지 맵 포함)
+     *
+     * @param request 연차 신청 요청 데이터
+     * @param signatureImageMap 서명 이미지 맵 (플레이스홀더 -> 이미지 바이트 배열, null이면 빈 문자열로 치환)
+     * @return DOCX 바이트 배열
+     */
+    public static byte[] generateVacationApplicationDoc(VacationSampleRequest request, Map<String, byte[]> signatureImageMap) {
         try {
             // 템플릿 파일 로드 (resources/templates/vacation-application.docx)
             // .docx 형식만 지원합니다. .doc 파일은 .docx로 변환해주세요.
@@ -65,19 +78,19 @@ public class FileGenerateUtil {
             
             // 데이터 매핑
             Map<String, String> values = new HashMap<>();
-            values.put("{{DOCUMENT_NUMBER}}", documentNumber);
-            values.put("{{REQUEST_DATE}}", formatDate(request.getRequestDate()));
-            values.put("{{DEPARTMENT}}", request.getDepartment());
-            values.put("{{APPLICANT}}", request.getApplicant());
-            values.put("{{PERIOD}}", period);
-            values.put("{{REQDAYS}}", formatVacationDays(request.getRequestedVacationDays()));
-            values.put("{{VACATION_TYPE}}", request.getVacationType().getValue());
-            values.put("{{REASON}}", request.getReason() != null ? request.getReason() : "");
-            values.put("{{TOTAL_VACATION_DAYS}}", formatVacationDays(request.getTotalVacationDays()));
-            values.put("{{PREVIOUS_REMAINING_DAYS}}", formatVacationDays(request.getRemainingVacationDays()));
-            values.put("{{REQUESTED_VACATION_DAYS}}", formatVacationDays(request.getRequestedVacationDays()));
-            values.put("{{FINAL_REMAINING_DAYS}}", formatVacationDays(finalRemainingDays));
-            values.put("{{CURRENT_YEAR}}", String.valueOf(currentYear));
+            values.put(DocumentPlaceholder.DOCUMENT_NUMBER.getPlaceholder(), documentNumber);
+            values.put(DocumentPlaceholder.REQUEST_DATE.getPlaceholder(), formatDate(request.getRequestDate()));
+            values.put(DocumentPlaceholder.DEPARTMENT.getPlaceholder(), request.getDepartment());
+            values.put(DocumentPlaceholder.APPLICANT.getPlaceholder(), request.getApplicant());
+            values.put(DocumentPlaceholder.PERIOD.getPlaceholder(), period);
+            values.put(DocumentPlaceholder.REQDAYS.getPlaceholder(), formatVacationDays(request.getRequestedVacationDays()));
+            values.put(DocumentPlaceholder.VACATION_TYPE.getPlaceholder(), request.getVacationType().getValue());
+            values.put(DocumentPlaceholder.REASON.getPlaceholder(), request.getReason() != null ? request.getReason() : "");
+            values.put(DocumentPlaceholder.TOTAL_VACATION_DAYS.getPlaceholder(), formatVacationDays(request.getTotalVacationDays()));
+            values.put(DocumentPlaceholder.PREVIOUS_REMAINING_DAYS.getPlaceholder(), formatVacationDays(request.getRemainingVacationDays()));
+            values.put(DocumentPlaceholder.REQUESTED_VACATION_DAYS.getPlaceholder(), formatVacationDays(request.getRequestedVacationDays()));
+            values.put(DocumentPlaceholder.FINAL_REMAINING_DAYS.getPlaceholder(), formatVacationDays(finalRemainingDays));
+            values.put(DocumentPlaceholder.CURRENT_YEAR.getPlaceholder(), String.valueOf(currentYear));
 
             // 문단(Paragraph) 치환
             for (XWPFParagraph paragraph : document.getParagraphs()) {
@@ -94,6 +107,9 @@ public class FileGenerateUtil {
                     }
                 }
             }
+
+            // 서명 이미지 치환 (8개 플레이스홀더)
+            replaceSignatureImagesInDocument(document, signatureImageMap);
 
             // ByteArrayOutputStream에 문서 쓰기
             ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
@@ -116,6 +132,17 @@ public class FileGenerateUtil {
      * @return XLSX 바이트 배열
      */
     public static byte[] generateRentalSupportApplicationExcel(RentalSupportSampleRequest request) {
+        return generateRentalSupportApplicationExcel(request, null);
+    }
+
+    /**
+     * 월세지원 청구서 Excel 생성 (서명 이미지 맵 포함)
+     *
+     * @param request 월세지원 청구 요청 데이터
+     * @param signatureImageMap 서명 이미지 맵 (플레이스홀더 -> 이미지 바이트 배열, null이면 빈 문자열로 치환)
+     * @return XLSX 바이트 배열
+     */
+    public static byte[] generateRentalSupportApplicationExcel(RentalSupportSampleRequest request, Map<String, byte[]> signatureImageMap) {
         try {
             // 템플릿 파일 로드 (resources/templates/rental-support-application.xlsx)
             ClassPathResource templateResource = new ClassPathResource("templates/rental-support-application.xlsx");
@@ -157,29 +184,32 @@ public class FileGenerateUtil {
             
             // 데이터 매핑
             Map<String, String> values = new HashMap<>();
-            values.put("{{DOCUMENT_NUMBER}}", documentNumber);
-            values.put("{{REQUEST_DATE}}", formatDate(request.getRequestDate()));
-            values.put("{{DEPARTMENT}}", request.getDepartment());
-            values.put("{{APPLICANT}}", request.getApplicant());
-            values.put("{{CONTRACT_PERIOD}}", contractPeriod);
-            values.put("{{CONTRACT_YEARS}}", String.valueOf(contractYears));
-            values.put("{{CONTRACT_MONTHLY_RENT}}", formatNumber(request.getContractMonthlyRent()));
-            values.put("{{PAYMENT_TYPE}}", request.getPaymentType().getValue());
-            values.put("{{BILLING_START_DATE}}", formatDate(request.getBillingStartDate()));
-            values.put("{{BILLING_PERIOD_START}}", formatDateShort(request.getBillingPeriodStartDate()));
-            values.put("{{BILLING_PERIOD_END}}", formatDateShort(request.getBillingPeriodEndDate()));
-            values.put("{{BILLING_DAYS}}", billingDaysFormatted);
-            values.put("{{BILLING_PERCENTAGE}}", String.format("%.2f", billingPercentage)+"%");
-            values.put("{{PAYMENT_DATE}}", formatDateShort(request.getPaymentDate()));
-            values.put("{{PAYMENT_AMOUNT}}", formatNumber(request.getPaymentAmount()));
-            values.put("{{BILLING_AMOUNT}}", formatNumber(request.getBillingAmount()));
-            values.put("{{MONTH}}", "( "+String.valueOf(currentMonth)+" 월)");
+            values.put(DocumentPlaceholder.DOCUMENT_NUMBER.getPlaceholder(), documentNumber);
+            values.put(DocumentPlaceholder.REQUEST_DATE.getPlaceholder(), formatDate(request.getRequestDate()));
+            values.put(DocumentPlaceholder.DEPARTMENT.getPlaceholder(), request.getDepartment());
+            values.put(DocumentPlaceholder.APPLICANT.getPlaceholder(), request.getApplicant());
+            values.put(DocumentPlaceholder.CONTRACT_PERIOD.getPlaceholder(), contractPeriod);
+            values.put(DocumentPlaceholder.CONTRACT_YEARS.getPlaceholder(), String.valueOf(contractYears));
+            values.put(DocumentPlaceholder.CONTRACT_MONTHLY_RENT.getPlaceholder(), formatNumber(request.getContractMonthlyRent()));
+            values.put(DocumentPlaceholder.PAYMENT_TYPE.getPlaceholder(), request.getPaymentType().getValue());
+            values.put(DocumentPlaceholder.BILLING_START_DATE.getPlaceholder(), formatDate(request.getBillingStartDate()));
+            values.put(DocumentPlaceholder.BILLING_PERIOD_START.getPlaceholder(), formatDateShort(request.getBillingPeriodStartDate()));
+            values.put(DocumentPlaceholder.BILLING_PERIOD_END.getPlaceholder(), formatDateShort(request.getBillingPeriodEndDate()));
+            values.put(DocumentPlaceholder.BILLING_DAYS.getPlaceholder(), billingDaysFormatted);
+            values.put(DocumentPlaceholder.BILLING_PERCENTAGE.getPlaceholder(), String.format("%.2f", billingPercentage)+"%");
+            values.put(DocumentPlaceholder.PAYMENT_DATE.getPlaceholder(), formatDateShort(request.getPaymentDate()));
+            values.put(DocumentPlaceholder.PAYMENT_AMOUNT.getPlaceholder(), formatNumber(request.getPaymentAmount()));
+            values.put(DocumentPlaceholder.BILLING_AMOUNT.getPlaceholder(), formatNumber(request.getBillingAmount()));
+            values.put(DocumentPlaceholder.MONTH.getPlaceholder(), "( "+String.valueOf(currentMonth)+" 월)");
 
-            // 모든 시트를 순회하며 텍스트 치환
+            // 모든 시트를 순회하며 텍스트 치환 및 이미지 치환
             for (int sheetIndex = 0; sheetIndex < workbook.getNumberOfSheets(); sheetIndex++) {
                 Sheet sheet = workbook.getSheetAt(sheetIndex);
                 replaceTextInSheet(sheet, values);
             }
+
+            // 서명 이미지 치환 (8개 플레이스홀더)
+            replaceSignatureImagesInWorkbook(workbook, signatureImageMap);
 
             // ByteArrayOutputStream에 Excel 쓰기
             ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
@@ -305,6 +335,210 @@ public class FileGenerateUtil {
                 }
             }
             run.setText(text, 0);
+        }
+    }
+
+    /**
+     * 서명 이미지 로드
+     */
+    private static byte[] loadSignatureImage() {
+        try {
+            ClassPathResource imageResource = new ClassPathResource("templates/천병재.png");
+            if (!imageResource.exists()) {
+                log.warn("서명 이미지를 찾을 수 없습니다: templates/천병재.png");
+                return null;
+            }
+            try (InputStream imageStream = imageResource.getInputStream()) {
+                return imageStream.readAllBytes();
+            }
+        } catch (Exception e) {
+            log.error("서명 이미지 로드 중 오류 발생", e);
+            return null;
+        }
+    }
+
+    /**
+     * DOCX 문서에서 서명 이미지 치환
+     */
+    private static void replaceSignatureImagesInDocument(XWPFDocument document, Map<String, byte[]> signatureImageMap) {
+        if (signatureImageMap == null) {
+            signatureImageMap = new HashMap<>();
+        }
+
+        // 모든 서명 플레이스홀더 목록
+        SignaturePlaceholder[] signaturePlaceholders = SignaturePlaceholder.getAll();
+
+        for (SignaturePlaceholder sigPlaceholder : signaturePlaceholders) {
+            String placeholder = sigPlaceholder.getPlaceholder();
+            byte[] imageBytes = signatureImageMap.get(placeholder);
+            
+            // 문단에서 치환
+            for (XWPFParagraph paragraph : document.getParagraphs()) {
+                if (imageBytes != null) {
+                    replaceTextWithImageInParagraph(paragraph, placeholder, imageBytes, sigPlaceholder);
+                } else {
+                    replaceTextInParagraph(paragraph, Map.of(placeholder, ""));
+                }
+            }
+
+            // 테이블에서 치환
+            for (XWPFTable table : document.getTables()) {
+                for (XWPFTableRow row : table.getRows()) {
+                    for (XWPFTableCell cell : row.getTableCells()) {
+                        for (XWPFParagraph paragraph : cell.getParagraphs()) {
+                            if (imageBytes != null) {
+                                replaceTextWithImageInParagraph(paragraph, placeholder, imageBytes, sigPlaceholder);
+                            } else {
+                                replaceTextInParagraph(paragraph, Map.of(placeholder, ""));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * XLSX 워크북에서 서명 이미지 치환
+     */
+    private static void replaceSignatureImagesInWorkbook(Workbook workbook, Map<String, byte[]> signatureImageMap) {
+        if (signatureImageMap == null) {
+            signatureImageMap = new HashMap<>();
+        }
+
+        // 모든 서명 플레이스홀더 목록
+        SignaturePlaceholder[] signaturePlaceholders = SignaturePlaceholder.getAll();
+
+        for (int sheetIndex = 0; sheetIndex < workbook.getNumberOfSheets(); sheetIndex++) {
+            Sheet sheet = workbook.getSheetAt(sheetIndex);
+            
+            for (SignaturePlaceholder sigPlaceholder : signaturePlaceholders) {
+                String placeholder = sigPlaceholder.getPlaceholder();
+                byte[] imageBytes = signatureImageMap.get(placeholder);
+                
+                if (imageBytes != null) {
+                    replaceTextWithImageInSheet(sheet, placeholder, imageBytes, sigPlaceholder);
+                } else {
+                    // 빈 문자열로 치환
+                    for (Row row : sheet) {
+                        for (Cell cell : row) {
+                            if (cell != null && cell.getCellType() == CellType.STRING) {
+                                String cellValue = cell.getStringCellValue();
+                                if (cellValue != null && cellValue.contains(placeholder)) {
+                                    cell.setCellValue(cellValue.replace(placeholder, ""));
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * DOCX 문단에서 텍스트를 이미지로 치환
+     * 
+     * @param paragraph 문단
+     * @param placeholder 플레이스홀더
+     * @param imageBytes 이미지 바이트 배열
+     * @param sigPlaceholder 서명 플레이스홀더 Enum
+     */
+    private static void replaceTextWithImageInParagraph(XWPFParagraph paragraph, String placeholder, byte[] imageBytes, SignaturePlaceholder sigPlaceholder) {
+        for (XWPFRun run : paragraph.getRuns()) {
+            String text = run.getText(0);
+            if (text == null || !text.contains(placeholder)) {
+                continue;
+            }
+
+            // 플레이스홀더 제거
+            String newText = text.replace(placeholder, "");
+            run.setText(newText, 0);
+
+            // 이미지 추가
+            try (ByteArrayInputStream imageStream = new ByteArrayInputStream(imageBytes)) {
+                // SignatureSize Enum에서 크기 정보 가져오기
+                SignaturePlaceholder.SignatureSize sigSize = sigPlaceholder.getSize();
+                
+                int widthEMU = sigSize.getDocxWidthEMU();
+                int heightEMU = sigSize.getDocxHeightEMU();
+                
+                run.addPicture(imageStream, XWPFDocument.PICTURE_TYPE_PNG, "signature", widthEMU, heightEMU);
+            } catch (Exception e) {
+                log.error("DOCX에 이미지 추가 중 오류 발생", e);
+            }
+        }
+    }
+
+    /**
+     * XLSX 시트에서 텍스트를 이미지로 치환
+     * 
+     * @param sheet 시트
+     * @param placeholder 플레이스홀더
+     * @param imageBytes 이미지 바이트 배열
+     * @param sigPlaceholder 서명 플레이스홀더 Enum
+     */
+    private static void replaceTextWithImageInSheet(Sheet sheet, String placeholder, byte[] imageBytes, SignaturePlaceholder sigPlaceholder) {
+        if (!(sheet instanceof XSSFSheet)) {
+            return;
+        }
+
+        XSSFSheet xssfSheet = (XSSFSheet) sheet;
+        XSSFWorkbook workbook = xssfSheet.getWorkbook();
+
+        // SignatureSize Enum에서 크기 정보 가져오기
+        SignaturePlaceholder.SignatureSize sigSize = sigPlaceholder.getSize();
+        
+        double widthInches = sigSize.getXlsxWidthInches();
+        double heightInches = sigSize.getXlsxHeightInches();
+
+        // 이미지를 workbook에 한 번만 추가
+        int pictureIdx = workbook.addPicture(imageBytes, Workbook.PICTURE_TYPE_PNG);
+
+        // Drawing 객체 가져오기 또는 생성
+        XSSFDrawing drawing = xssfSheet.createDrawingPatriarch();
+        if (drawing == null) {
+            drawing = xssfSheet.getDrawingPatriarch();
+        }
+
+        // 플레이스홀더가 있는 첫 번째 셀에만 이미지 삽입
+        boolean imageInserted = false;
+        for (Row row : xssfSheet) {
+            for (Cell cell : row) {
+                if (cell == null || cell.getCellType() != CellType.STRING) {
+                    continue;
+                }
+
+                String cellValue = cell.getStringCellValue();
+                if (cellValue == null || !cellValue.contains(placeholder)) {
+                    continue;
+                }
+
+                // 텍스트 제거
+                cell.setCellValue(cellValue.replace(placeholder, ""));
+
+                // 이미지는 첫 번째 매칭된 셀에만 삽입
+                if (!imageInserted) {
+                    try {
+                        // 이미지 위치 설정 (셀에 맞춤)
+                        // dx1, dy1: 시작 위치 (0, 0)
+                        // dx2, dy2: 종료 위치 (인치를 EMU로 변환: 1인치 = 914400 EMU)
+                        XSSFClientAnchor anchor = new XSSFClientAnchor(
+                            0, 0,
+                            (int)(widthInches * 914400), (int)(heightInches * 914400),
+                            (short) cell.getColumnIndex(),
+                            cell.getRowIndex(),
+                            (short) (cell.getColumnIndex() + 1),
+                            cell.getRowIndex() + 1
+                        );
+
+                        // 이미지 삽입
+                        drawing.createPicture(anchor, pictureIdx);
+                        imageInserted = true;
+                    } catch (Exception e) {
+                        log.error("XLSX에 이미지 추가 중 오류 발생", e);
+                    }
+                }
+            }
         }
     }
 }
