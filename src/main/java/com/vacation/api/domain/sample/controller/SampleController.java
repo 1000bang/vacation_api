@@ -1,5 +1,7 @@
 package com.vacation.api.domain.sample.controller;
 
+import com.vacation.api.domain.sample.request.ExpenseClaimSampleRequest;
+import com.vacation.api.domain.sample.request.RentalSupportPropSampleRequest;
 import com.vacation.api.domain.sample.request.RentalSupportSampleRequest;
 import com.vacation.api.domain.sample.request.VacationSampleRequest;
 import com.vacation.api.domain.sample.service.SampleService;
@@ -130,10 +132,10 @@ public class SampleController {
         }
     }
     /**
-     * 월세지원 청구서 API - PDF 문서 반환
+     * 월세지원 청구서 API - Excel 문서 반환
      *
      * @param request 월세지원 청구 요청 데이터
-     * @return PDF 문서
+     * @return Excel 문서
      */
     @PostMapping("/rental_V2")
     public ResponseEntity<byte[]> rentalSupportRequestV2(@Valid @RequestBody RentalSupportSampleRequest request) {
@@ -155,7 +157,79 @@ public class SampleController {
                     .headers(headers)
                     .body(excelBytes);
         } catch (Exception e) {
-            logger.error("PDF 생성 중 오류 발생", e);
+            logger.error("Excel 생성 중 오류 발생", e);
+            return ResponseEntity.internalServerError().build();
+        }
+    }
+
+    /**
+     * 월세지원 품의서 API - DOCX 문서 반환
+     *
+     * @param request 월세지원 품의서 요청 데이터
+     * @return DOCX 문서
+     */
+    @PostMapping("/rental_proposal")
+    public ResponseEntity<byte[]> rentalSupportProposalRequest(@Valid @RequestBody RentalSupportPropSampleRequest request) {
+        logger.info("월세지원 품의서 요청 수신: {}", request);
+
+        try {
+            // DOCX 파일 생성
+            byte[] docBytes = sampleService.generateRentalSupportProposalDoc(request);
+
+            String dateStr = request.getRequestDate().format(DateTimeFormatter.ofPattern("yyyyMMdd"));
+            String fileName = "rental_support_proposal_" + dateStr + ".docx";
+            String encodedFileName = URLEncoder.encode(fileName, StandardCharsets.UTF_8)
+                    .replace("+", "%20");
+
+            // HTTP 헤더 설정
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.wordprocessingml.document"));
+            headers.set(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=" + encodedFileName);
+            headers.setContentLength(docBytes.length);
+
+            logger.info("품의서 DOCX 생성 완료. 크기: {} bytes", docBytes.length);
+
+            return ResponseEntity.ok()
+                    .headers(headers)
+                    .body(docBytes);
+        } catch (Exception e) {
+            logger.error("품의서 DOCX 생성 중 오류 발생", e);
+            return ResponseEntity.internalServerError().build();
+        }
+    }
+
+    /**
+     * 업무관련 개인 비용 청구서 API - Excel 문서 반환
+     *
+     * @param request 업무관련 개인 비용 청구서 요청 데이터
+     * @return Excel 문서
+     */
+    @PostMapping("/expense_claim")
+    public ResponseEntity<byte[]> expenseClaimRequest(@Valid @RequestBody ExpenseClaimSampleRequest request) {
+        logger.info("업무관련 개인 비용 청구서 요청 수신: {}", request);
+
+        try {
+            // Excel 생성
+            byte[] excelBytes = sampleService.generateExpenseClaimExcel(request);
+
+            String dateStr = request.getRequestDate().format(DateTimeFormatter.ofPattern("yyyyMMdd"));
+            String fileName = "expense_claim_" + dateStr + ".xlsx";
+            String encodedFileName = URLEncoder.encode(fileName, StandardCharsets.UTF_8)
+                    .replace("+", "%20");
+
+            // HTTP 헤더 설정
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"));
+            headers.set(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=" + encodedFileName);
+            headers.setContentLength(excelBytes.length);
+
+            logger.info("비용 청구서 Excel 생성 완료. 크기: {} bytes", excelBytes.length);
+
+            return ResponseEntity.ok()
+                    .headers(headers)
+                    .body(excelBytes);
+        } catch (Exception e) {
+            logger.error("비용 청구서 Excel 생성 중 오류 발생", e);
             return ResponseEntity.internalServerError().build();
         }
     }

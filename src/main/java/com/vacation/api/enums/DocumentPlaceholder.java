@@ -38,7 +38,25 @@ public enum DocumentPlaceholder {
     PAYMENT_DATE("{{PAYMENT_DATE}}"),
     PAYMENT_AMOUNT("{{PAYMENT_AMOUNT}}"),
     BILLING_AMOUNT("{{BILLING_AMOUNT}}"),
-    MONTH("{{MONTH}}");
+    MONTH("{{MONTH}}"),
+
+    // 월세지원 품의서 (DOCX)
+    CURRENT_ADDRESS("{{CURRENT_ADDRESS}}"),
+    RENTAL_ADDRESS("{{RENTAL_ADDRESS}}"),
+    CONTRACT_MONTH("{{CONTRACT_MONTH}}"),
+
+    // 테이블 헤더
+    USAGE_DETAIL("{{USAGE_DETAIL}}"),
+    VENDOR("{{VENDOR}}"),
+    PAYMENT_METHOD("{{PAYMENT_METHOD}}"),
+    PROJECT("{{PROJECT}}"),
+    AMOUNT("{{AMOUNT}}"),
+    NOTE("{{NOTE}}"),
+
+    // 업무관련 개인 비용 청구서
+    DEPARTMENT_NAME("{{DEPARTMENT_NAME}}"),
+    DATE("{{DATE}}"),
+    TOTAL_AMOUNT("{{TOTAL_AMOUNT}}");
 
     private final String placeholder;
 

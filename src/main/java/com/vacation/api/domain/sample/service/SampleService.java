@@ -1,5 +1,7 @@
 package com.vacation.api.domain.sample.service;
 
+import com.vacation.api.domain.sample.request.ExpenseClaimSampleRequest;
+import com.vacation.api.domain.sample.request.RentalSupportPropSampleRequest;
 import com.vacation.api.domain.sample.request.RentalSupportSampleRequest;
 import com.vacation.api.domain.sample.request.VacationSampleRequest;
 import com.vacation.api.enums.SignaturePlaceholder;
@@ -79,6 +81,36 @@ public class SampleService {
         Map<String, byte[]> signatureImageMap = createSampleSignatureImageMap();
         
         return FileGenerateUtil.generateRentalSupportApplicationExcel(request, signatureImageMap);
+    }
+
+    /**
+     * 월세지원 품의서 DOCX 생성
+     *
+     * @param request 월세지원 품의서 요청 데이터
+     * @return DOCX 바이트 배열
+     */
+    public byte[] generateRentalSupportProposalDoc(RentalSupportPropSampleRequest request) {
+        log.info("월세지원 품의서 DOCX 생성 요청: {}", request);
+        
+        // Sample에서는 DAM_SIG1, DAM_SIG2만 이미지로 채우고 나머지는 빈 문자열
+        Map<String, byte[]> signatureImageMap = createSampleSignatureImageMap();
+        
+        return FileGenerateUtil.generateRentalSupportProposalDoc(request, signatureImageMap);
+    }
+
+    /**
+     * 업무관련 개인 비용 청구서 Excel 생성
+     *
+     * @param request 업무관련 개인 비용 청구서 요청 데이터
+     * @return XLSX 바이트 배열
+     */
+    public byte[] generateExpenseClaimExcel(ExpenseClaimSampleRequest request) {
+        log.info("업무관련 개인 비용 청구서 Excel 생성 요청: {}", request);
+        
+        // Sample에서는 DAM_SIG1, DAM_SIG2만 이미지로 채우고 나머지는 빈 문자열
+        Map<String, byte[]> signatureImageMap = createSampleSignatureImageMap();
+        
+        return FileGenerateUtil.generateExpenseClaimExcel(request, signatureImageMap);
     }
 
     /**

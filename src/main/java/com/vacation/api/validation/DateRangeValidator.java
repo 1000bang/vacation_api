@@ -52,19 +52,20 @@ public @interface DateRangeValidator {
                     return true; // @NotNull로 처리
                 }
 
-                // 시작일이 종료일보다 이후일 수 없음
-                if (startDate.isAfter(endDate)) {
+                // 신청일자 <= 시작일 <= 종료일 검증
+                // 시작일이 신청일보다 이전일 수 없음
+                if (startDate.isBefore(referenceDate)) {
                     context.disableDefaultConstraintViolation();
-                    context.buildConstraintViolationWithTemplate("시작일은 종료일보다 이후일 수 없습니다.")
+                    context.buildConstraintViolationWithTemplate("시작일은 신청일보다 이전일 수 없습니다.")
                             .addPropertyNode("startDate")
                             .addConstraintViolation();
                     return false;
                 }
 
-                // 시작일과 종료일이 신청일보다 이후일 수 없음
-                if (startDate.isAfter(referenceDate) || endDate.isAfter(referenceDate)) {
+                // 시작일이 종료일보다 이후일 수 없음
+                if (startDate.isAfter(endDate)) {
                     context.disableDefaultConstraintViolation();
-                    context.buildConstraintViolationWithTemplate("휴가 기간은 신청일보다 이후일 수 없습니다.")
+                    context.buildConstraintViolationWithTemplate("시작일은 종료일보다 이후일 수 없습니다.")
                             .addPropertyNode("startDate")
                             .addConstraintViolation();
                     return false;

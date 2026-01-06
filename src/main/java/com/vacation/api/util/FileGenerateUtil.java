@@ -1,5 +1,8 @@
 package com.vacation.api.util;
 
+import com.vacation.api.domain.sample.request.ExpenseClaimSampleRequest;
+import com.vacation.api.domain.sample.request.ExpenseItem;
+import com.vacation.api.domain.sample.request.RentalSupportPropSampleRequest;
 import com.vacation.api.domain.sample.request.RentalSupportSampleRequest;
 import com.vacation.api.domain.sample.request.VacationSampleRequest;
 import com.vacation.api.enums.DocumentPlaceholder;
@@ -16,6 +19,7 @@ import java.io.InputStream;
 import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import static com.vacation.api.util.CommonUtil.*;
@@ -29,6 +33,13 @@ import static com.vacation.api.util.CommonUtil.*;
  */
 @Slf4j
 public class FileGenerateUtil {
+
+    /**
+     * 서명 기능 활성화 여부
+     * false: 서명 기능 비활성화 (현재 설정)
+     * true: 서명 기능 활성화
+     */
+    private static final boolean isSig = false;
 
     /**
      * 연차 신청서 Doc 생성
@@ -92,6 +103,13 @@ public class FileGenerateUtil {
             values.put(DocumentPlaceholder.FINAL_REMAINING_DAYS.getPlaceholder(), formatVacationDays(finalRemainingDays));
             values.put(DocumentPlaceholder.CURRENT_YEAR.getPlaceholder(), String.valueOf(currentYear));
 
+            // 서명 플레이스홀더 처리 (isSig가 false이면 빈 문자열로 치환)
+            if (!isSig) {
+                for (SignaturePlaceholder sigPlaceholder : SignaturePlaceholder.values()) {
+                    values.put(sigPlaceholder.getPlaceholder(), "");
+                }
+            }
+
             // 문단(Paragraph) 치환
             for (XWPFParagraph paragraph : document.getParagraphs()) {
                 replaceTextInParagraph(paragraph, values);
@@ -109,7 +127,9 @@ public class FileGenerateUtil {
             }
 
             // 서명 이미지 치환 (8개 플레이스홀더)
-            replaceSignatureImagesInDocument(document, signatureImageMap);
+            if (isSig) {
+                replaceSignatureImagesInDocument(document, signatureImageMap);
+            }
 
             // ByteArrayOutputStream에 문서 쓰기
             ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
@@ -133,6 +153,105 @@ public class FileGenerateUtil {
      */
     public static byte[] generateRentalSupportApplicationExcel(RentalSupportSampleRequest request) {
         return generateRentalSupportApplicationExcel(request, null);
+    }
+
+    /**
+     * 월세지원 품의서 Doc 생성
+     *
+     * @param request 월세지원 품의서 요청 데이터
+     * @return DOCX 바이트 배열
+     */
+    public static byte[] generateRentalSupportProposalDoc(RentalSupportPropSampleRequest request) {
+        return generateRentalSupportProposalDoc(request, null);
+    }
+
+    /**
+     * 월세지원 품의서 Doc 생성 (서명 이미지 맵 포함)
+     *
+     * @param request 월세지원 품의서 요청 데이터
+     * @param signatureImageMap 서명 이미지 맵 (플레이스홀더 -> 이미지 바이트 배열, null이면 빈 문자열로 치환)
+     * @return DOCX 바이트 배열
+     */
+    public static byte[] generateRentalSupportProposalDoc(RentalSupportPropSampleRequest request, Map<String, byte[]> signatureImageMap) {
+        try {
+            // 템플릿 파일 로드 (resources/templates/rental-support-proposal.docx)
+            ClassPathResource templateResource = new ClassPathResource("templates/rental-support-proposal.docx");
+            
+            if (!templateResource.exists()) {
+                throw new RuntimeException("템플릿 파일을 찾을 수 없습니다: templates/rental-support-proposal.docx. " +
+                        "resources/templates/ 폴더에 .docx 형식의 템플릿 파일을 추가해주세요.");
+            }
+            
+            InputStream templateInputStream = templateResource.getInputStream();
+            XWPFDocument document = new XWPFDocument(templateInputStream);
+
+            // 문서 번호 생성
+            String documentNumber = generateDocumentNumber(request.getRequestDate());
+            
+            // 계약 기간 문자열 생성
+            String contractPeriod = formatPeriod(request.getContractStartDate(), request.getContractEndDate());
+            
+            // 계약 개월 수 계산
+            long contractMonths = ChronoUnit.MONTHS.between(
+                    request.getContractStartDate(), 
+                    request.getContractEndDate()
+            );
+
+            // 데이터 매핑
+            Map<String, String> values = new HashMap<>();
+            values.put(DocumentPlaceholder.DOCUMENT_NUMBER.getPlaceholder(), documentNumber);
+            values.put(DocumentPlaceholder.REQUEST_DATE.getPlaceholder(), formatDate(request.getRequestDate()));
+            values.put(DocumentPlaceholder.DEPARTMENT.getPlaceholder(), request.getDepartment());
+            values.put(DocumentPlaceholder.APPLICANT.getPlaceholder(), request.getApplicant());
+            values.put(DocumentPlaceholder.CURRENT_ADDRESS.getPlaceholder(), request.getCurrentAddress() != null ? request.getCurrentAddress() : "");
+            values.put(DocumentPlaceholder.RENTAL_ADDRESS.getPlaceholder(), request.getRentalAddress() != null ? request.getRentalAddress() : "");
+            values.put(DocumentPlaceholder.CONTRACT_PERIOD.getPlaceholder(), contractPeriod);
+            values.put(DocumentPlaceholder.CONTRACT_MONTH.getPlaceholder(), String.valueOf(contractMonths));
+            values.put(DocumentPlaceholder.PAYMENT_AMOUNT.getPlaceholder(), formatNumber(request.getContractMonthlyRent()));
+            values.put(DocumentPlaceholder.BILLING_AMOUNT.getPlaceholder(), formatNumber(request.getBillingAmount()));
+            values.put(DocumentPlaceholder.BILLING_START_DATE.getPlaceholder(), formatDate(request.getBillingStartDate()));
+            values.put(DocumentPlaceholder.REASON.getPlaceholder(), request.getReason() != null ? request.getReason() : "");
+
+            // 서명 플레이스홀더 처리 (isSig가 false이면 빈 문자열로 치환)
+            if (!isSig) {
+                for (SignaturePlaceholder sigPlaceholder : SignaturePlaceholder.values()) {
+                    values.put(sigPlaceholder.getPlaceholder(), "");
+                }
+            }
+
+            // 문단(Paragraph) 치환
+            for (XWPFParagraph paragraph : document.getParagraphs()) {
+                replaceTextInParagraph(paragraph, values);
+            }
+
+            // 테이블 안 텍스트도 치환
+            for (XWPFTable table : document.getTables()) {
+                for (XWPFTableRow row : table.getRows()) {
+                    for (XWPFTableCell cell : row.getTableCells()) {
+                        for (XWPFParagraph paragraph : cell.getParagraphs()) {
+                            replaceTextInParagraph(paragraph, values);
+                        }
+                    }
+                }
+            }
+
+            // 서명 이미지 치환 (8개 플레이스홀더)
+            if (isSig) {
+                replaceSignatureImagesInDocument(document, signatureImageMap);
+            }
+
+            // ByteArrayOutputStream에 문서 쓰기
+            ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+            document.write(outputStream);
+
+            document.close();
+            templateInputStream.close();
+            
+            return outputStream.toByteArray();
+        } catch (Exception e) {
+            log.error("품의서 DOC 생성 중 오류 발생", e);
+            throw new RuntimeException("품의서 DOC 생성 실패", e);
+        }
     }
 
     /**
@@ -179,9 +298,6 @@ public class FileGenerateUtil {
             // 청구 기간 비율 계산 (항상 100%)
             double billingPercentage = 100.0;
             
-            // 현재 월 가져오기
-            int currentMonth = request.getBillingPeriodStartDate().getMonthValue();
-            
             // 데이터 매핑
             Map<String, String> values = new HashMap<>();
             values.put(DocumentPlaceholder.DOCUMENT_NUMBER.getPlaceholder(), documentNumber);
@@ -200,7 +316,14 @@ public class FileGenerateUtil {
             values.put(DocumentPlaceholder.PAYMENT_DATE.getPlaceholder(), formatDateShort(request.getPaymentDate()));
             values.put(DocumentPlaceholder.PAYMENT_AMOUNT.getPlaceholder(), formatNumber(request.getPaymentAmount()));
             values.put(DocumentPlaceholder.BILLING_AMOUNT.getPlaceholder(), formatNumber(request.getBillingAmount()));
-            values.put(DocumentPlaceholder.MONTH.getPlaceholder(), "( "+String.valueOf(currentMonth)+" 월)");
+            values.put(DocumentPlaceholder.MONTH.getPlaceholder(), "( "+String.valueOf(request.getMonth())+" 월)");
+
+            // 서명 플레이스홀더 처리 (isSig가 false이면 빈 문자열로 치환)
+            if (!isSig) {
+                for (SignaturePlaceholder sigPlaceholder : SignaturePlaceholder.values()) {
+                    values.put(sigPlaceholder.getPlaceholder(), "");
+                }
+            }
 
             // 모든 시트를 순회하며 텍스트 치환 및 이미지 치환
             for (int sheetIndex = 0; sheetIndex < workbook.getNumberOfSheets(); sheetIndex++) {
@@ -209,7 +332,9 @@ public class FileGenerateUtil {
             }
 
             // 서명 이미지 치환 (8개 플레이스홀더)
-            replaceSignatureImagesInWorkbook(workbook, signatureImageMap);
+            if (isSig) {
+                replaceSignatureImagesInWorkbook(workbook, signatureImageMap);
+            }
 
             // ByteArrayOutputStream에 Excel 쓰기
             ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
@@ -222,6 +347,194 @@ public class FileGenerateUtil {
         } catch (Exception e) {
             log.error("Excel 생성 중 오류 발생", e);
             throw new RuntimeException("Excel 생성 실패", e);
+        }
+    }
+
+    /**
+     * 업무관련 개인 비용 청구서 Excel 생성
+     *
+     * @param request 업무관련 개인 비용 청구서 요청 데이터
+     * @return XLSX 바이트 배열
+     */
+    public static byte[] generateExpenseClaimExcel(ExpenseClaimSampleRequest request) {
+        return generateExpenseClaimExcel(request, null);
+    }
+
+    /**
+     * 업무관련 개인 비용 청구서 Excel 생성 (서명 이미지 맵 포함)
+     *
+     * @param request 업무관련 개인 비용 청구서 요청 데이터
+     * @param signatureImageMap 서명 이미지 맵 (플레이스홀더 -> 이미지 바이트 배열, null이면 빈 문자열로 치환)
+     * @return XLSX 바이트 배열
+     */
+    public static byte[] generateExpenseClaimExcel(ExpenseClaimSampleRequest request, Map<String, byte[]> signatureImageMap) {
+        try {
+            // 템플릿 파일 로드 (resources/templates/expense-claim.xlsx)
+            ClassPathResource templateResource = new ClassPathResource("templates/expense-claim.xlsx");
+            
+            if (!templateResource.exists()) {
+                throw new RuntimeException("템플릿 파일을 찾을 수 없습니다: templates/expense-claim.xlsx. " +
+                        "resources/templates/ 폴더에 .xlsx 형식의 템플릿 파일을 추가해주세요.");
+            }
+            
+            InputStream templateInputStream = templateResource.getInputStream();
+            Workbook workbook = new XSSFWorkbook(templateInputStream);
+
+            // 문서 번호 생성
+            String documentNumber = generateDocumentNumber(request.getRequestDate());
+
+            // DEPARTMENT_NAME 생성: department를 "/" 기준으로 자르고, 뒤에 있는 부분과 "/" 그리고 applicant를 붙임
+            String departmentName = buildDepartmentName(request.getDepartment(), request.getApplicant());
+
+            // 총액 계산 (모든 expenseItems의 amount 합계)
+            long totalAmount = 0;
+            if (request.getExpenseItems() != null) {
+                for (ExpenseItem item : request.getExpenseItems()) {
+                    if (item.getAmount() != null) {
+                        totalAmount += item.getAmount();
+                    }
+                }
+            }
+
+
+            // 데이터 매핑
+            Map<String, String> values = new HashMap<>();
+            values.put(DocumentPlaceholder.DOCUMENT_NUMBER.getPlaceholder(), documentNumber);
+            values.put(DocumentPlaceholder.REQUEST_DATE.getPlaceholder(), formatDate(request.getRequestDate()));
+            values.put(DocumentPlaceholder.DEPARTMENT_NAME.getPlaceholder(), departmentName);
+            values.put(DocumentPlaceholder.MONTH.getPlaceholder(), "(  "+String.valueOf(request.getMonth())+"월  )");
+            values.put(DocumentPlaceholder.TOTAL_AMOUNT.getPlaceholder(), formatNumber(totalAmount));
+
+            // 서명 플레이스홀더 처리 (isSig가 false이면 빈 문자열로 치환)
+            if (!isSig) {
+                for (SignaturePlaceholder sigPlaceholder : SignaturePlaceholder.values()) {
+                    values.put(sigPlaceholder.getPlaceholder(), "");
+                }
+            }
+
+            // 모든 시트를 순회하며 텍스트 치환
+            for (int sheetIndex = 0; sheetIndex < workbook.getNumberOfSheets(); sheetIndex++) {
+                Sheet sheet = workbook.getSheetAt(sheetIndex);
+                replaceTextInSheet(sheet, values);
+                
+                // 비용 항목 데이터 행 치환
+                replaceExpenseItemsInSheet(sheet, request.getExpenseItems());
+            }
+
+            // 서명 이미지 치환 (8개 플레이스홀더)
+            if (isSig) {
+                replaceSignatureImagesInWorkbook(workbook, signatureImageMap);
+            }
+
+            // ByteArrayOutputStream에 Excel 쓰기
+            ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+            workbook.write(outputStream);
+            
+            workbook.close();
+            templateInputStream.close();
+            
+            return outputStream.toByteArray();
+        } catch (Exception e) {
+            log.error("비용 청구서 Excel 생성 중 오류 발생", e);
+            throw new RuntimeException("비용 청구서 Excel 생성 실패", e);
+        }
+    }
+
+    /**
+     * Excel 시트에서 비용 항목 데이터 행 치환
+     * 템플릿에 {{DATE}}, {{USAGE_DETAIL}}, {{VENDOR}}, {{PAYMENT_METHOD}}, {{PROJECT}}, {{AMOUNT}}, {{NOTE}} 플레이스홀더가 있는 행을 찾아서
+     * expenseItems 리스트의 데이터로 치환합니다.
+     */
+    private static void replaceExpenseItemsInSheet(Sheet sheet, List<ExpenseItem> expenseItems) {
+        if (expenseItems == null || expenseItems.isEmpty()) {
+            return;
+        }
+
+        // 플레이스홀더가 있는 행 찾기
+        int templateRowIndex = -1;
+        for (Row row : sheet) {
+            for (Cell cell : row) {
+                if (cell != null && cell.getCellType() == CellType.STRING) {
+                    String cellValue = cell.getStringCellValue();
+                    if (cellValue != null && cellValue.contains("{{DATE}}")) {
+                        templateRowIndex = row.getRowNum();
+                        break;
+                    }
+                }
+            }
+            if (templateRowIndex != -1) {
+                break;
+            }
+        }
+
+        if (templateRowIndex == -1) {
+            log.warn("비용 항목 템플릿 행을 찾을 수 없습니다. {{DATE}} 플레이스홀더가 있는 행이 필요합니다.");
+            return;
+        }
+
+        // 템플릿 행 복사하여 각 비용 항목에 대해 행 생성
+        Row templateRow = sheet.getRow(templateRowIndex);
+        if (templateRow == null) {
+            return;
+        }
+
+        for (int i = 0; i < expenseItems.size(); i++) {
+            ExpenseItem item = expenseItems.get(i);
+            
+            // 첫 번째 항목은 템플릿 행을 직접 사용, 나머지는 새 행 생성
+            Row targetRow;
+            if (i == 0) {
+                targetRow = templateRow;
+            } else {
+                targetRow = sheet.createRow(templateRowIndex + i);
+            }
+            
+            // 템플릿 행의 셀 구조 복사 (새 행인 경우)
+            if (i > 0) {
+                for (int cellIndex = 0; cellIndex < templateRow.getLastCellNum(); cellIndex++) {
+                    Cell templateCell = templateRow.getCell(cellIndex);
+                    if (templateCell == null) {
+                        continue;
+                    }
+                    Cell newCell = targetRow.createCell(cellIndex);
+                    CellStyle cellStyle = templateCell.getCellStyle();
+                    newCell.setCellStyle(cellStyle);
+                }
+            }
+            
+            // 셀 값 치환
+            for (int cellIndex = 0; cellIndex < templateRow.getLastCellNum(); cellIndex++) {
+                Cell templateCell = templateRow.getCell(cellIndex);
+                if (templateCell == null) {
+                    continue;
+                }
+
+                Cell targetCell = targetRow.getCell(cellIndex);
+                if (targetCell == null) {
+                    continue;
+                }
+
+                // 템플릿 셀의 값 가져오기
+                String cellValue = "";
+                if (templateCell.getCellType() == CellType.STRING) {
+                    cellValue = templateCell.getStringCellValue();
+                }
+
+                // 플레이스홀더 치환
+                String replacedValue = cellValue;
+                if (cellValue != null) {
+                    replacedValue = cellValue
+                            .replace(DocumentPlaceholder.DATE.getPlaceholder(), item.getDate() != null ? formatDateShort(item.getDate()) : "")
+                            .replace(DocumentPlaceholder.USAGE_DETAIL.getPlaceholder(), item.getUsageDetail() != null ? item.getUsageDetail() : "")
+                            .replace(DocumentPlaceholder.VENDOR.getPlaceholder(), item.getVendor() != null ? item.getVendor() : "")
+                            .replace(DocumentPlaceholder.PAYMENT_METHOD.getPlaceholder(), item.getPaymentMethod() != null ? item.getPaymentMethod() : "")
+                            .replace(DocumentPlaceholder.PROJECT.getPlaceholder(), item.getProject() != null ? item.getProject() : "")
+                            .replace(DocumentPlaceholder.AMOUNT.getPlaceholder(), item.getAmount() != null ? formatNumber(item.getAmount()) : "")
+                            .replace(DocumentPlaceholder.NOTE.getPlaceholder(), item.getNote() != null ? item.getNote() : "");
+                }
+
+                targetCell.setCellValue(replacedValue);
+            }
         }
     }
 
@@ -539,6 +852,31 @@ public class FileGenerateUtil {
                     }
                 }
             }
+        }
+    }
+
+    /**
+     * DEPARTMENT_NAME 생성
+     * department를 "/" 기준으로 자르고, 뒤에 있는 부분과 "/" 그리고 applicant를 붙임
+     * 예: "서비스본부/서비스개발2팀" + "천병재" → "서비스개발2팀/천병재"
+     */
+    private static String buildDepartmentName(String department, String applicant) {
+        if (department == null || department.isEmpty()) {
+            return applicant != null ? applicant : "";
+        }
+        
+        if (applicant == null || applicant.isEmpty()) {
+            return department;
+        }
+
+        // "/" 기준으로 분리
+        String[] parts = department.split("/");
+        if (parts.length > 1) {
+            // "/"가 있으면 마지막 부분 사용
+            return parts[parts.length - 1] + "/" + applicant;
+        } else {
+            // "/"가 없으면 전체 department 사용
+            return department + "/" + applicant;
         }
     }
 }
