@@ -415,10 +415,12 @@ public class FileGenerateUtil {
             // 모든 시트를 순회하며 텍스트 치환
             for (int sheetIndex = 0; sheetIndex < workbook.getNumberOfSheets(); sheetIndex++) {
                 Sheet sheet = workbook.getSheetAt(sheetIndex);
-                replaceTextInSheet(sheet, values);
                 
-                // 비용 항목 데이터 행 치환
+                // 비용 항목 데이터 행 치환 (replaceTextInSheet 전에 호출하여 템플릿 행의 원본 플레이스홀더 사용)
                 replaceExpenseItemsInSheet(sheet, request.getExpenseItems());
+                
+                // 텍스트 치환 (비용 항목 행 치환 후에 호출)
+                replaceTextInSheet(sheet, values);
             }
 
             // 서명 이미지 치환 (8개 플레이스홀더)
@@ -478,6 +480,20 @@ public class FileGenerateUtil {
             return;
         }
 
+        // 템플릿 행의 원본 플레이스홀더 값들을 먼저 저장 (첫 번째 항목 처리 후 값이 변경되므로)
+        Map<Integer, String> templateCellValues = new HashMap<>();
+        Map<Integer, CellStyle> templateCellStyles = new HashMap<>();
+        for (int cellIndex = 0; cellIndex < templateRow.getLastCellNum(); cellIndex++) {
+            Cell templateCell = templateRow.getCell(cellIndex);
+            if (templateCell != null) {
+                if (templateCell.getCellType() == CellType.STRING) {
+                    templateCellValues.put(cellIndex, templateCell.getStringCellValue());
+                }
+                templateCellStyles.put(cellIndex, templateCell.getCellStyle());
+            }
+        }
+
+        // 모든 항목에 대해 처리
         for (int i = 0; i < expenseItems.size(); i++) {
             ExpenseItem item = expenseItems.get(i);
             
@@ -489,24 +505,15 @@ public class FileGenerateUtil {
                 targetRow = sheet.createRow(templateRowIndex + i);
             }
             
-            // 템플릿 행의 셀 구조 복사 (새 행인 경우)
-            if (i > 0) {
-                for (int cellIndex = 0; cellIndex < templateRow.getLastCellNum(); cellIndex++) {
-                    Cell templateCell = templateRow.getCell(cellIndex);
-                    if (templateCell == null) {
-                        continue;
-                    }
-                    Cell newCell = targetRow.createCell(cellIndex);
-                    CellStyle cellStyle = templateCell.getCellStyle();
-                    newCell.setCellStyle(cellStyle);
-                }
-            }
-            
             // 셀 값 치환
             for (int cellIndex = 0; cellIndex < templateRow.getLastCellNum(); cellIndex++) {
-                Cell templateCell = templateRow.getCell(cellIndex);
-                if (templateCell == null) {
-                    continue;
+                // 첫 번째 항목이 아닌 경우 셀 생성 및 스타일 복사
+                if (i > 0) {
+                    Cell newCell = targetRow.createCell(cellIndex);
+                    CellStyle cellStyle = templateCellStyles.get(cellIndex);
+                    if (cellStyle != null) {
+                        newCell.setCellStyle(cellStyle);
+                    }
                 }
 
                 Cell targetCell = targetRow.getCell(cellIndex);
@@ -514,11 +521,8 @@ public class FileGenerateUtil {
                     continue;
                 }
 
-                // 템플릿 셀의 값 가져오기
-                String cellValue = "";
-                if (templateCell.getCellType() == CellType.STRING) {
-                    cellValue = templateCell.getStringCellValue();
-                }
+                // 저장된 템플릿 셀의 원본 값 사용 (플레이스홀더가 있는 원본 값)
+                String cellValue = templateCellValues.getOrDefault(cellIndex, "");
 
                 // 플레이스홀더 치환
                 String replacedValue = cellValue;
