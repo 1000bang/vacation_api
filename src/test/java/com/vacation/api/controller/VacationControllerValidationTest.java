@@ -3,6 +3,7 @@ package com.vacation.api.controller;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.vacation.api.common.TransactionIDCreator;
 import com.vacation.api.config.SecurityConfig;
+import com.vacation.api.domain.sample.service.PdfGenerationService;
 import com.vacation.api.domain.vacation.controller.VacationController;
 import com.vacation.api.domain.sample.request.VacationSampleRequest;
 import com.vacation.api.enums.VacationType;
@@ -43,7 +44,7 @@ class VacationControllerValidationTest {
     private ObjectMapper objectMapper;
 
     @MockBean
-    private com.vacation.api.domain.vacation.service.PdfGenerationService pdfGenerationService;
+    private PdfGenerationService pdfGenerationService;
 
     @MockBean
     private TransactionIDCreator transactionIDCreator;

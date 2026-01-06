@@ -277,14 +277,14 @@ public class FileGenerateUtil {
             // 문서 번호 생성
             String documentNumber = generateDocumentNumber(request.getRequestDate());
             
-            // 계약 기간 계산
-            long contractYears = ChronoUnit.YEARS.between(
-                    request.getContractStartDate(), 
+            // 계약 기간 문자열 생성 (시작일 ~ 종료일)
+            String contractPeriod = formatPeriod(request.getContractStartDate(), request.getContractEndDate());
+            
+            // 계약 기간 상세 계산 ("1년", "2년", "2년 6개월" 형식)
+            String contractPeriodDetail = calculateContractPeriod(
+                    request.getContractStartDate(),
                     request.getContractEndDate()
             );
-            
-            // 계약 기간 문자열 생성
-            String contractPeriod = formatPeriod(request.getContractStartDate(), request.getContractEndDate());
             
             // 청구 기간 일수 계산
             long billingDays = ChronoUnit.DAYS.between(
@@ -305,7 +305,7 @@ public class FileGenerateUtil {
             values.put(DocumentPlaceholder.DEPARTMENT.getPlaceholder(), request.getDepartment());
             values.put(DocumentPlaceholder.APPLICANT.getPlaceholder(), request.getApplicant());
             values.put(DocumentPlaceholder.CONTRACT_PERIOD.getPlaceholder(), contractPeriod);
-            values.put(DocumentPlaceholder.CONTRACT_YEARS.getPlaceholder(), String.valueOf(contractYears));
+            values.put(DocumentPlaceholder.CONTRACT_YEARS.getPlaceholder(), contractPeriodDetail);
             values.put(DocumentPlaceholder.CONTRACT_MONTHLY_RENT.getPlaceholder(), formatNumber(request.getContractMonthlyRent()));
             values.put(DocumentPlaceholder.PAYMENT_TYPE.getPlaceholder(), request.getPaymentType().getValue());
             values.put(DocumentPlaceholder.BILLING_START_DATE.getPlaceholder(), formatDate(request.getBillingStartDate()));

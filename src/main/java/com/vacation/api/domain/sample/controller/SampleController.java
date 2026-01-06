@@ -71,6 +71,12 @@ public class SampleController {
         }
     }
 
+    /**
+     * 연차 신청 샘플 API - docx 문서 반환
+     *
+     * @param request 연차 신청 요청 데이터
+     * @return Docx 문서
+     */
     @PostMapping("/vacation_V2")
     public ResponseEntity<byte[]> sampleRequestV2(@Valid @RequestBody VacationSampleRequest request) {
         logger.info("연차 신청 샘플 요청 수신 (DOCX): {}", request);
@@ -80,7 +86,8 @@ public class SampleController {
             byte[] docBytes = sampleService.generateVacationApplicationDoc(request);
 
             String dateStr = request.getRequestDate().format(DateTimeFormatter.ofPattern("yyyyMMdd"));
-            String fileName = "vacation_application_" + dateStr + ".docx";
+            //String fileName = "vacation_application_" + dateStr + ".docx";
+            String fileName = "휴가(결무)신청서_"+ request.getApplicant() +"_" + dateStr + ".docx";
             String encodedFileName = URLEncoder.encode(fileName, StandardCharsets.UTF_8)
                     .replace("+", "%20");
 
@@ -145,10 +152,16 @@ public class SampleController {
             // Excel 생성
             byte[] excelBytes = sampleService.generateRentalSupportApplicationExcel(request);
 
+            String dateStr = request.getRequestDate().format(DateTimeFormatter.ofPattern("yyyyMMdd"));
+            //String fileName = "rental_support_application_" + dateStr + ".xlsx";
+            String fileName = "월세지원청구서_"+ request.getApplicant() +"_" + dateStr + ".xlsx";
+            String encodedFileName = URLEncoder.encode(fileName, StandardCharsets.UTF_8)
+                    .replace("+", "%20");
+
             // HTTP 헤더 설정
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"));
-            headers.setContentDispositionFormData("attachment", "rental-support-application.xlsx");
+            headers.set(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=" + encodedFileName);
             headers.setContentLength(excelBytes.length);
 
             logger.info("Excel 생성 완료. 크기: {} bytes", excelBytes.length);
@@ -177,7 +190,8 @@ public class SampleController {
             byte[] docBytes = sampleService.generateRentalSupportProposalDoc(request);
 
             String dateStr = request.getRequestDate().format(DateTimeFormatter.ofPattern("yyyyMMdd"));
-            String fileName = "rental_support_proposal_" + dateStr + ".docx";
+            //String fileName = "rental_support_proposal_" + dateStr + ".docx";
+            String fileName = "월세지원품의서_"+ request.getApplicant() +"_" + dateStr + ".docx";
             String encodedFileName = URLEncoder.encode(fileName, StandardCharsets.UTF_8)
                     .replace("+", "%20");
 
@@ -213,7 +227,8 @@ public class SampleController {
             byte[] excelBytes = sampleService.generateExpenseClaimExcel(request);
 
             String dateStr = request.getRequestDate().format(DateTimeFormatter.ofPattern("yyyyMMdd"));
-            String fileName = "expense_claim_" + dateStr + ".xlsx";
+            //String fileName = "expense_claim_" + dateStr + ".xlsx";
+            String fileName = "개인비용신청서_"+ request.getApplicant() +"_" + dateStr + ".xlsx";
             String encodedFileName = URLEncoder.encode(fileName, StandardCharsets.UTF_8)
                     .replace("+", "%20");
 
