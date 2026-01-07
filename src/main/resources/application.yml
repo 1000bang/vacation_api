@@ -2,6 +2,11 @@ spring:
   application:
     name: vacation-api
   
+  # 기본 프로파일: dev (H2 사용)
+  profiles:
+    active: dev
+  
+  # H2 설정 (dev 프로파일용)
   datasource:
     url: jdbc:h2:mem:vacationdb
     driver-class-name: org.h2.Driver
@@ -20,6 +25,7 @@ spring:
     properties:
       hibernate:
         format_sql: true
+        dialect: org.hibernate.dialect.H2Dialect
   
   thymeleaf:
     prefix: classpath:/templates/
@@ -30,6 +36,12 @@ spring:
 
 server:
   port: 8080
+
+# JWT 설정
+jwt:
+  secret: vacation-api-secret-key-change-this-in-production-environment-minimum-256-bits
+  expiration: 3600000  # Access Token: 1시간 (밀리초)
+  refresh-expiration: 604800000  # Refresh Token: 7일 (밀리초)
 
 logging:
   level:

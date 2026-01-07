@@ -34,11 +34,20 @@ dependencies {
 	// PDF 생성 라이브러리
 	implementation 'org.xhtmlrenderer:flying-saucer-pdf:9.1.22'
 	implementation 'org.apache.poi:poi-ooxml:5.2.5'
+	
+	// JWT 라이브러리
+	implementation 'io.jsonwebtoken:jjwt-api:0.12.3'
+	runtimeOnly 'io.jsonwebtoken:jjwt-impl:0.12.3'
+	runtimeOnly 'io.jsonwebtoken:jjwt-jackson:0.12.3'
 
 	compileOnly 'org.projectlombok:lombok'
 	annotationProcessor 'org.projectlombok:lombok'
 	
+	// H2 (개발/테스트용)
 	runtimeOnly 'com.h2database:h2'
+	
+	// MySQL (프로덕션용)
+	runtimeOnly 'com.mysql:mysql-connector-j'
 	
 	testImplementation 'org.springframework.boot:spring-boot-starter-test'
 	testImplementation 'org.springframework.security:spring-security-test'

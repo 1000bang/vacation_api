@@ -10,6 +10,9 @@ public enum ApiErrorCode {
     INVALID_REQUEST_FORMAT("900", "요청 데이터 형식이 올바르지 않습니다."),
     INVALID_VACATION_TYPE("901", "휴가 구분 값이 잘못되었습니다."),
     VALIDATION_FAILED("902", "입력값 검증에 실패했습니다."),
+    DUPLICATE_EMAIL("903", "이미 존재하는 이메일입니다."),
+    INVALID_LOGIN("904", "이메일 또는 비밀번호가 올바르지 않습니다."),
+    USER_NOT_APPROVED("905", "승인되지 않은 사용자입니다."),
     UNKNOWN_ERROR("9999", "알 수 없는 오류가 발생했습니다.");
 
     private final String code;
