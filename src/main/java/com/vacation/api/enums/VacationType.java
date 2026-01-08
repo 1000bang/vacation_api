@@ -14,7 +14,9 @@ public enum VacationType {
     GYEOLGEUN("결근"),
     BYEONGGA("병가"),
     GITA("기타"),
-    YEBIGUN("예비군");
+    YEBIGUN("예비군"),
+    AM_HALF("오전 반차"),
+    PM_HALF("오후 반차");
 
     private final String value;
 
