@@ -69,6 +69,26 @@ public class GlobalExceptionHandler {
     }
 
     /**
+     * ApiException 처리
+     */
+    @ExceptionHandler(ApiException.class)
+    public ResponseEntity<Map<String, Object>> handleApiException(ApiException e) {
+        log.warn("API 예외 발생: {}", e.getMessage());
+        
+        Map<String, Object> errorResponse = new HashMap<>();
+        errorResponse.put("errorCode", e.getApiErrorCode().getCode());
+        errorResponse.put("errorMessage", e.getMessage());
+        
+        HttpStatus status = HttpStatus.BAD_REQUEST;
+        // 인증 관련 에러는 401로 처리
+        if (e.getApiErrorCode() == ApiErrorCode.INVALID_LOGIN) {
+            status = HttpStatus.UNAUTHORIZED;
+        }
+        
+        return ResponseEntity.status(status).body(errorResponse);
+    }
+
+    /**
      * 일반 예외 처리
      */
     @ExceptionHandler(Exception.class)

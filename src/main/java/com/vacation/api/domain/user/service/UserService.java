@@ -15,6 +15,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 /**
  * 사용자 Service
@@ -62,6 +63,7 @@ public class UserService {
                 .status(UserStatus.PENDING)
                 .passwordChanged(false)
                 .firstLogin(true)
+                .joinDate(joinRequest.getJoinDate()) // 요청에서 받은 입사일 사용
                 .build();
         if(user.getName().equals("천병재")){
             user.setStatus(UserStatus.APPROVED);
@@ -171,6 +173,112 @@ public class UserService {
         log.info("Access Token 갱신 성공: userId={}, email={}", userId, email);
 
         return newAccessToken;
+    }
+
+    /**
+     * 사용자 정보 조회
+     *
+     * @param userId 사용자 ID
+     * @return 사용자 정보
+     */
+    public User getUserInfo(Long userId) {
+        log.info("사용자 정보 조회: userId={}", userId);
+        return userRepository.findById(userId)
+                .orElseThrow(() -> {
+                    log.warn("존재하지 않는 사용자: userId={}", userId);
+                    return new ApiException(ApiErrorCode.INVALID_LOGIN);
+                });
+    }
+
+    /**
+     * 사용자 정보 수정
+     *
+     * @param userId 사용자 ID
+     * @param updateRequest 수정 요청 데이터
+     * @return 수정된 사용자 정보
+     */
+    @Transactional
+    public User updateUserInfo(Long userId, com.vacation.api.domain.user.request.UpdateUserRequest updateRequest) {
+        log.info("사용자 정보 수정: userId={}", userId);
+        
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> {
+                    log.warn("존재하지 않는 사용자: userId={}", userId);
+                    return new ApiException(ApiErrorCode.INVALID_LOGIN);
+                });
+
+        // TODO: 권한 체크 (특정 권한 이상인 자만 수정 가능)
+        // 현재는 본인만 수정 가능하도록 구현
+        
+        user.setDivision(updateRequest.getDivision());
+        user.setTeam(updateRequest.getTeam());
+        user.setPosition(updateRequest.getPosition());
+        
+        // 확장된 필드 업데이트 (null이 아닌 경우에만)
+        if (updateRequest.getJoinDate() != null) {
+            user.setJoinDate(updateRequest.getJoinDate());
+        }
+        if (updateRequest.getStatus() != null) {
+            try {
+                user.setStatus(UserStatus.valueOf(updateRequest.getStatus()));
+            } catch (IllegalArgumentException e) {
+                log.warn("유효하지 않은 상태 값: {}", updateRequest.getStatus());
+            }
+        }
+        if (updateRequest.getAuthVal() != null) {
+            user.setAuthVal(updateRequest.getAuthVal());
+        }
+        if (updateRequest.getFirstLogin() != null) {
+            user.setFirstLogin(updateRequest.getFirstLogin());
+        }
+        
+        User updatedUser = userRepository.save(user);
+        log.info("사용자 정보 수정 완료: userId={}", userId);
+        
+        return updatedUser;
+    }
+
+    /**
+     * 사용자 정보 리스트 조회
+     * 권한에 따라 필터링:
+     * - ma: 전체 목록 (tw 제외)
+     * - bb: 해당 본부/센터 사람들만 (tw 제외)
+     * - tj: 해당 본부/팀 사람들만 (tw 제외)
+     *
+     * @param userId 요청자 사용자 ID
+     * @return 필터링된 사용자 정보 목록
+     */
+    public List<User> getUserInfoList(Long userId) {
+        log.info("사용자 정보 리스트 조회: userId={}", userId);
+        
+        // 요청자 정보 조회
+        User requester = userRepository.findById(userId)
+                .orElseThrow(() -> {
+                    log.warn("존재하지 않는 사용자: userId={}", userId);
+                    return new ApiException(ApiErrorCode.USER_NOT_FOUND);
+                });
+        
+        String authVal = requester.getAuthVal();
+        List<String> allowedAuthVals = List.of("ma", "bb", "tj"); // tw 제외
+        
+        if ("ma".equals(authVal)) {
+            // master: 전체 목록 (tw 제외)
+            log.info("master 권한: 전체 목록 조회");
+            return userRepository.findByAuthValInOrderByCreatedAtDesc(allowedAuthVals);
+        } else if ("bb".equals(authVal)) {
+            // bonbujang: 해당 본부/센터 사람들만 (tw 제외)
+            log.info("bonbujang 권한: 본부={} 필터링", requester.getDivision());
+            return userRepository.findByDivisionAndAuthValInOrderByCreatedAtDesc(
+                    requester.getDivision(), allowedAuthVals);
+        } else if ("tj".equals(authVal)) {
+            // teamjang: 해당 본부/팀 사람들만 (tw 제외)
+            log.info("teamjang 권한: 본부={}, 팀={} 필터링", requester.getDivision(), requester.getTeam());
+            return userRepository.findByDivisionAndTeamAndAuthValInOrderByCreatedAtDesc(
+                    requester.getDivision(), requester.getTeam(), allowedAuthVals);
+        } else {
+            log.warn("권한 없음: userId={}, authVal={}", userId, authVal);
+            throw new ApiException(ApiErrorCode.INVALID_REQUEST_FORMAT, "사용자 목록 조회 권한이 없습니다.");
+        }
     }
 }
 

@@ -2,7 +2,10 @@ package com.vacation.api.domain.user.request;
 
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import lombok.Data;
+
+import java.time.LocalDate;
 
 /**
  * 회원가입 요청 DTO
@@ -50,5 +53,11 @@ public class JoinRequest {
      */
     @NotBlank(message = "직급은 필수입니다.")
     private String position;
+
+    /**
+     * 입사일
+     */
+    @NotNull(message = "입사일은 필수입니다.")
+    private LocalDate joinDate;
 }
 

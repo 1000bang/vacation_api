@@ -62,5 +62,15 @@ public class LoginResponse {
      * 사용자 상태
      */
     private String status;
+
+    /**
+     * 최초 로그인 유무
+     */
+    private Boolean firstLogin;
+
+    /**
+     * 권한 값 (ma: master, bb: bonbujang, tj: teamjang, tw: teamwon)
+     */
+    private String authVal;
 }
 

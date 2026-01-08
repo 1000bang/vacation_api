@@ -4,6 +4,7 @@ import com.vacation.api.domain.user.entity.User;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
+import java.util.List;
 import java.util.Optional;
 
 /**
@@ -31,5 +32,32 @@ public interface UserRepository extends JpaRepository<User, Long> {
      * @return 존재 여부
      */
     boolean existsByEmail(String email);
+
+    /**
+     * 권한 값으로 사용자 조회 (tw 제외)
+     *
+     * @param authVal 권한 값 (ma, bb, tj)
+     * @return 사용자 목록
+     */
+    List<User> findByAuthValInOrderByCreatedAtDesc(List<String> authVals);
+
+    /**
+     * 본부로 사용자 조회 (tw 제외)
+     *
+     * @param division 본부
+     * @param authVals 권한 값 목록
+     * @return 사용자 목록
+     */
+    List<User> findByDivisionAndAuthValInOrderByCreatedAtDesc(String division, List<String> authVals);
+
+    /**
+     * 본부와 팀으로 사용자 조회 (tw 제외)
+     *
+     * @param division 본부
+     * @param team 팀
+     * @param authVals 권한 값 목록
+     * @return 사용자 목록
+     */
+    List<User> findByDivisionAndTeamAndAuthValInOrderByCreatedAtDesc(String division, String team, List<String> authVals);
 }
 

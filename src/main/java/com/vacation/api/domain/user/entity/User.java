@@ -7,6 +7,7 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 /**
@@ -77,6 +78,12 @@ public class User {
     private UserStatus status = UserStatus.PENDING;
 
     /**
+     * 입사일
+     */
+    @Column(name = "join_date")
+    private LocalDate joinDate;
+
+    /**
      * 생성일
      */
     @Column(name = "created_at", nullable = false, updatable = false)
@@ -114,6 +121,12 @@ public class User {
      */
     @Column(name = "refresh_token", length = 500)
     private String refreshToken;
+
+    /**
+     * 권한 값 (ma: master, bb: bonbujang, tj: teamjang, tw: teamwon)
+     */
+    @Column(name = "auth_val", length = 10)
+    private String authVal;
 
     /**
      * 엔티티 저장 전 실행 (생성일 설정)

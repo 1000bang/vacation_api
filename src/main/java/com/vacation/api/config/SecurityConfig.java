@@ -35,7 +35,10 @@ public class SecurityConfig {
                 .requestMatchers("/user/join").permitAll()
                 .requestMatchers("/user/login").permitAll()
                 .requestMatchers("/user/refresh").permitAll()
-                .anyRequest().authenticated()
+                .requestMatchers("/user/info/**").permitAll()  // AOP에서 인증 체크
+                .requestMatchers("/rental/**").permitAll()  // AOP에서 인증 체크
+                .requestMatchers("/vacation/**").permitAll()  // AOP에서 인증 체크
+                .anyRequest().permitAll()  // 기본적으로 모두 허용 (AOP에서 인증 체크)
             );
         
         return http.build();

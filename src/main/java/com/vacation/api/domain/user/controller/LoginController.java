@@ -74,7 +74,9 @@ public class LoginController {
                     .division(user.getDivision())
                     .team(user.getTeam())
                     .position(user.getPosition())
-                    .status(user.getStatus().getValue())
+                    .status(user.getStatus().name())
+                    .firstLogin(user.getFirstLogin())
+                    .authVal(user.getAuthVal())
                     .build();
 
             ApiResponse<Object> response = new ApiResponse<>(
