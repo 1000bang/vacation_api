@@ -1,7 +1,6 @@
 package com.vacation.api.domain.vacation.controller;
 
-import com.vacation.api.annotation.RequiresAuth;
-import com.vacation.api.domain.sample.request.VacationSampleRequest;
+import com.vacation.api.common.BaseController;
 import com.vacation.api.domain.user.entity.User;
 import com.vacation.api.domain.user.service.UserService;
 import com.vacation.api.domain.vacation.entity.UserVacationInfo;
@@ -10,16 +9,15 @@ import com.vacation.api.domain.vacation.request.UpdateVacationInfoRequest;
 import com.vacation.api.domain.vacation.request.VacationRequest;
 import com.vacation.api.domain.vacation.response.UserVacationInfoResponse;
 import com.vacation.api.domain.vacation.service.VacationService;
-import com.vacation.api.enums.VacationType;
 import com.vacation.api.exception.ApiException;
 import com.vacation.api.response.data.ApiResponse;
 import com.vacation.api.common.TransactionIDCreator;
 import com.vacation.api.util.FileGenerateUtil;
+import com.vacation.api.util.ResponseMapper;
+import com.vacation.api.vo.VacationDocumentVO;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.slf4j.MDC;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -33,6 +31,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import org.slf4j.MDC;
 
 /**
  * 연차 Controller
@@ -44,12 +43,19 @@ import java.util.Map;
 @Slf4j
 @RestController
 @RequestMapping("/vacation")
-@RequiredArgsConstructor
-public class VacationController {
+public class VacationController extends BaseController {
 
     private final VacationService vacationService;
     private final UserService userService;
-    private final TransactionIDCreator transactionIDCreator;
+    private final ResponseMapper responseMapper;
+
+    public VacationController(VacationService vacationService, UserService userService,
+                              ResponseMapper responseMapper, TransactionIDCreator transactionIDCreator) {
+        super(transactionIDCreator);
+        this.vacationService = vacationService;
+        this.userService = userService;
+        this.responseMapper = responseMapper;
+    }
 
     /**
      * 사용자별 연차 정보 조회
@@ -58,7 +64,6 @@ public class VacationController {
      * @return 연차 정보
      */
     @GetMapping("/info")
-    @RequiresAuth
     public ResponseEntity<ApiResponse<Object>> getUserVacationInfo(HttpServletRequest request) {
         log.info("사용자별 연차 정보 조회 요청");
 
@@ -105,7 +110,6 @@ public class VacationController {
      * @return 수정된 연차 정보
      */
     @PutMapping("/info")
-    @RequiresAuth
     public ResponseEntity<ApiResponse<Object>> updateUserVacationInfo(
             HttpServletRequest request,
             @Valid @RequestBody UpdateVacationInfoRequest updateRequest) {
@@ -156,7 +160,6 @@ public class VacationController {
      * @return 연차 정보
      */
     @GetMapping("/info/{userId}")
-    @RequiresAuth
     public ResponseEntity<ApiResponse<Object>> getUserVacationInfoByUserId(@PathVariable Long userId) {
         log.info("특정 사용자별 연차 정보 조회 요청: userId={}", userId);
 
@@ -203,7 +206,6 @@ public class VacationController {
      * @return 수정된 연차 정보
      */
     @PutMapping("/info/{userId}")
-    @RequiresAuth
     public ResponseEntity<ApiResponse<Object>> updateUserVacationInfoByUserId(
             @PathVariable Long userId,
             @Valid @RequestBody UpdateVacationInfoRequest updateRequest) {
@@ -253,7 +255,6 @@ public class VacationController {
      * @return 연차 내역 목록
      */
     @GetMapping("/history")
-    @RequiresAuth
     public ResponseEntity<ApiResponse<Object>> getVacationHistoryList(HttpServletRequest request) {
         log.info("연차 내역 목록 조회 요청");
 
@@ -267,40 +268,16 @@ public class VacationController {
             List<VacationHistory> historyList = vacationService.getVacationHistoryList(userId);
             
             // 각 항목에 applicant 추가
-            List<Map<String, Object>> responseList = historyList.stream()
-                    .map(history -> {
-                        Map<String, Object> map = new HashMap<>();
-                        map.put("seq", history.getSeq());
-                        map.put("userId", history.getUserId());
-                        map.put("startDate", history.getStartDate());
-                        map.put("endDate", history.getEndDate());
-                        map.put("period", history.getPeriod());
-                        map.put("type", history.getType());
-                        map.put("reason", history.getReason());
-                        map.put("requestDate", history.getRequestDate());
-                        map.put("annualVacationDays", history.getAnnualVacationDays());
-                        map.put("previousRemainingDays", history.getPreviousRemainingDays());
-                        map.put("usedVacationDays", history.getUsedVacationDays());
-                        map.put("remainingVacationDays", history.getRemainingVacationDays());
-                        map.put("status", history.getStatus());
-                        map.put("createdAt", history.getCreatedAt());
-                        
-                        // userId로 사용자 이름 조회
-                        User user = userService.getUserInfo(history.getUserId());
-                        map.put("applicant", user != null ? user.getName() : "");
-                        
-                        return map;
-                    })
-                    .collect(java.util.stream.Collectors.toList());
+            List<Map<String, Object>> responseList = responseMapper.toVacationHistoryMapList(
+                    historyList, 
+                    userService::getUserInfo
+            );
             
-            return ResponseEntity.ok(new ApiResponse<>(transactionId, "0", responseList, null));
+            return successResponse(responseList);
+        } catch (ApiException e) {
+            return errorResponse("연차 내역 목록 조회에 실패했습니다.", e);
         } catch (Exception e) {
-            log.error("연차 내역 목록 조회 실패", e);
-            Map<String, Object> errorData = new HashMap<>();
-            errorData.put("errorCode", "500");
-            errorData.put("errorMessage", "연차 내역 목록 조회에 실패했습니다.");
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(new ApiResponse<>(transactionId, "500", errorData, null));
+            return errorResponse("연차 내역 목록 조회에 실패했습니다.", e);
         }
     }
 
@@ -312,7 +289,6 @@ public class VacationController {
      * @return 연차 내역 (없으면 null)
      */
     @GetMapping("/history/{seq}")
-    @RequiresAuth
     public ResponseEntity<ApiResponse<Object>> getVacationHistory(
             HttpServletRequest request,
             @PathVariable Long seq) {
@@ -345,7 +321,6 @@ public class VacationController {
      * @return 생성된 연차 내역
      */
     @PostMapping
-    @RequiresAuth
     public ResponseEntity<ApiResponse<Object>> createVacation(
             HttpServletRequest request,
             @Valid @RequestBody VacationRequest vacationRequest) {
@@ -380,7 +355,6 @@ public class VacationController {
      * @return 수정된 연차 내역
      */
     @PutMapping("/{seq}")
-    @RequiresAuth
     public ResponseEntity<ApiResponse<Object>> updateVacation(
             HttpServletRequest request,
             @PathVariable Long seq,
@@ -414,7 +388,6 @@ public class VacationController {
      * @return 삭제 결과
      */
     @DeleteMapping("/{seq}")
-    @RequiresAuth
     public ResponseEntity<ApiResponse<Object>> deleteVacation(
             HttpServletRequest request,
             @PathVariable Long seq) {
@@ -456,7 +429,6 @@ public class VacationController {
      * @return DOCX 문서
      */
     @GetMapping("/history/{seq}/download")
-    @RequiresAuth
     public ResponseEntity<byte[]> downloadVacationDocument(
             HttpServletRequest request,
             @PathVariable Long seq) {
@@ -473,26 +445,16 @@ public class VacationController {
             
             // 사용자 정보 조회
             User user = userService.getUserInfo(userId);
-            String department = user.getDivision() + "/" + user.getTeam();
             
             // 연차 정보 조회
             UserVacationInfo vacationInfo = vacationService.getUserVacationInfo(userId);
             
-            // VacationSampleRequest 생성
-            VacationSampleRequest sampleRequest = new VacationSampleRequest();
-            sampleRequest.setRequestDate(vacationHistory.getRequestDate());
-            sampleRequest.setDepartment(department);
-            sampleRequest.setApplicant(user.getName());
-            sampleRequest.setStartDate(vacationHistory.getStartDate());
-            sampleRequest.setEndDate(vacationHistory.getEndDate());
-            sampleRequest.setVacationType(VacationType.valueOf(vacationHistory.getType()));
-            sampleRequest.setReason(vacationHistory.getReason());
-            sampleRequest.setTotalVacationDays(vacationInfo.getAnnualVacationDays());
-            sampleRequest.setRemainingVacationDays(vacationHistory.getPreviousRemainingDays());
-            sampleRequest.setRequestedVacationDays(vacationHistory.getPeriod());
+            // VO 생성
+            VacationDocumentVO vo = vacationService.createVacationDocumentVO(
+                    vacationHistory, user, vacationInfo);
             
             // DOCX 생성 (서명은 null로 전달하여 빈 문자열로 처리)
-            byte[] docBytes = FileGenerateUtil.generateVacationApplicationDoc(sampleRequest, null);
+            byte[] docBytes = FileGenerateUtil.generateVacationApplicationDoc(vo, null);
             
             // 파일명 생성 (오늘 날짜 사용)
             String dateStr = LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd"));

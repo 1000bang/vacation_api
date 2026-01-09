@@ -6,7 +6,7 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
- * 인증이 필요한 메서드를 표시하는 어노테이션
+ * Rate Limiting을 적용할 메서드를 표시하는 어노테이션
  *
  * @author vacation-api
  * @version 1.0
@@ -14,6 +14,14 @@ import java.lang.annotation.Target;
  */
 @Target(ElementType.METHOD)
 @Retention(RetentionPolicy.RUNTIME)
-public @interface RequiresAuth {
+public @interface RateLimit {
+    /**
+     * 시간당 허용 요청 수
+     */
+    int capacity() default 5;
+    
+    /**
+     * 시간 윈도우 (초)
+     */
+    int windowSeconds() default 3600; // 기본 1시간
 }
-

@@ -20,6 +20,12 @@ spring:
         format_sql: true
         dialect: org.hibernate.dialect.H2Dialect
 
+# JWT 설정 (개발 환경)
+jwt:
+  secret: vacationapplication_jwtsecret_madeby1000bang  # 개발 환경 기본값
+  expiration: 3600000  # Access Token: 1시간 (밀리초)
+  refresh-expiration: 604800000  # Refresh Token: 7일 (밀리초)
+
 logging:
   level:
     com.vacation.api: DEBUG

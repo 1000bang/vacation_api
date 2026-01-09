@@ -117,7 +117,7 @@ class UserServiceTest {
     }
 
     @Test
-    @DisplayName("로그인 성공 - 유효한 이메일과 비밀번호로 로그인 시 JWT 토큰을 반환해야 한다")
+    @DisplayName("로그인 성공 - 유효한 이메일과 비밀번호로 로그인 시 JWT 토큰 배열을 반환해야 한다")
     void testLogin_Success() {
         // given
         LoginRequest loginRequest = new LoginRequest();
@@ -134,26 +134,33 @@ class UserServiceTest {
                 .position("과장")
                 .status(UserStatus.APPROVED)
                 .firstLogin(true)
+                .loginFailureCount(0)
                 .build();
 
-        String jwtToken = "test.jwt.token";
+        String accessToken = "test.access.token";
+        String refreshToken = "test.refresh.token";
 
         when(userRepository.findByEmail("test@example.com")).thenReturn(java.util.Optional.of(user));
         when(passwordEncoder.matches("password123", "encoded_password_123")).thenReturn(true);
         when(userRepository.save(any(User.class))).thenReturn(user);
-        when(jwtUtil.generateToken(1L, "test@example.com")).thenReturn(jwtToken);
+        when(jwtUtil.generateAccessToken(1L, "test@example.com")).thenReturn(accessToken);
+        when(jwtUtil.generateRefreshToken(1L, "test@example.com")).thenReturn(refreshToken);
 
         // when
-        String result = userService.login(loginRequest);
+        String[] result = userService.login(loginRequest);
 
         // then
-        assertThat(result).isEqualTo(jwtToken);
+        assertThat(result).isNotNull();
+        assertThat(result).hasSize(2);
+        assertThat(result[0]).isEqualTo(accessToken);
+        assertThat(result[1]).isEqualTo(refreshToken);
 
         // verify
         verify(userRepository, times(1)).findByEmail("test@example.com");
         verify(passwordEncoder, times(1)).matches("password123", "encoded_password_123");
         verify(userRepository, times(1)).save(any(User.class));
-        verify(jwtUtil, times(1)).generateToken(1L, "test@example.com");
+        verify(jwtUtil, times(1)).generateAccessToken(1L, "test@example.com");
+        verify(jwtUtil, times(1)).generateRefreshToken(1L, "test@example.com");
     }
 
     @Test

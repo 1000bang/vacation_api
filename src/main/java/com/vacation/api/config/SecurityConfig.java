@@ -1,12 +1,15 @@
 package com.vacation.api.config;
 
+import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
+import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
@@ -23,23 +26,30 @@ import java.util.List;
  */
 @Configuration
 @EnableWebSecurity
+@RequiredArgsConstructor
 public class SecurityConfig {
+
+    private final JwtAuthenticationFilter jwtAuthenticationFilter;
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
             .csrf(csrf -> csrf.disable())
             .cors(cors -> cors.configurationSource(corsConfigurationSource()))
+            .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
+                // Public 엔드포인트 (인증 불필요)
                 .requestMatchers("/sample/**").permitAll()
                 .requestMatchers("/user/join").permitAll()
                 .requestMatchers("/user/login").permitAll()
                 .requestMatchers("/user/refresh").permitAll()
-                .requestMatchers("/user/info/**").permitAll()  // AOP에서 인증 체크
-                .requestMatchers("/rental/**").permitAll()  // AOP에서 인증 체크
-                .requestMatchers("/vacation/**").permitAll()  // AOP에서 인증 체크
-                .anyRequest().permitAll()  // 기본적으로 모두 허용 (AOP에서 인증 체크)
-            );
+                .requestMatchers("/health/**").permitAll()
+                .requestMatchers("/actuator/**").permitAll()
+                // 나머지 모든 요청은 인증 필요
+                .anyRequest().authenticated()
+            )
+            // JWT 필터를 UsernamePasswordAuthenticationFilter 앞에 추가
+            .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
         
         return http.build();
     }

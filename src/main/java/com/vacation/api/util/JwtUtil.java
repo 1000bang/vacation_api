@@ -20,7 +20,7 @@ import java.util.Date;
 @Component
 public class JwtUtil {
 
-    @Value("${jwt.secret:vacation-api-secret-key-change-this-in-production-environment-minimum-256-bits}")
+    @Value("${jwt.secret:}")
     private String secret;
 
     @Value("${jwt.expiration:3600000}") // Access Token: 기본 1시간 (밀리초)
@@ -31,10 +31,27 @@ public class JwtUtil {
 
     /**
      * JWT Secret Key 생성
+     * 프로덕션 환경에서는 반드시 환경변수 JWT_SECRET을 설정해야 합니다.
+     * 최소 32자(256비트) 이상의 랜덤 문자열이 필요합니다.
      *
      * @return SecretKey
+     * @throws IllegalStateException secret이 설정되지 않았거나 너무 짧은 경우
      */
     private SecretKey getSigningKey() {
+        if (secret == null || secret.trim().isEmpty()) {
+            throw new IllegalStateException(
+                "JWT secret이 설정되지 않았습니다. 환경변수 JWT_SECRET을 설정해주세요. "
+            );
+        }
+        
+        // 최소 32자(256비트) 검증
+        if (secret.length() < 32) {
+            throw new IllegalStateException(
+                "JWT secret이 너무 짧습니다. 최소 32자 이상의 강력한 비밀키를 사용해야 합니다. " +
+                "현재 길이: " + secret.length() + "자"
+            );
+        }
+        
         byte[] keyBytes = secret.getBytes(StandardCharsets.UTF_8);
         return Keys.hmacShaKeyFor(keyBytes);
     }
@@ -79,18 +96,6 @@ public class JwtUtil {
                 .expiration(expiryDate)
                 .signWith(getSigningKey())
                 .compact();
-    }
-
-    /**
-     * JWT 토큰 생성 (하위 호환성을 위한 메서드)
-     *
-     * @param userId 사용자 ID
-     * @param email 이메일
-     * @return Access Token
-     */
-    @Deprecated
-    public String generateToken(Long userId, String email) {
-        return generateAccessToken(userId, email);
     }
 
     /**

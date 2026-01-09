@@ -6,13 +6,19 @@ import com.vacation.api.domain.sample.request.RentalSupportSampleRequest;
 import com.vacation.api.domain.sample.request.VacationSampleRequest;
 import com.vacation.api.enums.SignaturePlaceholder;
 import com.vacation.api.util.FileGenerateUtil;
+import com.vacation.api.vo.VacationDocumentVO;
+import com.vacation.api.vo.RentalSupportApplicationVO;
+import com.vacation.api.vo.RentalSupportProposalVO;
+import com.vacation.api.vo.ExpenseClaimVO;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.stereotype.Service;
 
 import java.io.InputStream;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
  * 샘플 서비스
@@ -51,10 +57,13 @@ public class SampleService {
     public byte[] generateVacationApplicationDoc(VacationSampleRequest request) {
         log.info("연차 신청서 DOCX 생성 요청: {}", request);
         
+        // SampleRequest를 VO로 변환
+        VacationDocumentVO vo = convertToVacationDocumentVO(request);
+        
         // Sample에서는 DAM_SIG1, DAM_SIG2만 이미지로 채우고 나머지는 빈 문자열
         Map<String, byte[]> signatureImageMap = createSampleSignatureImageMap();
         
-        return FileGenerateUtil.generateVacationApplicationDoc(request, signatureImageMap);
+        return FileGenerateUtil.generateVacationApplicationDoc(vo, signatureImageMap);
     }
 
     /**
@@ -77,10 +86,13 @@ public class SampleService {
     public byte[] generateRentalSupportApplicationExcel(RentalSupportSampleRequest request) {
         log.info("월세지원 청구서 Excel 생성 요청: {}", request);
         
+        // SampleRequest를 VO로 변환
+        RentalSupportApplicationVO vo = convertToRentalSupportApplicationVO(request);
+        
         // Sample에서는 DAM_SIG1, DAM_SIG2만 이미지로 채우고 나머지는 빈 문자열
         Map<String, byte[]> signatureImageMap = createSampleSignatureImageMap();
         
-        return FileGenerateUtil.generateRentalSupportApplicationExcel(request, signatureImageMap);
+        return FileGenerateUtil.generateRentalSupportApplicationExcel(vo, signatureImageMap);
     }
 
     /**
@@ -92,10 +104,13 @@ public class SampleService {
     public byte[] generateRentalSupportProposalDoc(RentalSupportPropSampleRequest request) {
         log.info("월세지원 품의서 DOCX 생성 요청: {}", request);
         
+        // SampleRequest를 VO로 변환
+        RentalSupportProposalVO vo = convertToRentalSupportProposalVO(request);
+        
         // Sample에서는 DAM_SIG1, DAM_SIG2만 이미지로 채우고 나머지는 빈 문자열
         Map<String, byte[]> signatureImageMap = createSampleSignatureImageMap();
         
-        return FileGenerateUtil.generateRentalSupportProposalDoc(request, signatureImageMap);
+        return FileGenerateUtil.generateRentalSupportProposalDoc(vo, signatureImageMap);
     }
 
     /**
@@ -107,10 +122,13 @@ public class SampleService {
     public byte[] generateExpenseClaimExcel(ExpenseClaimSampleRequest request) {
         log.info("업무관련 개인 비용 청구서 Excel 생성 요청: {}", request);
         
+        // SampleRequest를 VO로 변환
+        ExpenseClaimVO vo = convertToExpenseClaimVO(request);
+        
         // Sample에서는 DAM_SIG1, DAM_SIG2만 이미지로 채우고 나머지는 빈 문자열
         Map<String, byte[]> signatureImageMap = createSampleSignatureImageMap();
         
-        return FileGenerateUtil.generateExpenseClaimExcel(request, signatureImageMap);
+        return FileGenerateUtil.generateExpenseClaimExcel(vo, signatureImageMap);
     }
 
     /**
@@ -152,6 +170,90 @@ public class SampleService {
             log.error("서명 이미지 로드 중 오류 발생", e);
             return null;
         }
+    }
+
+    /**
+     * VacationSampleRequest를 VacationDocumentVO로 변환
+     */
+    private VacationDocumentVO convertToVacationDocumentVO(VacationSampleRequest request) {
+        return VacationDocumentVO.builder()
+                .requestDate(request.getRequestDate())
+                .department(request.getDepartment())
+                .applicant(request.getApplicant())
+                .startDate(request.getStartDate())
+                .endDate(request.getEndDate())
+                .vacationType(request.getVacationType())
+                .reason(request.getReason())
+                .totalVacationDays(request.getTotalVacationDays())
+                .remainingVacationDays(request.getRemainingVacationDays())
+                .requestedVacationDays(request.getRequestedVacationDays())
+                .build();
+    }
+
+    /**
+     * RentalSupportSampleRequest를 RentalSupportApplicationVO로 변환
+     */
+    private RentalSupportApplicationVO convertToRentalSupportApplicationVO(RentalSupportSampleRequest request) {
+        return RentalSupportApplicationVO.builder()
+                .requestDate(request.getRequestDate())
+                .month(request.getMonth())
+                .department(request.getDepartment())
+                .applicant(request.getApplicant())
+                .contractStartDate(request.getContractStartDate())
+                .contractEndDate(request.getContractEndDate())
+                .contractMonthlyRent(request.getContractMonthlyRent())
+                .paymentType(request.getPaymentType())
+                .billingStartDate(request.getBillingStartDate())
+                .billingPeriodStartDate(request.getBillingPeriodStartDate())
+                .billingPeriodEndDate(request.getBillingPeriodEndDate())
+                .paymentDate(request.getPaymentDate())
+                .paymentAmount(request.getPaymentAmount())
+                .billingAmount(request.getBillingAmount())
+                .build();
+    }
+
+    /**
+     * RentalSupportPropSampleRequest를 RentalSupportProposalVO로 변환
+     */
+    private RentalSupportProposalVO convertToRentalSupportProposalVO(RentalSupportPropSampleRequest request) {
+        return RentalSupportProposalVO.builder()
+                .requestDate(request.getRequestDate())
+                .department(request.getDepartment())
+                .applicant(request.getApplicant())
+                .currentAddress(request.getCurrentAddress())
+                .rentalAddress(request.getRentalAddress())
+                .contractStartDate(request.getContractStartDate())
+                .contractEndDate(request.getContractEndDate())
+                .contractMonthlyRent(request.getContractMonthlyRent())
+                .billingAmount(request.getBillingAmount())
+                .billingStartDate(request.getBillingStartDate())
+                .reason(request.getReason())
+                .build();
+    }
+
+    /**
+     * ExpenseClaimSampleRequest를 ExpenseClaimVO로 변환
+     */
+    private ExpenseClaimVO convertToExpenseClaimVO(ExpenseClaimSampleRequest request) {
+        List<ExpenseClaimVO.ExpenseItemVO> expenseItemVOs = request.getExpenseItems().stream()
+                .map(item -> ExpenseClaimVO.ExpenseItemVO.builder()
+                        .date(item.getDate())
+                        .usageDetail(item.getUsageDetail())
+                        .vendor(item.getVendor())
+                        .paymentMethod(item.getPaymentMethod())
+                        .project(item.getProject())
+                        .amount(item.getAmount())
+                        .note(item.getNote())
+                        .build())
+                .collect(Collectors.toList());
+        
+        return ExpenseClaimVO.builder()
+                .requestDate(request.getRequestDate())
+                .month(request.getMonth())
+                .department(request.getDepartment())
+                .applicant(request.getApplicant())
+                .expenseItems(expenseItemVOs)
+                .build();
     }
 }
 

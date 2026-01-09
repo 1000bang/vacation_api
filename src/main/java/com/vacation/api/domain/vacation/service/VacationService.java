@@ -10,6 +10,7 @@ import com.vacation.api.domain.vacation.request.UpdateVacationInfoRequest;
 import com.vacation.api.domain.vacation.request.VacationRequest;
 import com.vacation.api.exception.ApiErrorCode;
 import com.vacation.api.exception.ApiException;
+import com.vacation.api.vo.VacationDocumentVO;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -342,5 +343,35 @@ public class VacationService {
         vacationHistoryRepository.delete(vacationHistory);
 
         log.info("휴가 신청 삭제 완료: seq={}, userId={}, status={}", seq, userId, status);
+    }
+
+    /**
+     * 연차 신청서 문서 생성용 VO 생성
+     *
+     * @param vacationHistory 휴가 내역
+     * @param user 사용자 정보
+     * @param vacationInfo 연차 정보
+     * @return VacationDocumentVO
+     */
+    public VacationDocumentVO createVacationDocumentVO(
+            VacationHistory vacationHistory,
+            com.vacation.api.domain.user.entity.User user,
+            UserVacationInfo vacationInfo) {
+        log.info("연차 신청서 문서 VO 생성: seq={}, userId={}", vacationHistory.getSeq(), vacationHistory.getUserId());
+        
+        String department = user.getDivision() + "/" + user.getTeam();
+        
+        return VacationDocumentVO.builder()
+                .requestDate(vacationHistory.getRequestDate())
+                .department(department)
+                .applicant(user.getName())
+                .startDate(vacationHistory.getStartDate())
+                .endDate(vacationHistory.getEndDate())
+                .vacationType(com.vacation.api.enums.VacationType.valueOf(vacationHistory.getType()))
+                .reason(vacationHistory.getReason())
+                .totalVacationDays(vacationInfo.getAnnualVacationDays())
+                .remainingVacationDays(vacationHistory.getPreviousRemainingDays())
+                .requestedVacationDays(vacationHistory.getPeriod())
+                .build();
     }
 }

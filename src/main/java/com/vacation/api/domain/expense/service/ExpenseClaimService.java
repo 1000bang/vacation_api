@@ -7,6 +7,7 @@ import com.vacation.api.domain.expense.repository.ExpenseSubRepository;
 import com.vacation.api.domain.expense.request.ExpenseClaimRequest;
 import com.vacation.api.exception.ApiErrorCode;
 import com.vacation.api.exception.ApiException;
+import com.vacation.api.vo.ExpenseClaimVO;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -82,16 +83,10 @@ public class ExpenseClaimService {
                 .sum();
 
         // 청구 년월 계산 (YYYYMM 형식)
-        // requestDate가 1월이고 month가 12이면 전년도 12월로 설정
-        int requestYear = request.getRequestDate().getYear();
-        int requestMonth = request.getRequestDate().getMonthValue();
-        int month = request.getMonth();
-        int year = requestYear;
-        // requestDate가 1월이고 month가 12이면 전년도 사용
-        if (requestMonth == 1 && month == 12) {
-            year = requestYear - 1;
-        }
-        int billingYyMonth = year * 100 + month;
+        int billingYyMonth = com.vacation.api.util.BillingUtil.calculateBillingYyMonth(
+                request.getRequestDate(), 
+                request.getMonth()
+        );
 
         // 부모 엔티티 생성
         ExpenseClaim expenseClaim = ExpenseClaim.builder()
@@ -152,16 +147,10 @@ public class ExpenseClaimService {
                 .sum();
 
         // 청구 년월 계산 (YYYYMM 형식)
-        // requestDate가 1월이고 month가 12이면 전년도 12월로 설정
-        int requestYear = request.getRequestDate().getYear();
-        int requestMonth = request.getRequestDate().getMonthValue();
-        int month = request.getMonth();
-        int year = requestYear;
-        // requestDate가 1월이고 month가 12이면 전년도 사용
-        if (requestMonth == 1 && month == 12) {
-            year = requestYear - 1;
-        }
-        int billingYyMonth = year * 100 + month;
+        int billingYyMonth = com.vacation.api.util.BillingUtil.calculateBillingYyMonth(
+                request.getRequestDate(), 
+                request.getMonth()
+        );
 
         // 부모 엔티티 수정
         expenseClaim.setRequestDate(request.getRequestDate());
@@ -220,6 +209,45 @@ public class ExpenseClaimService {
         expenseClaimRepository.delete(expenseClaim);
 
         log.info("개인 비용 청구 삭제 완료: seq={}, userId={}", seq, userId);
+    }
+
+    /**
+     * 개인 비용 청구서 문서 생성용 VO 생성
+     *
+     * @param expenseClaim 개인 비용 청구 정보
+     * @param expenseSubList 비용 항목 목록
+     * @param user 사용자 정보
+     * @return ExpenseClaimVO
+     */
+    public ExpenseClaimVO createExpenseClaimVO(
+            ExpenseClaim expenseClaim,
+            List<ExpenseSub> expenseSubList,
+            com.vacation.api.domain.user.entity.User user) {
+        log.info("개인 비용 청구서 문서 VO 생성: seq={}, userId={}", expenseClaim.getSeq(), expenseClaim.getUserId());
+        
+        String department = user.getDivision() + "/" + user.getTeam();
+        int month = expenseClaim.getBillingYyMonth() % 100;
+        
+        // ExpenseItemVO 리스트 생성
+        List<ExpenseClaimVO.ExpenseItemVO> expenseItemVOs = expenseSubList.stream()
+                .map(sub -> ExpenseClaimVO.ExpenseItemVO.builder()
+                        .date(sub.getDate())
+                        .usageDetail(sub.getUsageDetail())
+                        .vendor(sub.getVendor())
+                        .paymentMethod(sub.getPaymentMethod())
+                        .project(sub.getProject())
+                        .amount(sub.getAmount())
+                        .note(sub.getNote())
+                        .build())
+                .toList();
+        
+        return ExpenseClaimVO.builder()
+                .requestDate(expenseClaim.getRequestDate())
+                .month(month)
+                .department(department)
+                .applicant(user.getName())
+                .expenseItems(expenseItemVOs)
+                .build();
     }
 }
 

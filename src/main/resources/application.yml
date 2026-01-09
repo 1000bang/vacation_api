@@ -16,10 +16,23 @@ server:
   port: 8080
 
 # JWT 설정
+# 주의: 프로덕션 환경에서는 반드시 환경변수 JWT_SECRET을 설정해야 합니다.
+# 예: export JWT_SECRET="your-very-long-and-random-secret-key-minimum-32-characters"
+# 또는 application-prod.yml에서 설정
 jwt:
-  secret: vacation-api-secret-key-change-this-in-production-environment-minimum-256-bits
+  secret: ${JWT_SECRET}
   expiration: 3600000  # Access Token: 1시간 (밀리초)
   refresh-expiration: 604800000  # Refresh Token: 7일 (밀리초)
+
+# Actuator 설정
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: when-authorized
 
 logging:
   level:

@@ -9,6 +9,8 @@ import com.vacation.api.domain.rental.request.RentalSupportRequest;
 import com.vacation.api.enums.PaymentType;
 import com.vacation.api.exception.ApiErrorCode;
 import com.vacation.api.exception.ApiException;
+import com.vacation.api.vo.RentalSupportApplicationVO;
+import com.vacation.api.vo.RentalSupportProposalVO;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -182,14 +184,10 @@ public class RentaltService {
         int requestMonth = requestDate.getMonthValue(); // 신청일자의 월 (1-12)
         
         // 청구 년월 계산 (YYYYMM 형식)
-        // requestDate가 1월이고 month가 12이면 전년도 12월로 설정
-        int month = request.getMonth();
-        int year = requestYear;
-        // requestDate가 1월이고 month가 12이면 전년도 사용
-        if (requestMonth == 1 && month == 12) {
-            year = requestYear - 1;
-        }
-        int billingYyMonth = year * 100 + month;
+        int billingYyMonth = com.vacation.api.util.BillingUtil.calculateBillingYyMonth(
+                requestDate, 
+                request.getMonth()
+        );
         int contractDay = request.getContractStartDate().getDayOfMonth();
         int billingMonth = request.getMonth();
         
@@ -267,14 +265,10 @@ public class RentaltService {
         int requestMonth = requestDate.getMonthValue(); // 신청일자의 월 (1-12)
         
         // 청구 년월 계산 (YYYYMM 형식)
-        // requestDate가 1월이고 month가 12이면 전년도 12월로 설정
-        int month = request.getMonth();
-        int year = requestYear;
-        // requestDate가 1월이고 month가 12이면 전년도 사용
-        if (requestMonth == 1 && month == 12) {
-            year = requestYear - 1;
-        }
-        int billingYyMonth = year * 100 + month;
+        int billingYyMonth = com.vacation.api.util.BillingUtil.calculateBillingYyMonth(
+                requestDate, 
+                request.getMonth()
+        );
         int contractDay = request.getContractStartDate().getDayOfMonth();
         int billingMonth = request.getMonth();
         
@@ -343,6 +337,68 @@ public class RentaltService {
         
         rentalSupportRepository.delete(rentalSupport);
         log.info("월세 지원 신청 삭제 완료: seq={}, userId={}", seq, userId);
+    }
+
+    /**
+     * 월세 지원 청구서 문서 생성용 VO 생성
+     *
+     * @param rentalSupport 월세 지원 신청 정보
+     * @param user 사용자 정보
+     * @return RentalSupportApplicationVO
+     */
+    public RentalSupportApplicationVO createRentalSupportApplicationVO(
+            RentalSupport rentalSupport,
+            com.vacation.api.domain.user.entity.User user) {
+        log.info("월세 지원 청구서 문서 VO 생성: seq={}, userId={}", rentalSupport.getSeq(), rentalSupport.getUserId());
+        
+        String department = user.getDivision() + "/" + user.getTeam();
+        int month = rentalSupport.getBillingYyMonth() % 100;
+        
+        return RentalSupportApplicationVO.builder()
+                .requestDate(rentalSupport.getRequestDate())
+                .month(month)
+                .department(department)
+                .applicant(user.getName())
+                .contractStartDate(rentalSupport.getContractStartDate())
+                .contractEndDate(rentalSupport.getContractEndDate())
+                .contractMonthlyRent(rentalSupport.getContractMonthlyRent())
+                .paymentType(rentalSupport.getPaymentType())
+                .billingStartDate(rentalSupport.getBillingStartDate())
+                .billingPeriodStartDate(rentalSupport.getBillingPeriodStartDate())
+                .billingPeriodEndDate(rentalSupport.getBillingPeriodEndDate())
+                .paymentDate(rentalSupport.getPaymentDate())
+                .paymentAmount(rentalSupport.getPaymentAmount())
+                .billingAmount(rentalSupport.getBillingAmount())
+                .build();
+    }
+
+    /**
+     * 월세 지원 품의서 문서 생성용 VO 생성
+     *
+     * @param rentalApproval 월세 품의 정보
+     * @param user 사용자 정보
+     * @return RentalSupportProposalVO
+     */
+    public RentalSupportProposalVO createRentalSupportProposalVO(
+            RentalApproval rentalApproval,
+            com.vacation.api.domain.user.entity.User user) {
+        log.info("월세 지원 품의서 문서 VO 생성: seq={}, userId={}", rentalApproval.getSeq(), rentalApproval.getUserId());
+        
+        String department = user.getDivision() + "/" + user.getTeam();
+        
+        return RentalSupportProposalVO.builder()
+                .requestDate(LocalDate.now()) // 품의서는 현재 날짜 사용
+                .department(department)
+                .applicant(user.getName())
+                .currentAddress(rentalApproval.getPreviousAddress())
+                .rentalAddress(rentalApproval.getRentalAddress())
+                .contractStartDate(rentalApproval.getContractStartDate())
+                .contractEndDate(rentalApproval.getContractEndDate())
+                .contractMonthlyRent(rentalApproval.getContractMonthlyRent())
+                .billingAmount(rentalApproval.getBillingAmount())
+                .billingStartDate(rentalApproval.getBillingStartDate())
+                .reason(rentalApproval.getBillingReason())
+                .build();
     }
 }
 

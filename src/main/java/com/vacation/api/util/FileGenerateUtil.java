@@ -1,10 +1,9 @@
 package com.vacation.api.util;
 
-import com.vacation.api.domain.sample.request.ExpenseClaimSampleRequest;
-import com.vacation.api.domain.sample.request.ExpenseItem;
-import com.vacation.api.domain.sample.request.RentalSupportPropSampleRequest;
-import com.vacation.api.domain.sample.request.RentalSupportSampleRequest;
-import com.vacation.api.domain.sample.request.VacationSampleRequest;
+import com.vacation.api.vo.VacationDocumentVO;
+import com.vacation.api.vo.RentalSupportApplicationVO;
+import com.vacation.api.vo.RentalSupportProposalVO;
+import com.vacation.api.vo.ExpenseClaimVO;
 import com.vacation.api.enums.DocumentPlaceholder;
 import com.vacation.api.enums.SignaturePlaceholder;
 import lombok.extern.slf4j.Slf4j;
@@ -44,21 +43,21 @@ public class FileGenerateUtil {
     /**
      * 연차 신청서 Doc 생성
      *
-     * @param request 연차 신청 요청 데이터
+     * @param vo 연차 신청서 문서 생성용 VO
      * @return DOCX 바이트 배열
      */
-    public static byte[] generateVacationApplicationDoc(VacationSampleRequest request) {
-        return generateVacationApplicationDoc(request, null);
+    public static byte[] generateVacationApplicationDoc(VacationDocumentVO vo) {
+        return generateVacationApplicationDoc(vo, null);
     }
 
     /**
      * 연차 신청서 Doc 생성 (서명 이미지 맵 포함)
      *
-     * @param request 연차 신청 요청 데이터
+     * @param vo 연차 신청서 문서 생성용 VO
      * @param signatureImageMap 서명 이미지 맵 (플레이스홀더 -> 이미지 바이트 배열, null이면 빈 문자열로 치환)
      * @return DOCX 바이트 배열
      */
-    public static byte[] generateVacationApplicationDoc(VacationSampleRequest request, Map<String, byte[]> signatureImageMap) {
+    public static byte[] generateVacationApplicationDoc(VacationDocumentVO vo, Map<String, byte[]> signatureImageMap) {
         try {
             // 템플릿 파일 로드 (resources/templates/vacation-application.docx)
             // .docx 형식만 지원합니다. .doc 파일은 .docx로 변환해주세요.
@@ -73,15 +72,15 @@ public class FileGenerateUtil {
             XWPFDocument document = new XWPFDocument(templateInputStream);
 
             // 문서 번호 생성
-            String documentNumber = generateDocumentNumber(request.getRequestDate());
+            String documentNumber = generateDocumentNumber(vo.getRequestDate());
             
             // 기간 문자열 생성
-            String period = formatPeriod(request.getStartDate(), request.getEndDate());
+            String period = formatPeriod(vo.getStartDate(), vo.getEndDate());
             
             // 최종 잔여 연차일수 계산
             Double finalRemainingDays = calculateFinalRemainingDays(
-                    request.getRemainingVacationDays(),
-                    request.getRequestedVacationDays()
+                    vo.getRemainingVacationDays(),
+                    vo.getRequestedVacationDays()
             );
             
             // 현재 연도
@@ -90,16 +89,16 @@ public class FileGenerateUtil {
             // 데이터 매핑
             Map<String, String> values = new HashMap<>();
             values.put(DocumentPlaceholder.DOCUMENT_NUMBER.getPlaceholder(), documentNumber);
-            values.put(DocumentPlaceholder.REQUEST_DATE.getPlaceholder(), formatDate(request.getRequestDate()));
-            values.put(DocumentPlaceholder.DEPARTMENT.getPlaceholder(), request.getDepartment());
-            values.put(DocumentPlaceholder.APPLICANT.getPlaceholder(), request.getApplicant());
+            values.put(DocumentPlaceholder.REQUEST_DATE.getPlaceholder(), formatDate(vo.getRequestDate()));
+            values.put(DocumentPlaceholder.DEPARTMENT.getPlaceholder(), vo.getDepartment());
+            values.put(DocumentPlaceholder.APPLICANT.getPlaceholder(), vo.getApplicant());
             values.put(DocumentPlaceholder.PERIOD.getPlaceholder(), period);
-            values.put(DocumentPlaceholder.REQDAYS.getPlaceholder(), formatVacationDays(request.getRequestedVacationDays()));
-            values.put(DocumentPlaceholder.VACATION_TYPE.getPlaceholder(), request.getVacationType().getValue());
-            values.put(DocumentPlaceholder.REASON.getPlaceholder(), request.getReason() != null ? request.getReason() : "");
-            values.put(DocumentPlaceholder.TOTAL_VACATION_DAYS.getPlaceholder(), formatVacationDays(request.getTotalVacationDays()));
-            values.put(DocumentPlaceholder.PREVIOUS_REMAINING_DAYS.getPlaceholder(), formatVacationDays(request.getRemainingVacationDays()));
-            values.put(DocumentPlaceholder.REQUESTED_VACATION_DAYS.getPlaceholder(), formatVacationDays(request.getRequestedVacationDays()));
+            values.put(DocumentPlaceholder.REQDAYS.getPlaceholder(), formatVacationDays(vo.getRequestedVacationDays()));
+            values.put(DocumentPlaceholder.VACATION_TYPE.getPlaceholder(), vo.getVacationType().getValue());
+            values.put(DocumentPlaceholder.REASON.getPlaceholder(), vo.getReason() != null ? vo.getReason() : "");
+            values.put(DocumentPlaceholder.TOTAL_VACATION_DAYS.getPlaceholder(), formatVacationDays(vo.getTotalVacationDays()));
+            values.put(DocumentPlaceholder.PREVIOUS_REMAINING_DAYS.getPlaceholder(), formatVacationDays(vo.getRemainingVacationDays()));
+            values.put(DocumentPlaceholder.REQUESTED_VACATION_DAYS.getPlaceholder(), formatVacationDays(vo.getRequestedVacationDays()));
             values.put(DocumentPlaceholder.FINAL_REMAINING_DAYS.getPlaceholder(), formatVacationDays(finalRemainingDays));
             values.put(DocumentPlaceholder.CURRENT_YEAR.getPlaceholder(), String.valueOf(currentYear));
 
@@ -148,31 +147,31 @@ public class FileGenerateUtil {
     /**
      * 월세지원 청구서 Excel 생성
      *
-     * @param request 월세지원 청구 요청 데이터
+     * @param vo 월세지원 청구서 문서 생성용 VO
      * @return XLSX 바이트 배열
      */
-    public static byte[] generateRentalSupportApplicationExcel(RentalSupportSampleRequest request) {
-        return generateRentalSupportApplicationExcel(request, null);
+    public static byte[] generateRentalSupportApplicationExcel(RentalSupportApplicationVO vo) {
+        return generateRentalSupportApplicationExcel(vo, null);
     }
 
     /**
      * 월세지원 품의서 Doc 생성
      *
-     * @param request 월세지원 품의서 요청 데이터
+     * @param vo 월세지원 품의서 문서 생성용 VO
      * @return DOCX 바이트 배열
      */
-    public static byte[] generateRentalSupportProposalDoc(RentalSupportPropSampleRequest request) {
-        return generateRentalSupportProposalDoc(request, null);
+    public static byte[] generateRentalSupportProposalDoc(RentalSupportProposalVO vo) {
+        return generateRentalSupportProposalDoc(vo, null);
     }
 
     /**
      * 월세지원 품의서 Doc 생성 (서명 이미지 맵 포함)
      *
-     * @param request 월세지원 품의서 요청 데이터
+     * @param vo 월세지원 품의서 문서 생성용 VO
      * @param signatureImageMap 서명 이미지 맵 (플레이스홀더 -> 이미지 바이트 배열, null이면 빈 문자열로 치환)
      * @return DOCX 바이트 배열
      */
-    public static byte[] generateRentalSupportProposalDoc(RentalSupportPropSampleRequest request, Map<String, byte[]> signatureImageMap) {
+    public static byte[] generateRentalSupportProposalDoc(RentalSupportProposalVO vo, Map<String, byte[]> signatureImageMap) {
         try {
             // 템플릿 파일 로드 (resources/templates/rental-support-proposal.docx)
             ClassPathResource templateResource = new ClassPathResource("templates/rental-support-proposal.docx");
@@ -186,31 +185,31 @@ public class FileGenerateUtil {
             XWPFDocument document = new XWPFDocument(templateInputStream);
 
             // 문서 번호 생성
-            String documentNumber = generateDocumentNumber(request.getRequestDate());
+            String documentNumber = generateDocumentNumber(vo.getRequestDate());
             
             // 계약 기간 문자열 생성
-            String contractPeriod = formatPeriod(request.getContractStartDate(), request.getContractEndDate());
+            String contractPeriod = formatPeriod(vo.getContractStartDate(), vo.getContractEndDate());
             
             // 계약 개월 수 계산
             long contractMonths = ChronoUnit.MONTHS.between(
-                    request.getContractStartDate(), 
-                    request.getContractEndDate()
+                    vo.getContractStartDate(), 
+                    vo.getContractEndDate()
             );
-
+            
             // 데이터 매핑
             Map<String, String> values = new HashMap<>();
             values.put(DocumentPlaceholder.DOCUMENT_NUMBER.getPlaceholder(), documentNumber);
-            values.put(DocumentPlaceholder.REQUEST_DATE.getPlaceholder(), formatDate(request.getRequestDate()));
-            values.put(DocumentPlaceholder.DEPARTMENT.getPlaceholder(), request.getDepartment());
-            values.put(DocumentPlaceholder.APPLICANT.getPlaceholder(), request.getApplicant());
-            values.put(DocumentPlaceholder.CURRENT_ADDRESS.getPlaceholder(), request.getCurrentAddress() != null ? request.getCurrentAddress() : "");
-            values.put(DocumentPlaceholder.RENTAL_ADDRESS.getPlaceholder(), request.getRentalAddress() != null ? request.getRentalAddress() : "");
+            values.put(DocumentPlaceholder.REQUEST_DATE.getPlaceholder(), formatDate(vo.getRequestDate()));
+            values.put(DocumentPlaceholder.DEPARTMENT.getPlaceholder(), vo.getDepartment());
+            values.put(DocumentPlaceholder.APPLICANT.getPlaceholder(), vo.getApplicant());
+            values.put(DocumentPlaceholder.CURRENT_ADDRESS.getPlaceholder(), vo.getCurrentAddress() != null ? vo.getCurrentAddress() : "");
+            values.put(DocumentPlaceholder.RENTAL_ADDRESS.getPlaceholder(), vo.getRentalAddress() != null ? vo.getRentalAddress() : "");
             values.put(DocumentPlaceholder.CONTRACT_PERIOD.getPlaceholder(), contractPeriod);
             values.put(DocumentPlaceholder.CONTRACT_MONTH.getPlaceholder(), String.valueOf(contractMonths));
-            values.put(DocumentPlaceholder.PAYMENT_AMOUNT.getPlaceholder(), formatNumber(request.getContractMonthlyRent()));
-            values.put(DocumentPlaceholder.BILLING_AMOUNT.getPlaceholder(), formatNumber(request.getBillingAmount()));
-            values.put(DocumentPlaceholder.BILLING_START_DATE.getPlaceholder(), formatDate(request.getBillingStartDate()));
-            values.put(DocumentPlaceholder.REASON.getPlaceholder(), request.getReason() != null ? request.getReason() : "");
+            values.put(DocumentPlaceholder.PAYMENT_AMOUNT.getPlaceholder(), formatNumber(vo.getContractMonthlyRent()));
+            values.put(DocumentPlaceholder.BILLING_AMOUNT.getPlaceholder(), formatNumber(vo.getBillingAmount()));
+            values.put(DocumentPlaceholder.BILLING_START_DATE.getPlaceholder(), formatDate(vo.getBillingStartDate()));
+            values.put(DocumentPlaceholder.REASON.getPlaceholder(), vo.getReason() != null ? vo.getReason() : "");
 
             // 서명 플레이스홀더 처리 (isSig가 false이면 빈 문자열로 치환)
             if (!isSig) {
@@ -257,11 +256,11 @@ public class FileGenerateUtil {
     /**
      * 월세지원 청구서 Excel 생성 (서명 이미지 맵 포함)
      *
-     * @param request 월세지원 청구 요청 데이터
+     * @param vo 월세지원 청구서 문서 생성용 VO
      * @param signatureImageMap 서명 이미지 맵 (플레이스홀더 -> 이미지 바이트 배열, null이면 빈 문자열로 치환)
      * @return XLSX 바이트 배열
      */
-    public static byte[] generateRentalSupportApplicationExcel(RentalSupportSampleRequest request, Map<String, byte[]> signatureImageMap) {
+    public static byte[] generateRentalSupportApplicationExcel(RentalSupportApplicationVO vo, Map<String, byte[]> signatureImageMap) {
         try {
             // 템플릿 파일 로드 (resources/templates/rental-support-application.xlsx)
             ClassPathResource templateResource = new ClassPathResource("templates/rental-support-application.xlsx");
@@ -275,21 +274,21 @@ public class FileGenerateUtil {
             Workbook workbook = new XSSFWorkbook(templateInputStream);
 
             // 문서 번호 생성
-            String documentNumber = generateDocumentNumber(request.getRequestDate());
+            String documentNumber = generateDocumentNumber(vo.getRequestDate());
             
             // 계약 기간 문자열 생성 (시작일 ~ 종료일)
-            String contractPeriod = formatPeriod(request.getContractStartDate(), request.getContractEndDate());
+            String contractPeriod = formatPeriod(vo.getContractStartDate(), vo.getContractEndDate());
             
             // 계약 기간 상세 계산 ("1년", "2년", "2년 6개월" 형식)
             String contractPeriodDetail = calculateContractPeriod(
-                    request.getContractStartDate(),
-                    request.getContractEndDate()
+                    vo.getContractStartDate(),
+                    vo.getContractEndDate()
             );
             
             // 청구 기간 일수 계산
             long billingDays = ChronoUnit.DAYS.between(
-                    request.getBillingPeriodStartDate(),
-                    request.getBillingPeriodEndDate()
+                    vo.getBillingPeriodStartDate(),
+                    vo.getBillingPeriodEndDate()
             ) + 1; // 시작일 포함
 
             // Excel 수식 형식: "(" & DATEDIF(C13, F13, "D")+1 & "/" & DATEDIF(C13, F13, "D")+1 & " 일)"
@@ -301,22 +300,22 @@ public class FileGenerateUtil {
             // 데이터 매핑
             Map<String, String> values = new HashMap<>();
             values.put(DocumentPlaceholder.DOCUMENT_NUMBER.getPlaceholder(), documentNumber);
-            values.put(DocumentPlaceholder.REQUEST_DATE.getPlaceholder(), formatDate(request.getRequestDate()));
-            values.put(DocumentPlaceholder.DEPARTMENT.getPlaceholder(), request.getDepartment());
-            values.put(DocumentPlaceholder.APPLICANT.getPlaceholder(), request.getApplicant());
+            values.put(DocumentPlaceholder.REQUEST_DATE.getPlaceholder(), formatDate(vo.getRequestDate()));
+            values.put(DocumentPlaceholder.DEPARTMENT.getPlaceholder(), vo.getDepartment());
+            values.put(DocumentPlaceholder.APPLICANT.getPlaceholder(), vo.getApplicant());
             values.put(DocumentPlaceholder.CONTRACT_PERIOD.getPlaceholder(), contractPeriod);
             values.put(DocumentPlaceholder.CONTRACT_YEARS.getPlaceholder(), contractPeriodDetail);
-            values.put(DocumentPlaceholder.CONTRACT_MONTHLY_RENT.getPlaceholder(), formatNumber(request.getContractMonthlyRent()));
-            values.put(DocumentPlaceholder.PAYMENT_TYPE.getPlaceholder(), request.getPaymentType().getValue());
-            values.put(DocumentPlaceholder.BILLING_START_DATE.getPlaceholder(), formatDate(request.getBillingStartDate()));
-            values.put(DocumentPlaceholder.BILLING_PERIOD_START.getPlaceholder(), formatDateShort(request.getBillingPeriodStartDate()));
-            values.put(DocumentPlaceholder.BILLING_PERIOD_END.getPlaceholder(), formatDateShort(request.getBillingPeriodEndDate()));
+            values.put(DocumentPlaceholder.CONTRACT_MONTHLY_RENT.getPlaceholder(), formatNumber(vo.getContractMonthlyRent()));
+            values.put(DocumentPlaceholder.PAYMENT_TYPE.getPlaceholder(), vo.getPaymentType().getValue());
+            values.put(DocumentPlaceholder.BILLING_START_DATE.getPlaceholder(), formatDate(vo.getBillingStartDate()));
+            values.put(DocumentPlaceholder.BILLING_PERIOD_START.getPlaceholder(), formatDateShort(vo.getBillingPeriodStartDate()));
+            values.put(DocumentPlaceholder.BILLING_PERIOD_END.getPlaceholder(), formatDateShort(vo.getBillingPeriodEndDate()));
             values.put(DocumentPlaceholder.BILLING_DAYS.getPlaceholder(), billingDaysFormatted);
             values.put(DocumentPlaceholder.BILLING_PERCENTAGE.getPlaceholder(), String.format("%.2f", billingPercentage)+"%");
-            values.put(DocumentPlaceholder.PAYMENT_DATE.getPlaceholder(), formatDateShort(request.getPaymentDate()));
-            values.put(DocumentPlaceholder.PAYMENT_AMOUNT.getPlaceholder(), formatNumber(request.getPaymentAmount()));
-            values.put(DocumentPlaceholder.BILLING_AMOUNT.getPlaceholder(), formatNumber(request.getBillingAmount()));
-            values.put(DocumentPlaceholder.MONTH.getPlaceholder(), "( "+String.valueOf(request.getMonth())+" 월)");
+            values.put(DocumentPlaceholder.PAYMENT_DATE.getPlaceholder(), formatDateShort(vo.getPaymentDate()));
+            values.put(DocumentPlaceholder.PAYMENT_AMOUNT.getPlaceholder(), formatNumber(vo.getPaymentAmount()));
+            values.put(DocumentPlaceholder.BILLING_AMOUNT.getPlaceholder(), formatNumber(vo.getBillingAmount()));
+            values.put(DocumentPlaceholder.MONTH.getPlaceholder(), "( "+String.valueOf(vo.getMonth())+" 월)");
 
             // 서명 플레이스홀더 처리 (isSig가 false이면 빈 문자열로 치환)
             if (!isSig) {
@@ -353,21 +352,21 @@ public class FileGenerateUtil {
     /**
      * 업무관련 개인 비용 청구서 Excel 생성
      *
-     * @param request 업무관련 개인 비용 청구서 요청 데이터
+     * @param vo 개인 비용 청구서 문서 생성용 VO
      * @return XLSX 바이트 배열
      */
-    public static byte[] generateExpenseClaimExcel(ExpenseClaimSampleRequest request) {
-        return generateExpenseClaimExcel(request, null);
+    public static byte[] generateExpenseClaimExcel(ExpenseClaimVO vo) {
+        return generateExpenseClaimExcel(vo, null);
     }
 
     /**
      * 업무관련 개인 비용 청구서 Excel 생성 (서명 이미지 맵 포함)
      *
-     * @param request 업무관련 개인 비용 청구서 요청 데이터
+     * @param vo 개인 비용 청구서 문서 생성용 VO
      * @param signatureImageMap 서명 이미지 맵 (플레이스홀더 -> 이미지 바이트 배열, null이면 빈 문자열로 치환)
      * @return XLSX 바이트 배열
      */
-    public static byte[] generateExpenseClaimExcel(ExpenseClaimSampleRequest request, Map<String, byte[]> signatureImageMap) {
+    public static byte[] generateExpenseClaimExcel(ExpenseClaimVO vo, Map<String, byte[]> signatureImageMap) {
         try {
             // 템플릿 파일 로드 (resources/templates/expense-claim.xlsx)
             ClassPathResource templateResource = new ClassPathResource("templates/expense-claim.xlsx");
@@ -381,15 +380,15 @@ public class FileGenerateUtil {
             Workbook workbook = new XSSFWorkbook(templateInputStream);
 
             // 문서 번호 생성
-            String documentNumber = generateDocumentNumber(request.getRequestDate());
+            String documentNumber = generateDocumentNumber(vo.getRequestDate());
 
             // DEPARTMENT_NAME 생성: department를 "/" 기준으로 자르고, 뒤에 있는 부분과 "/" 그리고 applicant를 붙임
-            String departmentName = buildDepartmentName(request.getDepartment(), request.getApplicant());
+            String departmentName = buildDepartmentName(vo.getDepartment(), vo.getApplicant());
 
             // 총액 계산 (모든 expenseItems의 amount 합계)
             long totalAmount = 0;
-            if (request.getExpenseItems() != null) {
-                for (ExpenseItem item : request.getExpenseItems()) {
+            if (vo.getExpenseItems() != null) {
+                for (ExpenseClaimVO.ExpenseItemVO item : vo.getExpenseItems()) {
                     if (item.getAmount() != null) {
                         totalAmount += item.getAmount();
                     }
@@ -400,9 +399,9 @@ public class FileGenerateUtil {
             // 데이터 매핑
             Map<String, String> values = new HashMap<>();
             values.put(DocumentPlaceholder.DOCUMENT_NUMBER.getPlaceholder(), documentNumber);
-            values.put(DocumentPlaceholder.REQUEST_DATE.getPlaceholder(), formatDate(request.getRequestDate()));
+            values.put(DocumentPlaceholder.REQUEST_DATE.getPlaceholder(), formatDate(vo.getRequestDate()));
             values.put(DocumentPlaceholder.DEPARTMENT_NAME.getPlaceholder(), departmentName);
-            values.put(DocumentPlaceholder.MONTH.getPlaceholder(), "(  "+String.valueOf(request.getMonth())+"월  )");
+            values.put(DocumentPlaceholder.MONTH.getPlaceholder(), "(  "+String.valueOf(vo.getMonth())+"월  )");
             values.put(DocumentPlaceholder.TOTAL_AMOUNT.getPlaceholder(), formatNumber(totalAmount));
 
             // 서명 플레이스홀더 처리 (isSig가 false이면 빈 문자열로 치환)
@@ -417,7 +416,7 @@ public class FileGenerateUtil {
                 Sheet sheet = workbook.getSheetAt(sheetIndex);
                 
                 // 비용 항목 데이터 행 치환 (replaceTextInSheet 전에 호출하여 템플릿 행의 원본 플레이스홀더 사용)
-                replaceExpenseItemsInSheet(sheet, request.getExpenseItems());
+                replaceExpenseItemsInSheet(sheet, vo.getExpenseItems());
                 
                 // 텍스트 치환 (비용 항목 행 치환 후에 호출)
                 replaceTextInSheet(sheet, values);
@@ -447,7 +446,7 @@ public class FileGenerateUtil {
      * 템플릿에 {{DATE}}, {{USAGE_DETAIL}}, {{VENDOR}}, {{PAYMENT_METHOD}}, {{PROJECT}}, {{AMOUNT}}, {{NOTE}} 플레이스홀더가 있는 행을 찾아서
      * expenseItems 리스트의 데이터로 치환합니다.
      */
-    private static void replaceExpenseItemsInSheet(Sheet sheet, List<ExpenseItem> expenseItems) {
+    private static void replaceExpenseItemsInSheet(Sheet sheet, List<ExpenseClaimVO.ExpenseItemVO> expenseItems) {
         if (expenseItems == null || expenseItems.isEmpty()) {
             return;
         }
@@ -495,7 +494,7 @@ public class FileGenerateUtil {
 
         // 모든 항목에 대해 처리
         for (int i = 0; i < expenseItems.size(); i++) {
-            ExpenseItem item = expenseItems.get(i);
+            ExpenseClaimVO.ExpenseItemVO item = expenseItems.get(i);
             
             // 첫 번째 항목은 템플릿 행을 직접 사용, 나머지는 새 행 생성
             Row targetRow;

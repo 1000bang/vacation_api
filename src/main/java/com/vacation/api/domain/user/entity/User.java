@@ -129,12 +129,28 @@ public class User {
     private String authVal;
 
     /**
+     * 로그인 실패 횟수
+     */
+    @Column(name = "login_failure_count", nullable = false)
+    @Builder.Default
+    private Integer loginFailureCount = 0;
+
+    /**
+     * 계정 잠금 해제 시간 (null이면 잠금되지 않음)
+     */
+    @Column(name = "account_locked_until")
+    private LocalDateTime accountLockedUntil;
+
+    /**
      * 엔티티 저장 전 실행 (생성일 설정)
      */
     @PrePersist
     protected void onCreate() {
         if (createdAt == null) {
             createdAt = LocalDateTime.now();
+        }
+        if (loginFailureCount == null) {
+            loginFailureCount = 0;
         }
     }
 }

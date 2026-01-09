@@ -92,10 +92,43 @@ public class UserService {
                     return new ApiException(ApiErrorCode.INVALID_LOGIN);
                 });
 
+        // 계정 잠금 확인
+        if (user.getAccountLockedUntil() != null && user.getAccountLockedUntil().isAfter(LocalDateTime.now())) {
+            log.warn("계정이 잠금되어 있음: {}, 잠금 해제 시간: {}", loginRequest.getEmail(), user.getAccountLockedUntil());
+            throw new ApiException(ApiErrorCode.ACCOUNT_LOCKED, 
+                String.format("계정이 잠금되었습니다. %s 이후에 다시 시도해주세요.", 
+                    user.getAccountLockedUntil().format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"))));
+        }
+
+        // 계정 잠금 시간이 지났으면 잠금 해제
+        if (user.getAccountLockedUntil() != null && user.getAccountLockedUntil().isBefore(LocalDateTime.now())) {
+            user.setAccountLockedUntil(null);
+            user.setLoginFailureCount(0);
+            log.info("계정 잠금 해제: {}", loginRequest.getEmail());
+        }
+
         // 비밀번호 확인
         if (!passwordEncoder.matches(loginRequest.getPassword(), user.getPassword())) {
-            log.warn("비밀번호 불일치: {}", loginRequest.getEmail());
-            throw new ApiException(ApiErrorCode.INVALID_LOGIN);
+            // 로그인 실패 횟수 증가
+            int failureCount = (user.getLoginFailureCount() == null ? 0 : user.getLoginFailureCount()) + 1;
+            user.setLoginFailureCount(failureCount);
+            
+            // 5회 실패 시 계정 잠금 (30분)
+            if (failureCount >= 5) {
+                LocalDateTime lockUntil = LocalDateTime.now().plusMinutes(30);
+                user.setAccountLockedUntil(lockUntil);
+                log.warn("계정 잠금: {}, 실패 횟수: {}, 잠금 해제 시간: {}", 
+                    loginRequest.getEmail(), failureCount, lockUntil);
+                userRepository.save(user);
+                throw new ApiException(ApiErrorCode.ACCOUNT_LOCKED, 
+                    String.format("로그인 실패가 5회 누적되어 계정이 잠금되었습니다. %s 이후에 다시 시도해주세요.", 
+                        lockUntil.format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"))));
+            } else {
+                userRepository.save(user);
+                log.warn("비밀번호 불일치: {}, 실패 횟수: {}/5", loginRequest.getEmail(), failureCount);
+                throw new ApiException(ApiErrorCode.INVALID_LOGIN, 
+                    String.format("이메일 또는 비밀번호가 올바르지 않습니다. (실패 횟수: %d/5)", failureCount));
+            }
         }
 
         // 사용자 상태 확인
@@ -104,7 +137,9 @@ public class UserService {
             throw new ApiException(ApiErrorCode.USER_NOT_APPROVED);
         }
 
-        // 로그인 일시 업데이트
+        // 로그인 성공: 실패 횟수 초기화 및 잠금 해제
+        user.setLoginFailureCount(0);
+        user.setAccountLockedUntil(null);
         user.setLastLoginAt(LocalDateTime.now());
         
         // 최초 로그인인 경우 firstLogin을 false로 변경
@@ -281,6 +316,74 @@ public class UserService {
             log.warn("권한 없음: userId={}, authVal={}", userId, authVal);
             throw new ApiException(ApiErrorCode.INVALID_REQUEST_FORMAT, "사용자 목록 조회 권한이 없습니다.");
         }
+    }
+
+    /**
+     * 사용자 정보 접근 권한 체크
+     * 
+     * @param requesterId 요청자 사용자 ID
+     * @param targetUserId 확인할 사용자 ID
+     * @throws ApiException 권한이 없을 경우
+     */
+    public void checkUserAccessPermission(Long requesterId, Long targetUserId) {
+        log.info("사용자 접근 권한 체크: requesterId={}, targetUserId={}", requesterId, targetUserId);
+        
+        // 요청자 정보 조회
+        User requester = userRepository.findById(requesterId)
+                .orElseThrow(() -> {
+                    log.warn("존재하지 않는 요청자: userId={}", requesterId);
+                    return new ApiException(ApiErrorCode.USER_NOT_FOUND);
+                });
+        
+        // 확인할 사용자 정보 조회
+        User targetUser = userRepository.findById(targetUserId)
+                .orElseThrow(() -> {
+                    log.warn("존재하지 않는 사용자: userId={}", targetUserId);
+                    return new ApiException(ApiErrorCode.USER_NOT_FOUND);
+                });
+        
+        String requesterAuthVal = requester.getAuthVal();
+        
+        // 마스터(ma): 전체 열람 가능
+        if ("ma".equals(requesterAuthVal)) {
+            log.info("마스터 권한: 접근 허용");
+            return;
+        }
+        
+        // 팀원(tw): 권한 없음
+        if ("tw".equals(requesterAuthVal)) {
+            log.warn("팀원 권한: 접근 거부");
+            throw new ApiException(ApiErrorCode.ACCESS_DENIED, "권한이 없습니다.");
+        }
+        
+        // 본부장(bb): 같은 본부면 OK
+        if ("bb".equals(requesterAuthVal)) {
+            boolean isMyBonbu = requester.getDivision().equals(targetUser.getDivision());
+            if (isMyBonbu) {
+                log.info("본부장 권한: 같은 본부, 접근 허용");
+                return;
+            } else {
+                log.warn("본부장 권한: 다른 본부, 접근 거부");
+                throw new ApiException(ApiErrorCode.ACCESS_DENIED, "권한이 없습니다.");
+            }
+        }
+        
+        // 팀장(tj): 같은 팀이면 OK
+        if ("tj".equals(requesterAuthVal)) {
+            boolean isMyTeam = requester.getDivision().equals(targetUser.getDivision()) 
+                    && requester.getTeam().equals(targetUser.getTeam());
+            if (isMyTeam) {
+                log.info("팀장 권한: 같은 팀, 접근 허용");
+                return;
+            } else {
+                log.warn("팀장 권한: 다른 팀, 접근 거부");
+                throw new ApiException(ApiErrorCode.ACCESS_DENIED, "권한이 없습니다.");
+            }
+        }
+        
+        // 기타 권한: 접근 거부
+        log.warn("알 수 없는 권한: authVal={}, 접근 거부", requesterAuthVal);
+        throw new ApiException(ApiErrorCode.ACCESS_DENIED, "권한이 없습니다.");
     }
 }
 

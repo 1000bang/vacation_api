@@ -1,20 +1,20 @@
 package com.vacation.api.domain.expense.controller;
 
-import com.vacation.api.annotation.RequiresAuth;
+import com.vacation.api.common.BaseController;
 import com.vacation.api.domain.expense.entity.ExpenseClaim;
 import com.vacation.api.domain.expense.entity.ExpenseSub;
 import com.vacation.api.domain.expense.request.ExpenseClaimRequest;
 import com.vacation.api.domain.expense.service.ExpenseClaimService;
-import com.vacation.api.domain.sample.request.ExpenseClaimSampleRequest;
-import com.vacation.api.domain.sample.request.ExpenseItem;
 import com.vacation.api.domain.user.entity.User;
 import com.vacation.api.domain.user.service.UserService;
 import com.vacation.api.response.data.ApiResponse;
 import com.vacation.api.common.TransactionIDCreator;
 import com.vacation.api.util.FileGenerateUtil;
+import com.vacation.api.util.ResponseMapper;
+import com.vacation.api.exception.ApiException;
+import com.vacation.api.vo.ExpenseClaimVO;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.slf4j.MDC;
 import org.springframework.http.HttpHeaders;
@@ -30,7 +30,6 @@ import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 /**
  * 개인 비용 청구 Controller
@@ -42,12 +41,19 @@ import java.util.stream.Collectors;
 @Slf4j
 @RestController
 @RequestMapping("/expense")
-@RequiredArgsConstructor
-public class ExpenseClaimController {
+public class ExpenseClaimController extends BaseController {
 
     private final ExpenseClaimService expenseClaimService;
     private final UserService userService;
-    private final TransactionIDCreator transactionIDCreator;
+    private final ResponseMapper responseMapper;
+
+    public ExpenseClaimController(ExpenseClaimService expenseClaimService, UserService userService,
+                                 ResponseMapper responseMapper, TransactionIDCreator transactionIDCreator) {
+        super(transactionIDCreator);
+        this.expenseClaimService = expenseClaimService;
+        this.userService = userService;
+        this.responseMapper = responseMapper;
+    }
 
     /**
      * 개인 비용 청구 목록 조회
@@ -56,47 +62,24 @@ public class ExpenseClaimController {
      * @return 개인 비용 청구 목록
      */
     @GetMapping
-    @RequiresAuth
     public ResponseEntity<ApiResponse<Object>> getExpenseClaimList(HttpServletRequest request) {
         log.info("개인 비용 청구 목록 조회 요청");
-
-        String transactionId = MDC.get("transactionId");
-        if (transactionId == null) {
-            transactionId = transactionIDCreator.createTransactionId();
-        }
 
         try {
             Long userId = (Long) request.getAttribute("userId");
             List<ExpenseClaim> expenseClaimList = expenseClaimService.getExpenseClaimList(userId);
             
             // 각 항목에 applicant 추가
-            List<Map<String, Object>> responseList = expenseClaimList.stream()
-                    .map(claim -> {
-                        Map<String, Object> map = new HashMap<>();
-                        map.put("seq", claim.getSeq());
-                        map.put("userId", claim.getUserId());
-                        map.put("requestDate", claim.getRequestDate());
-                        map.put("billingYyMonth", claim.getBillingYyMonth());
-                        map.put("childCnt", claim.getChildCnt());
-                        map.put("totalAmount", claim.getTotalAmount());
-                        map.put("createdAt", claim.getCreatedAt());
-                        
-                        // userId로 사용자 이름 조회
-                        User user = userService.getUserInfo(claim.getUserId());
-                        map.put("applicant", user != null ? user.getName() : "");
-                        
-                        return map;
-                    })
-                    .collect(java.util.stream.Collectors.toList());
+            List<Map<String, Object>> responseList = responseMapper.toExpenseClaimMapList(
+                    expenseClaimList, 
+                    userService::getUserInfo
+            );
             
-            return ResponseEntity.ok(new ApiResponse<>(transactionId, "0", responseList, null));
+            return successResponse(responseList);
+        } catch (ApiException e) {
+            return errorResponse("개인 비용 청구 목록 조회에 실패했습니다.", e);
         } catch (Exception e) {
-            log.error("개인 비용 청구 목록 조회 실패", e);
-            Map<String, Object> errorData = new HashMap<>();
-            errorData.put("errorCode", "500");
-            errorData.put("errorMessage", "개인 비용 청구 목록 조회에 실패했습니다.");
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(new ApiResponse<>(transactionId, "500", errorData, null));
+            return errorResponse("개인 비용 청구 목록 조회에 실패했습니다.", e);
         }
     }
 
@@ -108,7 +91,6 @@ public class ExpenseClaimController {
      * @return 개인 비용 청구 정보 (없으면 null)
      */
     @GetMapping("/{seq}")
-    @RequiresAuth
     public ResponseEntity<ApiResponse<Object>> getExpenseClaim(
             HttpServletRequest request,
             @PathVariable Long seq) {
@@ -153,7 +135,6 @@ public class ExpenseClaimController {
      * @return 생성된 개인 비용 청구 정보
      */
     @PostMapping
-    @RequiresAuth
     public ResponseEntity<ApiResponse<Object>> createExpenseClaim(
             HttpServletRequest request,
             @Valid @RequestBody ExpenseClaimRequest expenseClaimRequest) {
@@ -188,7 +169,6 @@ public class ExpenseClaimController {
      * @return 수정된 개인 비용 청구 정보
      */
     @PutMapping("/{seq}")
-    @RequiresAuth
     public ResponseEntity<ApiResponse<Object>> updateExpenseClaim(
             HttpServletRequest request,
             @PathVariable Long seq,
@@ -222,7 +202,6 @@ public class ExpenseClaimController {
      * @return 삭제 결과
      */
     @DeleteMapping("/{seq}")
-    @RequiresAuth
     public ResponseEntity<ApiResponse<Object>> deleteExpenseClaim(
             HttpServletRequest request,
             @PathVariable Long seq) {
@@ -257,7 +236,6 @@ public class ExpenseClaimController {
      * @return XLSX 문서
      */
     @GetMapping("/{seq}/download")
-    @RequiresAuth
     public ResponseEntity<byte[]> downloadExpenseClaim(
             HttpServletRequest request,
             @PathVariable Long seq) {
@@ -277,36 +255,13 @@ public class ExpenseClaimController {
             
             // 사용자 정보 조회
             User user = userService.getUserInfo(userId);
-            String department = user.getDivision() + "/" + user.getTeam();
             
-            // billingYyMonth를 month로 변환 (YYYYMM -> 1~12)
-            int month = expenseClaim.getBillingYyMonth() % 100;
-            
-            // ExpenseItem 리스트 생성
-            List<ExpenseItem> expenseItems = expenseSubList.stream()
-                    .map(sub -> {
-                        ExpenseItem item = new ExpenseItem();
-                        item.setDate(sub.getDate());
-                        item.setUsageDetail(sub.getUsageDetail());
-                        item.setVendor(sub.getVendor());
-                        item.setPaymentMethod(sub.getPaymentMethod());
-                        item.setProject(sub.getProject());
-                        item.setAmount(sub.getAmount());
-                        item.setNote(sub.getNote());
-                        return item;
-                    })
-                    .collect(Collectors.toList());
-            
-            // ExpenseClaimSampleRequest 생성
-            ExpenseClaimSampleRequest sampleRequest = new ExpenseClaimSampleRequest();
-            sampleRequest.setRequestDate(expenseClaim.getRequestDate());
-            sampleRequest.setMonth(month);
-            sampleRequest.setDepartment(department);
-            sampleRequest.setApplicant(user.getName());
-            sampleRequest.setExpenseItems(expenseItems);
+            // VO 생성
+            ExpenseClaimVO vo = expenseClaimService.createExpenseClaimVO(
+                    expenseClaim, expenseSubList, user);
             
             // XLSX 생성 (서명은 null로 전달하여 빈 문자열로 처리)
-            byte[] excelBytes = FileGenerateUtil.generateExpenseClaimExcel(sampleRequest, null);
+            byte[] excelBytes = FileGenerateUtil.generateExpenseClaimExcel(vo, null);
             
             // 파일명 생성 (오늘 날짜 사용)
             String dateStr = LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd"));

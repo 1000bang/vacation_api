@@ -1,6 +1,7 @@
 package com.vacation.api.exception;
 
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -21,6 +22,16 @@ import java.util.Map;
 @Slf4j
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+
+    @Value("${spring.profiles.active:dev}")
+    private String activeProfile;
+
+    /**
+     * 프로덕션 환경 여부 확인
+     */
+    private boolean isProduction() {
+        return "prod".equals(activeProfile);
+    }
 
     /**
      * JSON 파싱 예외 처리 (Enum 등)
@@ -90,14 +101,29 @@ public class GlobalExceptionHandler {
 
     /**
      * 일반 예외 처리
+     * 프로덕션 환경에서는 상세 에러 정보를 숨깁니다.
      */
     @ExceptionHandler(Exception.class)
     public ResponseEntity<Map<String, Object>> handleException(Exception e) {
-        log.error("예외 발생", e);
+        // 프로덕션이 아닌 경우에만 전체 스택 트레이스 로깅
+        if (isProduction()) {
+            log.error("예외 발생: {}", e.getClass().getSimpleName());
+            // 프로덕션에서는 민감한 정보를 로그에 남기지 않음
+        } else {
+            log.error("예외 발생", e);
+        }
         
         Map<String, Object> errorResponse = new HashMap<>();
         errorResponse.put("errorCode", ApiErrorCode.UNKNOWN_ERROR.getCode());
-        errorResponse.put("errorMessage", ApiErrorCode.UNKNOWN_ERROR.getDescription());
+        
+        // 프로덕션 환경에서는 일반적인 메시지만 반환
+        if (isProduction()) {
+            errorResponse.put("errorMessage", ApiErrorCode.UNKNOWN_ERROR.getDescription());
+        } else {
+            // 개발 환경에서는 상세 정보 포함 (선택사항)
+            errorResponse.put("errorMessage", ApiErrorCode.UNKNOWN_ERROR.getDescription());
+            errorResponse.put("errorType", e.getClass().getSimpleName());
+        }
         
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorResponse);
     }
