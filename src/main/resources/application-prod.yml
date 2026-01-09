@@ -50,7 +50,7 @@ management:
 # 로그 파일 경로 설정
 logging:
   file:
-    path: ${LOG_PATH:-/data/web/logs}
+    path: ${LOG_PATH:-/data/api/logs}
   level:
     root: INFO
     com.vacation.api: INFO  # 프로덕션에서는 INFO 레벨 권장
