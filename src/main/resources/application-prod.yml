@@ -19,7 +19,7 @@ spring:
   
   jpa:
     hibernate:
-      ddl-auto: none  # 프로덕션에서는 validate 또는 none 권장
+      ddl-auto: ${DDL_AUTO:-none}  # 프로덕션에서는 validate 또는 none 권장
     show-sql: false  # 프로덕션에서는 false 권장
     properties:
       hibernate:
@@ -31,7 +31,6 @@ spring:
 # JWT 설정 (프로덕션)
 # 주의: 반드시 환경변수 JWT_SECRET을 설정해야 합니다.
 # 최소 32자 이상의 강력한 랜덤 문자열을 사용하세요.
-# 예: export JWT_SECRET="your-very-long-and-random-secret-key-minimum-32-characters"
 jwt:
   secret: ${JWT_SECRET:}  # 환경변수 필수 (설정하지 않으면 애플리케이션 시작 실패)
   expiration: 3600000  # Access Token: 1시간 (밀리초)
@@ -48,10 +47,10 @@ management:
       show-details: never  # 프로덕션에서는 상세 정보 숨김
 
 # 로그 설정은 logback-spring.xml에서 관리
-# 로그 파일 경로 설정 (환경변수로도 설정 가능)
+# 로그 파일 경로 설정
 logging:
   file:
-    path: ${LOG_PATH:-./logs}  # 기본값: ./logs
+    path: ${LOG_PATH:-/data/api/logs}
   level:
     root: INFO
     com.vacation.api: INFO  # 프로덕션에서는 INFO 레벨 권장
