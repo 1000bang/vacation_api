@@ -313,7 +313,7 @@ public class VacationService {
         // 최신 항목이 아니면 삭제 불가
         if (!latestHistory.getSeq().equals(seq)) {
             log.warn("최신 항목만 삭제 가능: seq={}, latestSeq={}, userId={}", seq, latestHistory.getSeq(), userId);
-            throw new ApiException(ApiErrorCode.INVALID_REQUEST_FORMAT, "최신 항목만 삭제할 수 있습니다.");
+            throw new ApiException(ApiErrorCode.CANNOT_DELETE_OLD_VACATION);
         }
 
         VacationHistory vacationHistory = vacationHistoryRepository.findBySeqAndUserId(seq, userId)

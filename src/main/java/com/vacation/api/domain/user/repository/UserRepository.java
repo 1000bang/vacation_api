@@ -34,28 +34,28 @@ public interface UserRepository extends JpaRepository<User, Long> {
     boolean existsByEmail(String email);
 
     /**
-     * 권한 값으로 사용자 조회 (tw 제외)
+     * 권한 값으로 사용자 조회
      *
-     * @param authVal 권한 값 (ma, bb, tj)
+     * @param authVals 권한 값 목록 (ma, bb, tj, tw)
      * @return 사용자 목록
      */
     List<User> findByAuthValInOrderByCreatedAtDesc(List<String> authVals);
 
     /**
-     * 본부로 사용자 조회 (tw 제외)
+     * 본부로 사용자 조회
      *
      * @param division 본부
-     * @param authVals 권한 값 목록
+     * @param authVals 권한 값 목록 (ma, bb, tj, tw)
      * @return 사용자 목록
      */
     List<User> findByDivisionAndAuthValInOrderByCreatedAtDesc(String division, List<String> authVals);
 
     /**
-     * 본부와 팀으로 사용자 조회 (tw 제외)
+     * 본부와 팀으로 사용자 조회
      *
      * @param division 본부
      * @param team 팀
-     * @param authVals 권한 값 목록
+     * @param authVals 권한 값 목록 (ma, bb, tj, tw)
      * @return 사용자 목록
      */
     List<User> findByDivisionAndTeamAndAuthValInOrderByCreatedAtDesc(String division, String team, List<String> authVals);

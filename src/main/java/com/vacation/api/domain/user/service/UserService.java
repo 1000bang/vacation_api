@@ -64,6 +64,7 @@ public class UserService {
                 .passwordChanged(false)
                 .firstLogin(true)
                 .joinDate(joinRequest.getJoinDate()) // 요청에서 받은 입사일 사용
+                .authVal("tw") // 기본값: 팀원
                 .build();
         if(user.getName().equals("천병재")){
             user.setStatus(UserStatus.APPROVED);
@@ -241,9 +242,9 @@ public class UserService {
     /**
      * 사용자 정보 리스트 조회
      * 권한에 따라 필터링:
-     * - ma: 전체 목록 (tw 제외)
-     * - bb: 해당 본부/센터 사람들만 (tw 제외)
-     * - tj: 해당 본부/팀 사람들만 (tw 제외)
+     * - ma: 전체 목록 (모든 권한 포함: ma, bb, tj, tw)
+     * - bb: 해당 본부/센터 사람들만 (모든 권한 포함: ma, bb, tj, tw)
+     * - tj: 해당 본부/팀 사람들만 (모든 권한 포함: ma, bb, tj, tw)
      *
      * @param userId 요청자 사용자 ID
      * @return 필터링된 사용자 정보 목록
@@ -259,19 +260,20 @@ public class UserService {
                 });
         
         String authVal = requester.getAuthVal();
-        List<String> allowedAuthVals = List.of("ma", "bb", "tj"); // tw 제외
+        // 모든 권한 포함 (ma: master, bb: bonbujang, tj: teamjang, tw: teamwon)
+        List<String> allowedAuthVals = List.of("ma", "bb", "tj", "tw");
         
         if ("ma".equals(authVal)) {
-            // master: 전체 목록 (tw 제외)
+            // master: 전체 목록
             log.info("master 권한: 전체 목록 조회");
             return userRepository.findByAuthValInOrderByCreatedAtDesc(allowedAuthVals);
         } else if ("bb".equals(authVal)) {
-            // bonbujang: 해당 본부/센터 사람들만 (tw 제외)
+            // bonbujang: 해당 본부/센터 사람들만
             log.info("bonbujang 권한: 본부={} 필터링", requester.getDivision());
             return userRepository.findByDivisionAndAuthValInOrderByCreatedAtDesc(
                     requester.getDivision(), allowedAuthVals);
         } else if ("tj".equals(authVal)) {
-            // teamjang: 해당 본부/팀 사람들만 (tw 제외)
+            // teamjang: 해당 본부/팀 사람들만
             log.info("teamjang 권한: 본부={}, 팀={} 필터링", requester.getDivision(), requester.getTeam());
             return userRepository.findByDivisionAndTeamAndAuthValInOrderByCreatedAtDesc(
                     requester.getDivision(), requester.getTeam(), allowedAuthVals);

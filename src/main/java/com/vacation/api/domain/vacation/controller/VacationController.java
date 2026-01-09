@@ -11,6 +11,7 @@ import com.vacation.api.domain.vacation.request.VacationRequest;
 import com.vacation.api.domain.vacation.response.UserVacationInfoResponse;
 import com.vacation.api.domain.vacation.service.VacationService;
 import com.vacation.api.enums.VacationType;
+import com.vacation.api.exception.ApiException;
 import com.vacation.api.response.data.ApiResponse;
 import com.vacation.api.common.TransactionIDCreator;
 import com.vacation.api.util.FileGenerateUtil;
@@ -27,6 +28,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
 import java.util.List;
@@ -263,7 +265,35 @@ public class VacationController {
         try {
             Long userId = (Long) request.getAttribute("userId");
             List<VacationHistory> historyList = vacationService.getVacationHistoryList(userId);
-            return ResponseEntity.ok(new ApiResponse<>(transactionId, "0", historyList, null));
+            
+            // 각 항목에 applicant 추가
+            List<Map<String, Object>> responseList = historyList.stream()
+                    .map(history -> {
+                        Map<String, Object> map = new HashMap<>();
+                        map.put("seq", history.getSeq());
+                        map.put("userId", history.getUserId());
+                        map.put("startDate", history.getStartDate());
+                        map.put("endDate", history.getEndDate());
+                        map.put("period", history.getPeriod());
+                        map.put("type", history.getType());
+                        map.put("reason", history.getReason());
+                        map.put("requestDate", history.getRequestDate());
+                        map.put("annualVacationDays", history.getAnnualVacationDays());
+                        map.put("previousRemainingDays", history.getPreviousRemainingDays());
+                        map.put("usedVacationDays", history.getUsedVacationDays());
+                        map.put("remainingVacationDays", history.getRemainingVacationDays());
+                        map.put("status", history.getStatus());
+                        map.put("createdAt", history.getCreatedAt());
+                        
+                        // userId로 사용자 이름 조회
+                        User user = userService.getUserInfo(history.getUserId());
+                        map.put("applicant", user != null ? user.getName() : "");
+                        
+                        return map;
+                    })
+                    .collect(java.util.stream.Collectors.toList());
+            
+            return ResponseEntity.ok(new ApiResponse<>(transactionId, "0", responseList, null));
         } catch (Exception e) {
             log.error("연차 내역 목록 조회 실패", e);
             Map<String, Object> errorData = new HashMap<>();
@@ -401,6 +431,13 @@ public class VacationController {
             Map<String, Object> resultData = new HashMap<>();
             resultData.put("message", "삭제되었습니다.");
             return ResponseEntity.ok(new ApiResponse<>(transactionId, "0", resultData, null));
+        } catch (ApiException e) {
+            log.error("휴가 신청 삭제 실패", e);
+            Map<String, Object> errorData = new HashMap<>();
+            errorData.put("errorCode", e.getApiErrorCode().getCode());
+            errorData.put("errorMessage", e.getMessage() != null ? e.getMessage() : e.getApiErrorCode().getDescription());
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(new ApiResponse<>(transactionId, e.getApiErrorCode().getCode(), errorData, null));
         } catch (Exception e) {
             log.error("휴가 신청 삭제 실패", e);
             Map<String, Object> errorData = new HashMap<>();
@@ -457,8 +494,8 @@ public class VacationController {
             // DOCX 생성 (서명은 null로 전달하여 빈 문자열로 처리)
             byte[] docBytes = FileGenerateUtil.generateVacationApplicationDoc(sampleRequest, null);
             
-            // 파일명 생성
-            String dateStr = vacationHistory.getRequestDate().format(DateTimeFormatter.ofPattern("yyyyMMdd"));
+            // 파일명 생성 (오늘 날짜 사용)
+            String dateStr = LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd"));
             String fileName = "휴가(결무)신청서_" + user.getName() + "_" + dateStr + ".docx";
             String encodedFileName = URLEncoder.encode(fileName, StandardCharsets.UTF_8)
                     .replace("+", "%20");
