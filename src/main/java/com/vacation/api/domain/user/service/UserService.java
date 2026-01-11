@@ -278,11 +278,11 @@ public class UserService {
      * 사용자 정보 리스트 조회
      * 권한에 따라 필터링:
      * - ma: 전체 목록 (모든 권한 포함: ma, bb, tj, tw)
-     * - bb: 해당 본부/센터 사람들만 (모든 권한 포함: ma, bb, tj, tw)
-     * - tj: 해당 본부/팀 사람들만 (모든 권한 포함: ma, bb, tj, tw)
+     * - bb: 해당 본부의 tw(팀원)와 tj(팀장)만 (자기 자신 제외)
+     * - tj: 해당 본부/팀의 tw(팀원)만 (자기 자신 제외)
      *
      * @param userId 요청자 사용자 ID
-     * @return 필터링된 사용자 정보 목록
+     * @return 필터링된 사용자 정보 목록 (자기 자신 제외)
      */
     public List<User> getUserInfoList(Long userId) {
         log.info("사용자 정보 리스트 조회: userId={}", userId);
@@ -295,27 +295,39 @@ public class UserService {
                 });
         
         String authVal = requester.getAuthVal();
-        // 모든 권한 포함 (ma: master, bb: bonbujang, tj: teamjang, tw: teamwon)
-        List<String> allowedAuthVals = List.of("ma", "bb", "tj", "tw");
+        List<User> result;
         
         if ("ma".equals(authVal)) {
-            // master: 전체 목록
-            log.info("master 권한: 전체 목록 조회");
-            return userRepository.findByAuthValInOrderByCreatedAtDesc(allowedAuthVals);
+            // master: 전체 목록 (모든 권한 포함, 자기 자신 포함)
+            log.info("master 권한: 전체 목록 조회 (자기 자신 포함)");
+            List<String> allowedAuthVals = List.of("ma", "bb", "tj", "tw");
+            result = userRepository.findByAuthValInOrderByCreatedAtDesc(allowedAuthVals);
+            log.info("필터링된 사용자 수: {} (전체)", result.size());
+            return result;
         } else if ("bb".equals(authVal)) {
-            // bonbujang: 해당 본부/센터 사람들만
-            log.info("bonbujang 권한: 본부={} 필터링", requester.getDivision());
-            return userRepository.findByDivisionAndAuthValInOrderByCreatedAtDesc(
+            // bonbujang: 해당 본부의 tw(팀원)와 tj(팀장)만 (자기 자신 제외)
+            log.info("bonbujang 권한: 본부={}, tw와 tj만 조회", requester.getDivision());
+            List<String> allowedAuthVals = List.of("tw", "tj");
+            result = userRepository.findByDivisionAndAuthValInOrderByCreatedAtDesc(
                     requester.getDivision(), allowedAuthVals);
         } else if ("tj".equals(authVal)) {
-            // teamjang: 해당 본부/팀 사람들만
-            log.info("teamjang 권한: 본부={}, 팀={} 필터링", requester.getDivision(), requester.getTeam());
-            return userRepository.findByDivisionAndTeamAndAuthValInOrderByCreatedAtDesc(
+            // teamjang: 해당 본부/팀의 tw(팀원)만 (자기 자신 제외)
+            log.info("teamjang 권한: 본부={}, 팀={}, tw만 조회", requester.getDivision(), requester.getTeam());
+            List<String> allowedAuthVals = List.of("tw");
+            result = userRepository.findByDivisionAndTeamAndAuthValInOrderByCreatedAtDesc(
                     requester.getDivision(), requester.getTeam(), allowedAuthVals);
         } else {
             log.warn("권한 없음: userId={}, authVal={}", userId, authVal);
             throw new ApiException(ApiErrorCode.INVALID_REQUEST_FORMAT, "사용자 목록 조회 권한이 없습니다.");
         }
+        
+        // 자기 자신 제외 (마스터 제외)
+        result = result.stream()
+                .filter(user -> !user.getUserId().equals(userId))
+                .toList();
+        
+        log.info("필터링된 사용자 수: {} (자기 자신 제외)", result.size());
+        return result;
     }
 
     /**

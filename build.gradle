@@ -45,6 +45,9 @@ dependencies {
 	
 	// Health Check (Spring Boot Actuator)
 	implementation 'org.springframework.boot:spring-boot-starter-actuator'
+	
+	// Swagger/OpenAPI (SpringDoc)
+	implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.3.0'
 
 	compileOnly 'org.projectlombok:lombok'
 	annotationProcessor 'org.projectlombok:lombok'

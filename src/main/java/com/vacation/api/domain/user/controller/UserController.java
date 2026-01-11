@@ -55,7 +55,7 @@ public class UserController extends BaseController {
      * @return ApiResponse
      */
     @PostMapping("/join")
-    @com.vacation.api.annotation.RateLimit(capacity = 3, windowSeconds = 3600)
+    @com.vacation.api.annotation.RateLimit(capacity = 10, windowSeconds = 3600)
     public ResponseEntity<ApiResponse<Object>> joinMember(@Valid @RequestBody JoinRequest joinRequest) {
         log.info("회원가입 요청 수신: email={}", joinRequest.getEmail());
 
@@ -90,7 +90,7 @@ public class UserController extends BaseController {
      * @return ApiResponse (JWT 토큰 포함)
      */
     @PostMapping("/login")
-    @com.vacation.api.annotation.RateLimit(capacity = 5, windowSeconds = 3600)
+    @com.vacation.api.annotation.RateLimit(capacity = 10, windowSeconds = 3600)
     public ResponseEntity<ApiResponse<Object>> login(@Valid @RequestBody LoginRequest loginRequest) {
         log.info("로그인 요청 수신: email={}", loginRequest.getEmail());
 

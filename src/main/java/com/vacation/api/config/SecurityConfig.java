@@ -45,6 +45,8 @@ public class SecurityConfig {
                 .requestMatchers("/user/refresh").permitAll()
                 .requestMatchers("/health/**").permitAll()
                 .requestMatchers("/actuator/**").permitAll()
+                // Swagger UI (개발 환경에서만 사용 권장)
+                .requestMatchers("/swagger-ui/**", "/swagger-ui.html", "/v3/api-docs/**", "/swagger-resources/**").permitAll()
                 // 나머지 모든 요청은 인증 필요
                 .anyRequest().authenticated()
             )
