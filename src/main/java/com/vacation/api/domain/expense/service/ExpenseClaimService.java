@@ -32,14 +32,28 @@ public class ExpenseClaimService {
     private final ExpenseSubRepository expenseSubRepository;
 
     /**
-     * 개인 비용 청구 목록 조회
+     * 개인 비용 청구 목록 조회 (페이징)
      *
      * @param userId 사용자 ID
+     * @param page 페이지 번호 (0부터 시작)
+     * @param size 페이지 크기
      * @return 개인 비용 청구 목록
      */
-    public List<ExpenseClaim> getExpenseClaimList(Long userId) {
-        log.info("개인 비용 청구 목록 조회: userId={}", userId);
-        return expenseClaimRepository.findByUserIdOrderBySeqDesc(userId);
+    public List<ExpenseClaim> getExpenseClaimList(Long userId, int page, int size) {
+        log.info("개인 비용 청구 목록 조회: userId={}, page={}, size={}", userId, page, size);
+        int offset = page * size;
+        return expenseClaimRepository.findByUserIdOrderBySeqDescWithPaging(userId, offset, size);
+    }
+    
+    /**
+     * 개인 비용 청구 총 개수 조회
+     *
+     * @param userId 사용자 ID
+     * @return 총 개수
+     */
+    public long getExpenseClaimCount(Long userId) {
+        log.info("개인 비용 청구 총 개수 조회: userId={}", userId);
+        return expenseClaimRepository.countByUserId(userId);
     }
 
     /**

@@ -2,6 +2,8 @@ package com.vacation.api.domain.vacation.repository;
 
 import com.vacation.api.domain.vacation.entity.VacationHistory;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.time.LocalDate;
@@ -66,6 +68,26 @@ public interface VacationHistoryRepository extends JpaRepository<VacationHistory
      * @return 연차 내역 목록
      */
     List<VacationHistory> findByUserIdInOrderByStartDateAsc(List<Long> userIds);
+    
+    /**
+     * 사용자 ID로 연차 내역 총 개수 조회
+     *
+     * @param userId 사용자 ID
+     * @return 총 개수
+     */
+    @Query("SELECT COUNT(v) FROM VacationHistory v WHERE v.userId = :userId")
+    long countByUserId(@Param("userId") Long userId);
+    
+    /**
+     * 사용자 ID로 연차 내역 목록 조회 (페이징, 최신순)
+     *
+     * @param userId 사용자 ID
+     * @param offset 시작 위치
+     * @param limit 개수
+     * @return 연차 내역 목록
+     */
+    @Query(value = "SELECT * FROM tbl_vacation_history WHERE user_id = :userId ORDER BY seq DESC LIMIT :limit OFFSET :offset", nativeQuery = true)
+    List<VacationHistory> findByUserIdOrderBySeqDescWithPaging(@Param("userId") Long userId, @Param("offset") int offset, @Param("limit") int limit);
     
 }
 

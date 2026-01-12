@@ -205,18 +205,28 @@ public class RentalController extends BaseController {
     // ========== 월세 지원 신청 (청구서) 관련 엔드포인트 ==========
 
     /**
-     * 월세 지원 신청 목록 조회
+     * 월세 지원 신청 목록 조회 (페이징)
      *
      * @param request HTTP 요청
+     * @param page 페이지 번호 (0부터 시작, 기본값: 0)
+     * @param size 페이지 크기 (기본값: 5)
      * @return 월세 지원 신청 목록
      */
     @GetMapping("/application")
-    public ResponseEntity<ApiResponse<Object>> getRentalSupportApplicationList(HttpServletRequest request) {
-        log.info("월세 지원 신청 목록 조회 요청");
+    public ResponseEntity<ApiResponse<Object>> getRentalSupportApplicationList(
+            HttpServletRequest request,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "5") int size) {
+        log.info("월세 지원 신청 목록 조회 요청: page={}, size={}", page, size);
 
         try {
             Long userId = (Long) request.getAttribute("userId");
-            List<RentalSupport> rentalSupportList = rentaltService.getRentalSupportApplicationList(userId);
+            
+            // totalCount 조회 (COUNT 쿼리)
+            long totalCount = rentaltService.getRentalSupportApplicationCount(userId);
+            
+            // 페이징된 목록 조회
+            List<RentalSupport> rentalSupportList = rentaltService.getRentalSupportApplicationList(userId, page, size);
             
             // 각 항목에 applicant 추가
             List<Map<String, Object>> responseList = responseMapper.toRentalSupportMapList(
@@ -224,7 +234,12 @@ public class RentalController extends BaseController {
                     userService::getUserInfo
             );
             
-            return successResponse(responseList);
+            // totalCount 포함 응답 생성
+            Map<String, Object> responseData = new HashMap<>();
+            responseData.put("list", responseList);
+            responseData.put("totalCount", totalCount);
+            
+            return successResponse(responseData);
         } catch (ApiException e) {
             return errorResponse("월세 지원 신청 목록 조회에 실패했습니다.", e);
         } catch (Exception e) {

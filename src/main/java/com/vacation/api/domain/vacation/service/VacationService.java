@@ -107,14 +107,28 @@ public class VacationService {
     }
 
     /**
-     * 연차 내역 목록 조회
+     * 연차 내역 목록 조회 (페이징)
      *
      * @param userId 사용자 ID
+     * @param page 페이지 번호 (0부터 시작)
+     * @param size 페이지 크기
      * @return 연차 내역 목록
      */
-    public List<VacationHistory> getVacationHistoryList(Long userId) {
-        log.info("연차 내역 목록 조회: userId={}", userId);
-        return vacationHistoryRepository.findByUserIdOrderBySeqDesc(userId);
+    public List<VacationHistory> getVacationHistoryList(Long userId, int page, int size) {
+        log.info("연차 내역 목록 조회: userId={}, page={}, size={}", userId, page, size);
+        int offset = page * size;
+        return vacationHistoryRepository.findByUserIdOrderBySeqDescWithPaging(userId, offset, size);
+    }
+    
+    /**
+     * 연차 내역 총 개수 조회
+     *
+     * @param userId 사용자 ID
+     * @return 총 개수
+     */
+    public long getVacationHistoryCount(Long userId) {
+        log.info("연차 내역 총 개수 조회: userId={}", userId);
+        return vacationHistoryRepository.countByUserId(userId);
     }
 
     /**
@@ -288,12 +302,26 @@ public class VacationService {
         }
 
         // 직전 남은 연차 계산 (수정 시점)
-        Double previousRemainingDays = vacationInfo.getAnnualVacationDays() 
-                - vacationInfo.getUsedVacationDays() 
-                - vacationInfo.getReservedVacationDays();
+        // 수정 모드에서 연차 정보가 제공되면 사용, 아니면 자동 계산
+        Double previousRemainingDays;
+        Double annualVacationDays;
+        Double remainingVacationDays;
         
-        // 남은 연차 계산 (수정 후)
-        Double remainingVacationDays = previousRemainingDays - request.getPeriod();
+        if (request.getPreviousRemainingDays() != null && 
+            request.getAnnualVacationDays() != null && 
+            request.getRemainingVacationDays() != null) {
+            // 수정 모드에서 연차 정보가 제공된 경우
+            previousRemainingDays = request.getPreviousRemainingDays();
+            annualVacationDays = request.getAnnualVacationDays();
+            remainingVacationDays = request.getRemainingVacationDays();
+        } else {
+            // 자동 계산
+            previousRemainingDays = vacationInfo.getAnnualVacationDays() 
+                    - vacationInfo.getUsedVacationDays() 
+                    - vacationInfo.getReservedVacationDays();
+            annualVacationDays = vacationInfo.getAnnualVacationDays();
+            remainingVacationDays = previousRemainingDays - request.getPeriod();
+        }
 
         // 연차 내역 수정
         vacationHistory.setStartDate(request.getStartDate());
@@ -302,7 +330,7 @@ public class VacationService {
         vacationHistory.setType(request.getVacationType());
         vacationHistory.setReason(request.getReason());
         vacationHistory.setRequestDate(request.getRequestDate());
-        vacationHistory.setAnnualVacationDays(vacationInfo.getAnnualVacationDays());
+        vacationHistory.setAnnualVacationDays(annualVacationDays);
         vacationHistory.setPreviousRemainingDays(previousRemainingDays);
         vacationHistory.setUsedVacationDays(request.getPeriod());
         vacationHistory.setRemainingVacationDays(remainingVacationDays);

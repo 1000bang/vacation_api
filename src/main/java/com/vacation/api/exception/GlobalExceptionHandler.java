@@ -110,7 +110,7 @@ public class GlobalExceptionHandler {
             log.error("예외 발생: {}", e.getClass().getSimpleName());
             // 프로덕션에서는 민감한 정보를 로그에 남기지 않음
         } else {
-            log.error("예외 발생", e);
+        log.error("예외 발생", e);
         }
         
         Map<String, Object> errorResponse = new HashMap<>();
@@ -121,7 +121,7 @@ public class GlobalExceptionHandler {
             errorResponse.put("errorMessage", ApiErrorCode.UNKNOWN_ERROR.getDescription());
         } else {
             // 개발 환경에서는 상세 정보 포함 (선택사항)
-            errorResponse.put("errorMessage", ApiErrorCode.UNKNOWN_ERROR.getDescription());
+        errorResponse.put("errorMessage", ApiErrorCode.UNKNOWN_ERROR.getDescription());
             errorResponse.put("errorType", e.getClass().getSimpleName());
         }
         

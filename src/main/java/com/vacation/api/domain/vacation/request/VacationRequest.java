@@ -54,5 +54,20 @@ public class VacationRequest {
      * 사유
      */
     private String reason;
+
+    /**
+     * 총 연차 (수정 모드에서 사용)
+     */
+    private Double annualVacationDays;
+
+    /**
+     * 직전 잔여 연차 (수정 모드에서 사용)
+     */
+    private Double previousRemainingDays;
+
+    /**
+     * 잔여 연차 (수정 모드에서 사용)
+     */
+    private Double remainingVacationDays;
 }
 

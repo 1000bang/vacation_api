@@ -2,6 +2,8 @@ package com.vacation.api.domain.expense.repository;
 
 import com.vacation.api.domain.expense.entity.ExpenseClaim;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
@@ -33,5 +35,25 @@ public interface ExpenseClaimRepository extends JpaRepository<ExpenseClaim, Long
      * @return 개인 비용 청구 정보
      */
     Optional<ExpenseClaim> findBySeqAndUserId(Long seq, Long userId);
+    
+    /**
+     * 사용자 ID로 개인 비용 청구 총 개수 조회
+     *
+     * @param userId 사용자 ID
+     * @return 총 개수
+     */
+    @Query("SELECT COUNT(e) FROM ExpenseClaim e WHERE e.userId = :userId")
+    long countByUserId(@Param("userId") Long userId);
+    
+    /**
+     * 사용자 ID로 개인 비용 청구 목록 조회 (페이징, 최신순)
+     *
+     * @param userId 사용자 ID
+     * @param offset 시작 위치
+     * @param limit 개수
+     * @return 개인 비용 청구 목록
+     */
+    @Query(value = "SELECT * FROM tbl_expense_claim WHERE user_id = :userId ORDER BY seq DESC LIMIT :limit OFFSET :offset", nativeQuery = true)
+    List<ExpenseClaim> findByUserIdOrderBySeqDescWithPaging(@Param("userId") Long userId, @Param("offset") int offset, @Param("limit") int limit);
 }
 

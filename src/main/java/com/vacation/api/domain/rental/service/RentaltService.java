@@ -144,14 +144,28 @@ public class RentaltService {
     // ========== 월세 지원 신청 (청구서) 관련 메서드 ==========
 
     /**
-     * 월세 지원 신청 목록 조회
+     * 월세 지원 신청 목록 조회 (페이징)
      *
      * @param userId 사용자 ID
+     * @param page 페이지 번호 (0부터 시작)
+     * @param size 페이지 크기
      * @return 월세 지원 신청 목록
      */
-    public List<RentalSupport> getRentalSupportApplicationList(Long userId) {
-        log.info("월세 지원 신청 목록 조회: userId={}", userId);
-        return rentalSupportRepository.findByUserIdOrderBySeqDesc(userId);
+    public List<RentalSupport> getRentalSupportApplicationList(Long userId, int page, int size) {
+        log.info("월세 지원 신청 목록 조회: userId={}, page={}, size={}", userId, page, size);
+        int offset = page * size;
+        return rentalSupportRepository.findByUserIdOrderBySeqDescWithPaging(userId, offset, size);
+    }
+    
+    /**
+     * 월세 지원 신청 총 개수 조회
+     *
+     * @param userId 사용자 ID
+     * @return 총 개수
+     */
+    public long getRentalSupportApplicationCount(Long userId) {
+        log.info("월세 지원 신청 총 개수 조회: userId={}", userId);
+        return rentalSupportRepository.countByUserId(userId);
     }
 
     /**

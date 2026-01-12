@@ -249,14 +249,19 @@ public class VacationController extends BaseController {
     }
 
     /**
-     * 연차 내역 목록 조회
+     * 연차 내역 목록 조회 (페이징)
      *
      * @param request HTTP 요청
+     * @param page 페이지 번호 (0부터 시작, 기본값: 0)
+     * @param size 페이지 크기 (기본값: 5)
      * @return 연차 내역 목록
      */
     @GetMapping("/history")
-    public ResponseEntity<ApiResponse<Object>> getVacationHistoryList(HttpServletRequest request) {
-        log.info("연차 내역 목록 조회 요청");
+    public ResponseEntity<ApiResponse<Object>> getVacationHistoryList(
+            HttpServletRequest request,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "5") int size) {
+        log.info("연차 내역 목록 조회 요청: page={}, size={}", page, size);
 
         String transactionId = MDC.get("transactionId");
         if (transactionId == null) {
@@ -265,7 +270,12 @@ public class VacationController extends BaseController {
 
         try {
             Long userId = (Long) request.getAttribute("userId");
-            List<VacationHistory> historyList = vacationService.getVacationHistoryList(userId);
+            
+            // totalCount 조회 (COUNT 쿼리)
+            long totalCount = vacationService.getVacationHistoryCount(userId);
+            
+            // 페이징된 목록 조회
+            List<VacationHistory> historyList = vacationService.getVacationHistoryList(userId, page, size);
             
             // 각 항목에 applicant 추가
             List<Map<String, Object>> responseList = responseMapper.toVacationHistoryMapList(
@@ -273,7 +283,12 @@ public class VacationController extends BaseController {
                     userService::getUserInfo
             );
             
-            return successResponse(responseList);
+            // totalCount 포함 응답 생성
+            Map<String, Object> responseData = new HashMap<>();
+            responseData.put("list", responseList);
+            responseData.put("totalCount", totalCount);
+            
+            return successResponse(responseData);
         } catch (ApiException e) {
             return errorResponse("연차 내역 목록 조회에 실패했습니다.", e);
         } catch (Exception e) {
