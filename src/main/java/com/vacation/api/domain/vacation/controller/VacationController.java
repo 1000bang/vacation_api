@@ -282,6 +282,52 @@ public class VacationController extends BaseController {
     }
 
     /**
+     * 캘린더용 휴가 목록 조회 (본부 전체, 현재 월 기준 전후 1개월)
+     *
+     * @param request HTTP 요청
+     * @param year 조회할 연도 (선택, 기본값: 현재 연도)
+     * @param month 조회할 월 (선택, 기본값: 현재 월)
+     * @return 휴가 내역 목록
+     */
+    @GetMapping("/calendar")
+    public ResponseEntity<ApiResponse<Object>> getCalendarVacationList(
+            HttpServletRequest request,
+            @RequestParam(required = false) Integer year,
+            @RequestParam(required = false) Integer month) {
+        log.info("캘린더용 휴가 목록 조회 요청: year={}, month={}", year, month);
+
+        String transactionId = MDC.get("transactionId");
+        if (transactionId == null) {
+            transactionId = transactionIDCreator.createTransactionId();
+        }
+
+        try {
+            Long userId = (Long) request.getAttribute("userId");
+            
+            // 파라미터가 없으면 현재 연도/월 사용
+            if (year == null || month == null) {
+                LocalDate now = LocalDate.now();
+                year = year != null ? year : now.getYear();
+                month = month != null ? month : now.getMonthValue();
+            }
+            
+            List<VacationHistory> vacationList = vacationService.getCalendarVacationList(userId, year, month);
+            
+            // 각 항목에 applicant 추가
+            List<Map<String, Object>> responseList = responseMapper.toVacationHistoryMapList(
+                    vacationList, 
+                    userService::getUserInfo
+            );
+            
+            return successResponse(responseList);
+        } catch (ApiException e) {
+            return errorResponse("캘린더용 휴가 목록 조회에 실패했습니다.", e);
+        } catch (Exception e) {
+            return errorResponse("캘린더용 휴가 목록 조회에 실패했습니다.", e);
+        }
+    }
+
+    /**
      * 연차 내역 조회
      *
      * @param request HTTP 요청

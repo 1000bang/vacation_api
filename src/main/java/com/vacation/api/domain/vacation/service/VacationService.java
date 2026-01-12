@@ -118,6 +118,42 @@ public class VacationService {
     }
 
     /**
+     * 본부 전체 캘린더용 휴가 목록 조회 (권한 무관)
+     * 현재 월 기준 전후 1개월 범위의 휴가만 조회
+     *
+     * @param userId 요청자 사용자 ID
+     * @param year 조회할 연도
+     * @param month 조회할 월 (1-12)
+     * @return 휴가 내역 목록
+     */
+    public List<VacationHistory> getCalendarVacationList(Long userId, Integer year, Integer month) {
+        log.info("캘린더용 휴가 목록 조회: userId={}, year={}, month={}", userId, year, month);
+
+        User requester = userRepository.findById(userId)
+                .orElseThrow(() -> {
+                    log.warn("존재하지 않는 사용자: userId={}", userId);
+                    return new ApiException(ApiErrorCode.USER_NOT_FOUND);
+                });
+
+        // 본부 전체 사용자 조회 (권한 무관)
+        String division = requester.getDivision();
+        log.info("본부 전체 휴가 조회: 본부={}", division);
+        
+        // 현재 월 기준 전후 1개월 범위 계산
+        LocalDate currentMonthStart = LocalDate.of(year, month, 1);
+        LocalDate prevMonthStart = currentMonthStart.minusMonths(1);
+        LocalDate nextMonthEnd = currentMonthStart.plusMonths(2).minusDays(1);
+        
+        // QueryDSL 조인을 사용하여 본부와 날짜 범위로 한 번에 휴가 조회
+        List<VacationHistory> vacationList = vacationHistoryRepository
+                .findByDivisionAndDateRange(division, List.of("ma", "bb", "tj", "tw"), prevMonthStart, nextMonthEnd);
+        
+        log.info("캘린더용 휴가 목록 조회 완료: userId={}, 본부={}, 범위={}~{}, count={}", 
+                userId, division, prevMonthStart, nextMonthEnd, vacationList.size());
+        return vacationList;
+    }
+
+    /**
      * 연차 내역 조회
      *
      * @param seq 시퀀스

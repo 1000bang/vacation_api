@@ -16,7 +16,7 @@ import java.util.Optional;
  * @since 2026-01-07
  */
 @Repository
-public interface VacationHistoryRepository extends JpaRepository<VacationHistory, Long> {
+public interface VacationHistoryRepository extends JpaRepository<VacationHistory, Long>, VacationHistoryRepositoryCustom {
 
     /**
      * 사용자 ID로 연차 내역 목록 조회 (최신순)
@@ -58,5 +58,14 @@ public interface VacationHistoryRepository extends JpaRepository<VacationHistory
      * @return 연차 내역 목록
      */
     List<VacationHistory> findByStatus(String status);
+    
+    /**
+     * 사용자 ID 목록으로 연차 내역 조회 (캘린더용)
+     *
+     * @param userIds 사용자 ID 목록
+     * @return 연차 내역 목록
+     */
+    List<VacationHistory> findByUserIdInOrderByStartDateAsc(List<Long> userIds);
+    
 }
 
