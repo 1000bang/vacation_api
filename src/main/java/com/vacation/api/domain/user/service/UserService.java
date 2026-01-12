@@ -12,7 +12,12 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -32,6 +37,10 @@ public class UserService {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtUtil jwtUtil;
+    private final PlatformTransactionManager transactionManager;
+
+    @PersistenceContext
+    private EntityManager entityManager;
 
     /**
      * 회원가입
@@ -109,22 +118,19 @@ public class UserService {
 
         // 비밀번호 확인
         if (!passwordEncoder.matches(loginRequest.getPassword(), user.getPassword())) {
-            // 로그인 실패 횟수 증가
-            int failureCount = (user.getLoginFailureCount() == null ? 0 : user.getLoginFailureCount()) + 1;
-            user.setLoginFailureCount(failureCount);
+            // 로그인 실패 횟수 증가 (별도 트랜잭션으로 실행하여 롤백 방지)
+            int failureCount = incrementLoginFailureCount(user.getUserId());
             
             // 5회 실패 시 계정 잠금 (30분)
             if (failureCount >= 5) {
                 LocalDateTime lockUntil = LocalDateTime.now().plusMinutes(30);
-                user.setAccountLockedUntil(lockUntil);
+                lockAccount(user.getUserId(), lockUntil);
                 log.warn("계정 잠금: {}, 실패 횟수: {}, 잠금 해제 시간: {}", 
                     loginRequest.getEmail(), failureCount, lockUntil);
-                userRepository.save(user);
                 throw new ApiException(ApiErrorCode.ACCOUNT_LOCKED, 
                     String.format("로그인 실패가 5회 누적되어 계정이 잠금되었습니다. %s 이후에 다시 시도해주세요.", 
                         lockUntil.format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"))));
             } else {
-                userRepository.save(user);
                 log.warn("비밀번호 불일치: {}, 실패 횟수: {}/5", loginRequest.getEmail(), failureCount);
                 throw new ApiException(ApiErrorCode.INVALID_LOGIN, 
                     String.format("이메일 또는 비밀번호가 올바르지 않습니다. (실패 횟수: %d/5)", failureCount));
@@ -158,6 +164,62 @@ public class UserService {
         log.info("로그인 성공: userId={}, email={}", user.getUserId(), user.getEmail());
 
         return new String[]{accessToken, refreshToken};
+    }
+
+    /**
+     * 로그인 실패 횟수 증가 (수동 트랜잭션 관리로 롤백 방지)
+     * TransactionTemplate을 사용하여 메인 트랜잭션과 완전히 분리
+     *
+     * @param userId 사용자 ID
+     * @return 증가된 실패 횟수
+     */
+    public int incrementLoginFailureCount(Long userId) {
+        // 별도 트랜잭션으로 실행 (메인 트랜잭션과 완전히 분리)
+        TransactionTemplate transactionTemplate = new TransactionTemplate(transactionManager);
+        transactionTemplate.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
+        transactionTemplate.setIsolationLevel(TransactionDefinition.ISOLATION_READ_COMMITTED);
+        
+        // UPDATE 쿼리 실행 (예외가 발생해도 커밋되도록)
+        transactionTemplate.execute(status -> {
+            int rows = userRepository.incrementLoginFailureCount(userId);
+            log.info("로그인 실패 횟수 UPDATE 쿼리 실행: userId={}, 업데이트된 행 수: {}", userId, rows);
+            return rows;
+        });
+        
+        // 트랜잭션 커밋 후 캐시 비우기
+        entityManager.clear();
+        
+        // 증가된 실패 횟수 조회 (새로운 트랜잭션에서)
+        return transactionTemplate.execute(status -> {
+            User user = userRepository.findById(userId)
+                    .orElseThrow(() -> {
+                        log.warn("존재하지 않는 사용자: userId={}", userId);
+                        return new ApiException(ApiErrorCode.USER_NOT_FOUND);
+                    });
+            
+            int failureCount = user.getLoginFailureCount() == null ? 0 : user.getLoginFailureCount();
+            log.info("로그인 실패 횟수 증가 완료: userId={}, 실패 횟수: {}/5", userId, failureCount);
+            return failureCount;
+        });
+    }
+
+    /**
+     * 계정 잠금 (수동 트랜잭션 관리로 롤백 방지)
+     * TransactionTemplate을 사용하여 메인 트랜잭션과 완전히 분리
+     *
+     * @param userId 사용자 ID
+     * @param lockUntil 잠금 해제 시간
+     */
+    public void lockAccount(Long userId, LocalDateTime lockUntil) {
+        // 별도 트랜잭션으로 실행 (메인 트랜잭션과 완전히 분리)
+        TransactionTemplate transactionTemplate = new TransactionTemplate(transactionManager);
+        transactionTemplate.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
+        transactionTemplate.setIsolationLevel(TransactionDefinition.ISOLATION_READ_COMMITTED);
+        
+        transactionTemplate.executeWithoutResult(status -> {
+            userRepository.lockAccount(userId, lockUntil);
+            log.info("계정 잠금 완료: userId={}, 잠금 해제 시간: {}", userId, lockUntil);
+        });
     }
 
     /**
