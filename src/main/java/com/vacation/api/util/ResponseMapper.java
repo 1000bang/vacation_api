@@ -72,6 +72,7 @@ public class ResponseMapper {
         map.put("paymentDate", rental.getPaymentDate());
         map.put("paymentAmount", rental.getPaymentAmount());
         map.put("billingAmount", rental.getBillingAmount());
+        map.put("approvalStatus", rental.getApprovalStatus());
         map.put("createdAt", rental.getCreatedAt());
         map.put("applicant", applicantName != null ? applicantName : "");
         return map;
@@ -92,6 +93,7 @@ public class ResponseMapper {
         map.put("billingYyMonth", claim.getBillingYyMonth());
         map.put("childCnt", claim.getChildCnt());
         map.put("totalAmount", claim.getTotalAmount());
+        map.put("approvalStatus", claim.getApprovalStatus());
         map.put("createdAt", claim.getCreatedAt());
         map.put("applicant", applicantName != null ? applicantName : "");
         return map;
@@ -119,6 +121,7 @@ public class ResponseMapper {
         map.put("usedVacationDays", history.getUsedVacationDays());
         map.put("remainingVacationDays", history.getRemainingVacationDays());
         map.put("status", history.getStatus());
+        map.put("approvalStatus", history.getApprovalStatus());
         map.put("createdAt", history.getCreatedAt());
         map.put("applicant", applicantName != null ? applicantName : "");
         return map;
