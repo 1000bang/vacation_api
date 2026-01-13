@@ -1,11 +1,14 @@
 package com.vacation.api.domain.rental.service;
 
+import com.vacation.api.domain.alarm.service.AlarmService;
 import com.vacation.api.domain.rental.entity.RentalApproval;
 import com.vacation.api.domain.rental.entity.RentalSupport;
 import com.vacation.api.domain.rental.repository.RentalApprovalRepository;
 import com.vacation.api.domain.rental.repository.RentalSupportRepository;
 import com.vacation.api.domain.rental.request.RentalApprovalRequest;
 import com.vacation.api.domain.rental.request.RentalSupportRequest;
+import com.vacation.api.domain.user.entity.User;
+import com.vacation.api.domain.user.repository.UserRepository;
 import com.vacation.api.enums.PaymentType;
 import com.vacation.api.exception.ApiErrorCode;
 import com.vacation.api.exception.ApiException;
@@ -33,7 +36,9 @@ import java.util.List;
 public class RentaltService {
 
     private final RentalApprovalRepository rentalApprovalRepository;
+    private final UserRepository userRepository;
     private final RentalSupportRepository rentalSupportRepository;
+    private final AlarmService alarmService;
 
     /**
      * 월세 지원 정보 목록 조회
@@ -175,9 +180,58 @@ public class RentaltService {
      * @param userId 사용자 ID
      * @return 월세 지원 신청 정보 (없으면 null)
      */
-    public RentalSupport getRentalSupportApplication(Long seq, Long userId) {
-        log.info("월세 지원 신청 조회: seq={}, userId={}", seq, userId);
-        return rentalSupportRepository.findBySeqAndUserId(seq, userId)
+    public RentalSupport getRentalSupportApplication(Long seq, Long requesterId) {
+        log.info("월세 지원 신청 조회: seq={}, requesterId={}", seq, requesterId);
+        User requester = userRepository.findById(requesterId)
+                .orElseThrow(() -> new ApiException(ApiErrorCode.USER_NOT_FOUND));
+
+        String authVal = requester.getAuthVal();
+        
+        if ("ma".equals(authVal)) {
+            // 관리자(ma)는 모든 월세 지원 신청 조회 가능
+            return rentalSupportRepository.findById(seq)
+                    .orElse(null);
+        } else if ("bb".equals(authVal)) {
+            // 본부장(bb)은 자신의 본부만 모든 월세 지원 신청 조회 가능
+            RentalSupport rentalSupport = rentalSupportRepository.findById(seq)
+                    .orElse(null);
+            if (rentalSupport != null) {
+                User applicant = userRepository.findById(rentalSupport.getUserId())
+                        .orElse(null);
+                if (applicant != null && requester.getDivision().equals(applicant.getDivision())) {
+                    return rentalSupport;
+                }
+            }
+            return null;
+        } else if ("tj".equals(authVal)) {
+            // 팀장(tj)은 자신의 팀만 모든 월세 지원 신청 조회 가능
+            RentalSupport rentalSupport = rentalSupportRepository.findById(seq)
+                    .orElse(null);
+            if (rentalSupport != null) {
+                User applicant = userRepository.findById(rentalSupport.getUserId())
+                        .orElse(null);
+                if (applicant != null && requester.getDivision().equals(applicant.getDivision()) 
+                    && requester.getTeam().equals(applicant.getTeam())) {
+                    return rentalSupport;
+                }
+            }
+            return null;
+        } else {
+            // 일반 사용자는 본인 신청 내역만 조회 가능
+            return rentalSupportRepository.findBySeqAndUserId(seq, requesterId)
+                    .orElse(null);
+        }
+    }
+
+    /**
+     * 월세 지원 신청 조회 (seq만으로 조회, 권한 체크 없음)
+     *
+     * @param seq 시퀀스
+     * @return 월세 지원 신청 정보 (없으면 null)
+     */
+    public RentalSupport getRentalSupportApplicationById(Long seq) {
+        log.info("월세 지원 신청 조회: seq={}", seq);
+        return rentalSupportRepository.findById(seq)
                 .orElse(null);
     }
 
@@ -191,6 +245,21 @@ public class RentaltService {
     @Transactional
     public RentalSupport createRentalSupportApplication(Long userId, RentalSupportRequest request) {
         log.info("월세 지원 신청 생성: userId={}", userId);
+        
+        // 사용자 정보 조회 (권한 확인용)
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ApiException(ApiErrorCode.USER_NOT_FOUND));
+        
+        // 권한에 따른 초기 approvalStatus 설정
+        String initialApprovalStatus = "A"; // 기본값: 일반 사용자
+        String authVal = user.getAuthVal();
+        if ("tj".equals(authVal)) {
+            // 팀장 권한: B (팀장 승인)로 시작
+            initialApprovalStatus = "B";
+        } else if ("bb".equals(authVal)) {
+            // 본부장 권한: C (본부장 승인)로 시작
+            initialApprovalStatus = "C";
+        }
         
         // 청구 기간 및 납입일 계산 (requestDate의 연도 기준)
         LocalDate requestDate = request.getRequestDate();
@@ -247,9 +316,14 @@ public class RentaltService {
                 .paymentDate(paymentDate)
                 .paymentAmount(request.getPaymentAmount())
                 .billingAmount(request.getBillingAmount())
+                .approvalStatus(initialApprovalStatus) // 권한에 따라 초기 상태 설정 (tj: B, bb: C, 일반: A)
                 .build();
         
         RentalSupport saved = rentalSupportRepository.save(rentalSupport);
+        
+        // 알람 생성: 팀장에게
+        alarmService.createApplicationCreatedAlarm(userId, "RENTAL", saved.getSeq());
+        
         log.info("월세 지원 신청 생성 완료: seq={}, userId={}", saved.getSeq(), userId);
         
         return saved;
@@ -326,6 +400,8 @@ public class RentaltService {
         rentalSupport.setPaymentDate(paymentDate);
         rentalSupport.setPaymentAmount(request.getPaymentAmount());
         rentalSupport.setBillingAmount(request.getBillingAmount());
+        // 수정 시 무조건 AM 상태로 변경
+        rentalSupport.setApprovalStatus("AM"); // 수정됨
         
         RentalSupport updated = rentalSupportRepository.save(rentalSupport);
         log.info("월세 지원 신청 수정 완료: seq={}, userId={}", seq, userId);

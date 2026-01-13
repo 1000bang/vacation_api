@@ -65,6 +65,25 @@ public interface UserRepository extends JpaRepository<User, Long> {
     List<User> findByDivisionAndTeamAndAuthValInOrderByCreatedAtDesc(String division, String team, List<String> authVals);
 
     /**
+     * 본부와 권한으로 사용자 조회
+     *
+     * @param division 본부
+     * @param authVal 권한 값
+     * @return 사용자 목록
+     */
+    List<User> findByDivisionAndAuthVal(String division, String authVal);
+
+    /**
+     * 본부와 팀과 권한으로 사용자 조회
+     *
+     * @param division 본부
+     * @param team 팀
+     * @param authVal 권한 값
+     * @return 사용자 목록
+     */
+    List<User> findByDivisionAndTeamAndAuthVal(String division, String team, String authVal);
+
+    /**
      * 로그인 실패 횟수 증가 (직접 UPDATE 쿼리로 캐시 문제 우회)
      * Native Query를 사용하여 확실하게 DB에 반영
      *

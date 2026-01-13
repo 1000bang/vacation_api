@@ -55,5 +55,15 @@ public interface RentalSupportRepository extends JpaRepository<RentalSupport, Lo
      */
     @Query(value = "SELECT * FROM tbl_rental_support WHERE user_id = :userId ORDER BY seq DESC LIMIT :limit OFFSET :offset", nativeQuery = true)
     List<RentalSupport> findByUserIdOrderBySeqDescWithPaging(@Param("userId") Long userId, @Param("offset") int offset, @Param("limit") int limit);
+    
+    /**
+     * 권한별 승인 대기 목록 조회 (팀장: A, AM / 본부장: B / 관리자: 전체)
+     *
+     * @param userIds 사용자 ID 목록
+     * @param approvalStatuses 승인 상태 목록
+     * @return 월세 지원 신청 목록
+     */
+    List<RentalSupport> findByUserIdInAndApprovalStatusInOrderByCreatedAtDesc(
+            List<Long> userIds, List<String> approvalStatuses);
 }
 

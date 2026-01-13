@@ -55,5 +55,15 @@ public interface ExpenseClaimRepository extends JpaRepository<ExpenseClaim, Long
      */
     @Query(value = "SELECT * FROM tbl_expense_claim WHERE user_id = :userId ORDER BY seq DESC LIMIT :limit OFFSET :offset", nativeQuery = true)
     List<ExpenseClaim> findByUserIdOrderBySeqDescWithPaging(@Param("userId") Long userId, @Param("offset") int offset, @Param("limit") int limit);
+    
+    /**
+     * 권한별 승인 대기 목록 조회 (팀장: A, AM / 본부장: B / 관리자: 전체)
+     *
+     * @param userIds 사용자 ID 목록
+     * @param approvalStatuses 승인 상태 목록
+     * @return 개인 비용 청구 목록
+     */
+    List<ExpenseClaim> findByUserIdInAndApprovalStatusInOrderByCreatedAtDesc(
+            List<Long> userIds, List<String> approvalStatuses);
 }
 

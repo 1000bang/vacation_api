@@ -257,30 +257,60 @@ public class ExpenseClaimController extends BaseController {
         log.info("개인 비용 청구서 다운로드 요청: seq={}", seq);
 
         try {
-            Long userId = (Long) request.getAttribute("userId");
+            Long requesterId = (Long) request.getAttribute("userId");
+            User requester = userService.getUserInfo(requesterId);
             
-            // 개인 비용 청구 조회
-            ExpenseClaim expenseClaim = expenseClaimService.getExpenseClaim(seq, userId);
+            // 개인 비용 청구 조회 (seq만으로 조회)
+            ExpenseClaim expenseClaim = expenseClaimService.getExpenseClaimById(seq);
             if (expenseClaim == null) {
+                log.warn("존재하지 않는 개인 비용 청구: seq={}", seq);
                 return ResponseEntity.notFound().build();
+            }
+            
+            // 권한 체크: 본인 신청서이거나 결재 권한이 있는 경우만 다운로드 가능
+            Long applicantId = expenseClaim.getUserId();
+            boolean canDownload = false;
+            
+            if (requesterId.equals(applicantId)) {
+                // 본인 신청서
+                canDownload = true;
+            } else {
+                // 결재 권한 체크
+                String authVal = requester.getAuthVal();
+                if ("ma".equals(authVal)) {
+                    // 관리자는 모든 신청서 다운로드 가능
+                    canDownload = true;
+                } else if ("tj".equals(authVal) || "bb".equals(authVal)) {
+                    // 팀장/본부장은 같은 본부의 신청서만 다운로드 가능
+                    User applicant = userService.getUserInfo(applicantId);
+                    if (applicant != null && requester.getDivision().equals(applicant.getDivision())) {
+                        canDownload = true;
+                    }
+                }
+            }
+            
+            if (!canDownload) {
+                log.warn("다운로드 권한 없음: requesterId={}, applicantId={}, authVal={}", 
+                        requesterId, applicantId, requester.getAuthVal());
+                return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
             }
             
             // 상세 항목 목록 조회
             List<ExpenseSub> expenseSubList = expenseClaimService.getExpenseSubList(seq);
             
-            // 사용자 정보 조회
-            User user = userService.getUserInfo(userId);
+            // 신청자 정보 조회
+            User applicant = userService.getUserInfo(applicantId);
             
             // VO 생성
             ExpenseClaimVO vo = expenseClaimService.createExpenseClaimVO(
-                    expenseClaim, expenseSubList, user);
+                    expenseClaim, expenseSubList, applicant);
             
             // XLSX 생성 (서명은 null로 전달하여 빈 문자열로 처리)
             byte[] excelBytes = FileGenerateUtil.generateExpenseClaimExcel(vo, null);
             
             // 파일명 생성 (오늘 날짜 사용)
             String dateStr = LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd"));
-            String fileName = "개인비용신청서_" + user.getName() + "_" + dateStr + ".xlsx";
+            String fileName = "개인비용신청서_" + applicant.getName() + "_" + dateStr + ".xlsx";
             String encodedFileName = URLEncoder.encode(fileName, StandardCharsets.UTF_8)
                     .replace("+", "%20");
             

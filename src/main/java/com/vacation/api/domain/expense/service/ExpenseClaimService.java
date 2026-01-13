@@ -1,10 +1,13 @@
 package com.vacation.api.domain.expense.service;
 
+import com.vacation.api.domain.alarm.service.AlarmService;
 import com.vacation.api.domain.expense.entity.ExpenseClaim;
 import com.vacation.api.domain.expense.entity.ExpenseSub;
 import com.vacation.api.domain.expense.repository.ExpenseClaimRepository;
 import com.vacation.api.domain.expense.repository.ExpenseSubRepository;
 import com.vacation.api.domain.expense.request.ExpenseClaimRequest;
+import com.vacation.api.domain.user.entity.User;
+import com.vacation.api.domain.user.repository.UserRepository;
 import com.vacation.api.exception.ApiErrorCode;
 import com.vacation.api.exception.ApiException;
 import com.vacation.api.vo.ExpenseClaimVO;
@@ -30,6 +33,8 @@ public class ExpenseClaimService {
 
     private final ExpenseClaimRepository expenseClaimRepository;
     private final ExpenseSubRepository expenseSubRepository;
+    private final AlarmService alarmService;
+    private final UserRepository userRepository;
 
     /**
      * 개인 비용 청구 목록 조회 (페이징)
@@ -60,12 +65,61 @@ public class ExpenseClaimService {
      * 개인 비용 청구 조회
      *
      * @param seq 시퀀스
-     * @param userId 사용자 ID
+     * @param requesterId 요청자 사용자 ID
      * @return 개인 비용 청구 정보 (없으면 null)
      */
-    public ExpenseClaim getExpenseClaim(Long seq, Long userId) {
-        log.info("개인 비용 청구 조회: seq={}, userId={}", seq, userId);
-        return expenseClaimRepository.findBySeqAndUserId(seq, userId)
+    public ExpenseClaim getExpenseClaim(Long seq, Long requesterId) {
+        log.info("개인 비용 청구 조회: seq={}, requesterId={}", seq, requesterId);
+        User requester = userRepository.findById(requesterId)
+                .orElseThrow(() -> new ApiException(ApiErrorCode.USER_NOT_FOUND));
+
+        String authVal = requester.getAuthVal();
+        
+        if ("ma".equals(authVal)) {
+            // 관리자(ma)는 모든 개인 비용 청구 조회 가능
+            return expenseClaimRepository.findById(seq)
+                    .orElse(null);
+        } else if ("bb".equals(authVal)) {
+            // 본부장(bb)은 자신의 본부만 모든 개인 비용 청구 조회 가능
+            ExpenseClaim expenseClaim = expenseClaimRepository.findById(seq)
+                    .orElse(null);
+            if (expenseClaim != null) {
+                User applicant = userRepository.findById(expenseClaim.getUserId())
+                        .orElse(null);
+                if (applicant != null && requester.getDivision().equals(applicant.getDivision())) {
+                    return expenseClaim;
+                }
+            }
+            return null;
+        } else if ("tj".equals(authVal)) {
+            // 팀장(tj)은 자신의 팀만 모든 개인 비용 청구 조회 가능
+            ExpenseClaim expenseClaim = expenseClaimRepository.findById(seq)
+                    .orElse(null);
+            if (expenseClaim != null) {
+                User applicant = userRepository.findById(expenseClaim.getUserId())
+                        .orElse(null);
+                if (applicant != null && requester.getDivision().equals(applicant.getDivision()) 
+                    && requester.getTeam().equals(applicant.getTeam())) {
+                    return expenseClaim;
+                }
+            }
+            return null;
+        } else {
+            // 일반 사용자는 본인 신청 내역만 조회 가능
+            return expenseClaimRepository.findBySeqAndUserId(seq, requesterId)
+                    .orElse(null);
+        }
+    }
+
+    /**
+     * 개인 비용 청구 조회 (seq만으로 조회, 권한 체크 없음)
+     *
+     * @param seq 시퀀스
+     * @return 개인 비용 청구 정보 (없으면 null)
+     */
+    public ExpenseClaim getExpenseClaimById(Long seq) {
+        log.info("개인 비용 청구 조회: seq={}", seq);
+        return expenseClaimRepository.findById(seq)
                 .orElse(null);
     }
 
@@ -91,6 +145,21 @@ public class ExpenseClaimService {
     public ExpenseClaim createExpenseClaim(Long userId, ExpenseClaimRequest request) {
         log.info("개인 비용 청구 생성: userId={}", userId);
 
+        // 사용자 정보 조회 (권한 확인용)
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ApiException(ApiErrorCode.USER_NOT_FOUND));
+        
+        // 권한에 따른 초기 approvalStatus 설정
+        String initialApprovalStatus = "A"; // 기본값: 일반 사용자
+        String authVal = user.getAuthVal();
+        if ("tj".equals(authVal)) {
+            // 팀장 권한: B (팀장 승인)로 시작
+            initialApprovalStatus = "B";
+        } else if ("bb".equals(authVal)) {
+            // 본부장 권한: C (본부장 승인)로 시작
+            initialApprovalStatus = "C";
+        }
+
         // 총 금액 계산
         Long totalAmount = request.getExpenseItems().stream()
                 .mapToLong(item -> item.getAmount() != null ? item.getAmount() : 0L)
@@ -109,9 +178,13 @@ public class ExpenseClaimService {
                 .billingYyMonth(billingYyMonth)
                 .childCnt(request.getExpenseItems().size())
                 .totalAmount(totalAmount)
+                .approvalStatus(initialApprovalStatus) // 권한에 따라 초기 상태 설정 (tj: B, bb: C, 일반: A)
                 .build();
 
         ExpenseClaim saved = expenseClaimRepository.save(expenseClaim);
+
+        // 알람 생성: 팀장에게
+        alarmService.createApplicationCreatedAlarm(userId, "EXPENSE", saved.getSeq());
 
         // 자식 엔티티 생성
         List<ExpenseSub> expenseSubs = IntStream.range(0, request.getExpenseItems().size())
@@ -171,6 +244,8 @@ public class ExpenseClaimService {
         expenseClaim.setBillingYyMonth(billingYyMonth);
         expenseClaim.setChildCnt(request.getExpenseItems().size());
         expenseClaim.setTotalAmount(totalAmount);
+        // 수정 시 무조건 AM 상태로 변경
+        expenseClaim.setApprovalStatus("AM"); // 수정됨
 
         // 기존 자식 항목 삭제
         expenseSubRepository.deleteByParentSeq(seq);
