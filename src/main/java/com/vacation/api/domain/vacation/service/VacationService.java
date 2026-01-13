@@ -1,5 +1,8 @@
 package com.vacation.api.domain.vacation.service;
 
+import com.vacation.api.domain.alarm.service.AlarmService;
+import com.vacation.api.domain.approval.entity.ApprovalRejection;
+import com.vacation.api.domain.approval.repository.ApprovalRejectionRepository;
 import com.vacation.api.domain.user.entity.User;
 import com.vacation.api.domain.user.repository.UserRepository;
 import com.vacation.api.domain.vacation.entity.UserVacationInfo;
@@ -17,6 +20,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 
 /**
@@ -34,6 +38,8 @@ public class VacationService {
     private final UserVacationInfoRepository userVacationInfoRepository;
     private final VacationHistoryRepository vacationHistoryRepository;
     private final UserRepository userRepository;
+    private final AlarmService alarmService;
+    private final ApprovalRejectionRepository approvalRejectionRepository;
 
     /**
      * 사용자별 연차 정보 조회
@@ -171,12 +177,77 @@ public class VacationService {
      * 연차 내역 조회
      *
      * @param seq 시퀀스
-     * @param userId 사용자 ID
+     * @param requesterId 요청자 사용자 ID
      * @return 연차 내역 (없으면 null)
      */
-    public VacationHistory getVacationHistory(Long seq, Long userId) {
-        log.info("연차 내역 조회: seq={}, userId={}", seq, userId);
-        return vacationHistoryRepository.findBySeqAndUserId(seq, userId)
+    public VacationHistory getVacationHistory(Long seq, Long requesterId) {
+        log.info("연차 내역 조회: seq={}, requesterId={}", seq, requesterId);
+        User requester = userRepository.findById(requesterId)
+                .orElseThrow(() -> new ApiException(ApiErrorCode.USER_NOT_FOUND));
+
+        String authVal = requester.getAuthVal();
+        
+        if ("ma".equals(authVal)) {
+            // 관리자(ma)는 모든 휴가 내역 조회 가능
+            return vacationHistoryRepository.findById(seq)
+                    .orElse(null);
+        } else if ("bb".equals(authVal)) {
+            // 본부장(bb)은 자신의 본부만 모든 휴가 내역 조회 가능
+            VacationHistory vacationHistory = vacationHistoryRepository.findById(seq)
+                    .orElse(null);
+            if (vacationHistory != null) {
+                User applicant = userRepository.findById(vacationHistory.getUserId())
+                        .orElse(null);
+                if (applicant != null && requester.getDivision().equals(applicant.getDivision())) {
+                    return vacationHistory;
+                }
+            }
+            return null;
+        } else if ("tj".equals(authVal)) {
+            // 팀장(tj)은 자신의 팀만 모든 휴가 내역 조회 가능
+            VacationHistory vacationHistory = vacationHistoryRepository.findById(seq)
+                    .orElse(null);
+            if (vacationHistory != null) {
+                User applicant = userRepository.findById(vacationHistory.getUserId())
+                        .orElse(null);
+                if (applicant != null && requester.getDivision().equals(applicant.getDivision()) 
+                    && requester.getTeam().equals(applicant.getTeam())) {
+                    return vacationHistory;
+                }
+            }
+            return null;
+        } else {
+            // 일반 사용자는 본인 신청 내역만 조회 가능
+            return vacationHistoryRepository.findBySeqAndUserId(seq, requesterId)
+                    .orElse(null);
+        }
+    }
+
+    /**
+     * 연차 내역 조회 (seq만으로 조회, 권한 체크 없음)
+     *
+     * @param seq 시퀀스
+     * @return 연차 내역 (없으면 null)
+     */
+    public VacationHistory getVacationHistoryById(Long seq) {
+        log.info("연차 내역 조회: seq={}", seq);
+        return vacationHistoryRepository.findById(seq)
+                .orElse(null);
+    }
+
+    /**
+     * 반려 사유 조회
+     * created_at desc로 정렬하여 최신 반려 사유 1개만 조회
+     *
+     * @param seq 휴가 신청 시퀀스
+     * @return 반려 사유 (없으면 null)
+     */
+    public String getRejectionReason(Long seq) {
+        log.info("반려 사유 조회: seq={}", seq);
+        // created_at desc로 정렬하여 최신 반려 사유 1개만 조회
+        return approvalRejectionRepository
+                .findFirstByApplicationTypeAndApplicationSeqOrderByCreatedAtDesc("VACATION", seq)
+                .map(ApprovalRejection::getRejectionReason)
                 .orElse(null);
     }
 
@@ -191,6 +262,21 @@ public class VacationService {
     public VacationHistory createVacation(Long userId, VacationRequest request) {
         log.info("휴가 신청: userId={}, startDate={}, endDate={}, period={}", 
                 userId, request.getStartDate(), request.getEndDate(), request.getPeriod());
+
+        // 사용자 정보 조회 (권한 확인용)
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ApiException(ApiErrorCode.USER_NOT_FOUND));
+        
+        // 권한에 따른 초기 approvalStatus 설정
+        String initialApprovalStatus = "A"; // 기본값: 일반 사용자
+        String authVal = user.getAuthVal();
+        if ("tj".equals(authVal)) {
+            // 팀장 권한: B (팀장 승인)로 시작
+            initialApprovalStatus = "B";
+        } else if ("bb".equals(authVal)) {
+            // 본부장 권한: C (본부장 승인)로 시작
+            initialApprovalStatus = "C";
+        }
 
         // 사용자 연차 정보 조회 또는 생성
         UserVacationInfo vacationInfo = getUserVacationInfo(userId);
@@ -232,9 +318,13 @@ public class VacationService {
                 .usedVacationDays(request.getPeriod())
                 .remainingVacationDays(remainingVacationDays)
                 .status(isFuture ? "R" : "C") // R: 예약중, C: 사용 연차에 카운트됨
+                .approvalStatus(initialApprovalStatus) // 권한에 따라 초기 상태 설정 (tj: B, bb: C, 일반: A)
                 .build();
 
         VacationHistory saved = vacationHistoryRepository.save(vacationHistory);
+
+        // 알람 생성: 팀장에게
+        alarmService.createApplicationCreatedAlarm(userId, "VACATION", saved.getSeq());
 
         // 예약중 연차 업데이트 (미래 날짜인 경우)
         if (isFuture) {
@@ -315,11 +405,24 @@ public class VacationService {
             annualVacationDays = request.getAnnualVacationDays();
             remainingVacationDays = request.getRemainingVacationDays();
         } else {
-            // 자동 계산
-            previousRemainingDays = vacationInfo.getAnnualVacationDays() 
-                    - vacationInfo.getUsedVacationDays() 
-                    - vacationInfo.getReservedVacationDays();
+            // 자동 계산: 해당 신청서 이전의 모든 신청서들을 고려하여 계산
             annualVacationDays = vacationInfo.getAnnualVacationDays();
+            
+            // 해당 신청서 이전의 모든 신청서들을 생성 시간 순으로 조회
+            List<VacationHistory> allHistories = vacationHistoryRepository.findByUserIdOrderBySeqDesc(userId);
+            LocalDateTime currentCreatedAt = vacationHistory.getCreatedAt();
+            List<VacationHistory> previousHistories = allHistories.stream()
+                    .filter(vh -> vh.getCreatedAt().isBefore(currentCreatedAt))
+                    .sorted((a, b) -> a.getCreatedAt().compareTo(b.getCreatedAt()))
+                    .toList();
+            
+            // 이전 신청서들을 순차적으로 계산하여 previousRemainingDays 계산
+            Double calculatedPreviousRemaining = annualVacationDays;
+            for (VacationHistory previous : previousHistories) {
+                calculatedPreviousRemaining = calculatedPreviousRemaining - previous.getPeriod();
+            }
+            
+            previousRemainingDays = calculatedPreviousRemaining;
             remainingVacationDays = previousRemainingDays - request.getPeriod();
         }
 
@@ -334,6 +437,8 @@ public class VacationService {
         vacationHistory.setPreviousRemainingDays(previousRemainingDays);
         vacationHistory.setUsedVacationDays(request.getPeriod());
         vacationHistory.setRemainingVacationDays(remainingVacationDays);
+        // 수정 시 무조건 AM 상태로 변경
+        vacationHistory.setApprovalStatus("AM"); // 수정됨
 
         // 새로운 연차 추가 및 status 설정
         boolean isFuture = request.getStartDate().isAfter(today);
@@ -353,13 +458,63 @@ public class VacationService {
 
         userVacationInfoRepository.save(vacationInfo);
 
+        // 수정된 항목의 생성 시간 저장
+        LocalDateTime modifiedCreatedAt = vacationHistory.getCreatedAt();
+        
+        // 수정된 항목 이후에 생성된 모든 신청서들의 remainingVacationDays 재계산
+        List<VacationHistory> allHistories = vacationHistoryRepository.findByUserIdOrderBySeqDesc(userId);
+        List<VacationHistory> subsequentHistories = allHistories.stream()
+                .filter(vh -> vh.getCreatedAt().isAfter(modifiedCreatedAt) && !vh.getSeq().equals(seq))
+                .sorted((a, b) -> a.getCreatedAt().compareTo(b.getCreatedAt())) // 생성 시간 순으로 정렬
+                .toList();
+        
+        if (!subsequentHistories.isEmpty()) {
+            log.info("수정 후 이후 신청서 재계산 시작: userId={}, count={}", userId, subsequentHistories.size());
+            
+            // 수정된 항목 이전의 모든 신청서들을 생성 시간 순으로 정렬
+            List<VacationHistory> previousHistories = allHistories.stream()
+                    .filter(vh -> vh.getCreatedAt().isBefore(modifiedCreatedAt) || vh.getSeq().equals(seq))
+                    .sorted((a, b) -> a.getCreatedAt().compareTo(b.getCreatedAt())) // 생성 시간 순으로 정렬
+                    .toList();
+            
+            // 수정된 항목 이전의 신청서들을 순차적으로 계산하여 초기 remaining 계산
+            Double runningRemaining = vacationInfo.getAnnualVacationDays();
+            for (VacationHistory previous : previousHistories) {
+                if (previous.getSeq().equals(seq)) {
+                    // 수정된 항목은 새로운 period로 계산
+                    runningRemaining = runningRemaining - updated.getPeriod();
+                } else {
+                    // 기존 항목은 기존 period로 계산
+                    runningRemaining = runningRemaining - previous.getPeriod();
+                }
+            }
+            
+            // 수정된 항목 이후의 신청서들을 재계산
+            for (VacationHistory subsequent : subsequentHistories) {
+                // 이전 신청서의 remainingVacationDays를 previousRemainingDays로 설정
+                Double subPreviousRemainingDays = runningRemaining;
+                Double subRemainingVacationDays = subPreviousRemainingDays - subsequent.getPeriod();
+                
+                subsequent.setPreviousRemainingDays(subPreviousRemainingDays);
+                subsequent.setRemainingVacationDays(subRemainingVacationDays);
+                subsequent.setAnnualVacationDays(vacationInfo.getAnnualVacationDays());
+                
+                // 다음 신청서를 위한 runningRemaining 업데이트
+                runningRemaining = subRemainingVacationDays;
+                
+                vacationHistoryRepository.save(subsequent);
+                log.info("이후 신청서 재계산 완료: seq={}, previousRemainingDays={}, remainingVacationDays={}", 
+                        subsequent.getSeq(), subPreviousRemainingDays, subRemainingVacationDays);
+            }
+        }
+
         log.info("휴가 신청 수정 완료: seq={}, userId={}", seq, userId);
         return updated;
     }
 
     /**
      * 휴가 신청 삭제
-     * 최신 항목(created_at desc 최상단)만 삭제 가능
+     * 삭제 후 이후 신청서들의 remainingVacationDays를 재계산
      *
      * @param seq 시퀀스
      * @param userId 사용자 ID
@@ -368,24 +523,20 @@ public class VacationService {
     public void deleteVacation(Long seq, Long userId) {
         log.info("휴가 신청 삭제: seq={}, userId={}", seq, userId);
 
-        // 최신 항목 조회
-        VacationHistory latestHistory = vacationHistoryRepository.findFirstByUserIdOrderByCreatedAtDesc(userId)
-                .orElseThrow(() -> {
-                    log.warn("삭제할 연차 내역이 없음: userId={}", userId);
-                    return new ApiException(ApiErrorCode.INVALID_REQUEST_FORMAT, "삭제할 연차 내역이 없습니다.");
-                });
-
-        // 최신 항목이 아니면 삭제 불가
-        if (!latestHistory.getSeq().equals(seq)) {
-            log.warn("최신 항목만 삭제 가능: seq={}, latestSeq={}, userId={}", seq, latestHistory.getSeq(), userId);
-            throw new ApiException(ApiErrorCode.CANNOT_DELETE_OLD_VACATION);
-        }
-
         VacationHistory vacationHistory = vacationHistoryRepository.findBySeqAndUserId(seq, userId)
                 .orElseThrow(() -> {
                     log.warn("존재하지 않는 연차 내역: seq={}, userId={}", seq, userId);
                     return new ApiException(ApiErrorCode.INVALID_REQUEST_FORMAT);
                 });
+
+        // 삭제 가능한 상태 확인 (null, A, RB, RC만 삭제 가능)
+        String approvalStatus = vacationHistory.getApprovalStatus();
+        // null이면 "A"로 간주 (초기 생성 상태)
+        String actualStatus = approvalStatus == null ? "A" : approvalStatus;
+        if (!"A".equals(actualStatus) && !"RB".equals(actualStatus) && !"RC".equals(actualStatus)) {
+            log.warn("삭제 불가능한 상태: seq={}, approvalStatus={}", seq, approvalStatus);
+            throw new ApiException(ApiErrorCode.INVALID_REQUEST_FORMAT, "요청 중이거나 반려된 신청만 삭제할 수 있습니다.");
+        }
 
         UserVacationInfo vacationInfo = getUserVacationInfo(userId);
 
@@ -404,7 +555,53 @@ public class VacationService {
         }
 
         userVacationInfoRepository.save(vacationInfo);
+        
+        // 삭제할 항목의 생성 시간 저장
+        LocalDateTime deletedCreatedAt = vacationHistory.getCreatedAt();
+        
+        // 삭제 실행
         vacationHistoryRepository.delete(vacationHistory);
+
+        // 삭제된 항목 이후에 생성된 모든 신청서들의 remainingVacationDays 재계산
+        List<VacationHistory> allHistories = vacationHistoryRepository.findByUserIdOrderBySeqDesc(userId);
+        List<VacationHistory> subsequentHistories = allHistories.stream()
+                .filter(vh -> vh.getCreatedAt().isAfter(deletedCreatedAt))
+                .sorted((a, b) -> a.getCreatedAt().compareTo(b.getCreatedAt())) // 생성 시간 순으로 정렬
+                .toList();
+        
+        if (!subsequentHistories.isEmpty()) {
+            log.info("삭제 후 이후 신청서 재계산 시작: userId={}, count={}", userId, subsequentHistories.size());
+            
+            // 삭제된 항목 이전의 모든 신청서들을 생성 시간 순으로 정렬
+            List<VacationHistory> previousHistories = allHistories.stream()
+                    .filter(vh -> vh.getCreatedAt().isBefore(deletedCreatedAt))
+                    .sorted((a, b) -> a.getCreatedAt().compareTo(b.getCreatedAt())) // 생성 시간 순으로 정렬
+                    .toList();
+            
+            // 삭제된 항목 이전의 신청서들을 순차적으로 계산하여 초기 remaining 계산
+            Double runningRemaining = vacationInfo.getAnnualVacationDays();
+            for (VacationHistory previous : previousHistories) {
+                runningRemaining = runningRemaining - previous.getPeriod();
+            }
+            
+            // 삭제된 항목 이후의 신청서들을 재계산
+            for (VacationHistory subsequent : subsequentHistories) {
+                // 이전 신청서의 remainingVacationDays를 previousRemainingDays로 설정
+                Double previousRemainingDays = runningRemaining;
+                Double remainingVacationDays = previousRemainingDays - subsequent.getPeriod();
+                
+                subsequent.setPreviousRemainingDays(previousRemainingDays);
+                subsequent.setRemainingVacationDays(remainingVacationDays);
+                subsequent.setAnnualVacationDays(vacationInfo.getAnnualVacationDays());
+                
+                // 다음 신청서를 위한 runningRemaining 업데이트
+                runningRemaining = remainingVacationDays;
+                
+                vacationHistoryRepository.save(subsequent);
+                log.info("이후 신청서 재계산 완료: seq={}, previousRemainingDays={}, remainingVacationDays={}", 
+                        subsequent.getSeq(), previousRemainingDays, remainingVacationDays);
+            }
+        }
 
         log.info("휴가 신청 삭제 완료: seq={}, userId={}, status={}", seq, userId, status);
     }

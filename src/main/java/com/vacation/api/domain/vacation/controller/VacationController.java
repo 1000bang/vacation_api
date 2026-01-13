@@ -363,7 +363,22 @@ public class VacationController extends BaseController {
         try {
             Long userId = (Long) request.getAttribute("userId");
             VacationHistory vacationHistory = vacationService.getVacationHistory(seq, userId);
-            return ResponseEntity.ok(new ApiResponse<>(transactionId, "0", vacationHistory, null));
+            
+            if (vacationHistory == null) {
+                return ResponseEntity.ok(new ApiResponse<>(transactionId, "0", null, null));
+            }
+            
+            // 반려 상태인 경우 반려 사유 조회
+            Map<String, Object> result = new HashMap<>();
+            result.put("vacationHistory", vacationHistory);
+            
+            String approvalStatus = vacationHistory.getApprovalStatus();
+            if ("RB".equals(approvalStatus) || "RC".equals(approvalStatus)) {
+                String rejectionReason = vacationService.getRejectionReason(seq);
+                result.put("rejectionReason", rejectionReason);
+            }
+            
+            return ResponseEntity.ok(new ApiResponse<>(transactionId, "0", result, null));
         } catch (Exception e) {
             log.error("연차 내역 조회 실패", e);
             Map<String, Object> errorData = new HashMap<>();
@@ -496,30 +511,60 @@ public class VacationController extends BaseController {
         log.info("휴가 신청서 다운로드 요청: seq={}", seq);
 
         try {
-            Long userId = (Long) request.getAttribute("userId");
+            Long requesterId = (Long) request.getAttribute("userId");
+            User requester = userService.getUserInfo(requesterId);
             
-            // 휴가 내역 조회
-            VacationHistory vacationHistory = vacationService.getVacationHistory(seq, userId);
+            // 휴가 내역 조회 (seq만으로 조회)
+            VacationHistory vacationHistory = vacationService.getVacationHistoryById(seq);
             if (vacationHistory == null) {
+                log.warn("존재하지 않는 휴가 신청: seq={}", seq);
                 return ResponseEntity.notFound().build();
             }
             
-            // 사용자 정보 조회
-            User user = userService.getUserInfo(userId);
+            // 권한 체크: 본인 신청서이거나 결재 권한이 있는 경우만 다운로드 가능
+            Long applicantId = vacationHistory.getUserId();
+            boolean canDownload = false;
             
-            // 연차 정보 조회
-            UserVacationInfo vacationInfo = vacationService.getUserVacationInfo(userId);
+            if (requesterId.equals(applicantId)) {
+                // 본인 신청서
+                canDownload = true;
+            } else {
+                // 결재 권한 체크
+                String authVal = requester.getAuthVal();
+                if ("ma".equals(authVal)) {
+                    // 관리자는 모든 신청서 다운로드 가능
+                    canDownload = true;
+                } else if ("tj".equals(authVal) || "bb".equals(authVal)) {
+                    // 팀장/본부장은 같은 본부의 신청서만 다운로드 가능
+                    User applicant = userService.getUserInfo(applicantId);
+                    if (applicant != null && requester.getDivision().equals(applicant.getDivision())) {
+                        canDownload = true;
+                    }
+                }
+            }
+            
+            if (!canDownload) {
+                log.warn("다운로드 권한 없음: requesterId={}, applicantId={}, authVal={}", 
+                        requesterId, applicantId, requester.getAuthVal());
+                return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+            }
+            
+            // 신청자 정보 조회
+            User applicant = userService.getUserInfo(applicantId);
+            
+            // 신청자 연차 정보 조회
+            UserVacationInfo vacationInfo = vacationService.getUserVacationInfo(applicantId);
             
             // VO 생성
             VacationDocumentVO vo = vacationService.createVacationDocumentVO(
-                    vacationHistory, user, vacationInfo);
+                    vacationHistory, applicant, vacationInfo);
             
             // DOCX 생성 (서명은 null로 전달하여 빈 문자열로 처리)
             byte[] docBytes = FileGenerateUtil.generateVacationApplicationDoc(vo, null);
             
             // 파일명 생성 (오늘 날짜 사용)
             String dateStr = LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd"));
-            String fileName = "휴가(결무)신청서_" + user.getName() + "_" + dateStr + ".docx";
+            String fileName = "휴가(결무)신청서_" + applicant.getName() + "_" + dateStr + ".docx";
             String encodedFileName = URLEncoder.encode(fileName, StandardCharsets.UTF_8)
                     .replace("+", "%20");
             
