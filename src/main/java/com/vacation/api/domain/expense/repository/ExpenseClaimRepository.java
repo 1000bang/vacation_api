@@ -65,5 +65,20 @@ public interface ExpenseClaimRepository extends JpaRepository<ExpenseClaim, Long
      */
     List<ExpenseClaim> findByUserIdInAndApprovalStatusInOrderByCreatedAtDesc(
             List<Long> userIds, List<String> approvalStatuses);
+    
+    /**
+     * 승인 상태 목록으로 개인 비용 청구 조회 (관리자용, 생성일 내림차순)
+     *
+     * @param approvalStatuses 승인 상태 목록
+     * @return 개인 비용 청구 목록
+     */
+    List<ExpenseClaim> findByApprovalStatusInOrderByCreatedAtDesc(List<String> approvalStatuses);
+    
+    /**
+     * 승인 상태가 null인 개인 비용 청구 조회 (생성일 내림차순)
+     *
+     * @return 개인 비용 청구 목록
+     */
+    List<ExpenseClaim> findByApprovalStatusIsNullOrderByCreatedAtDesc();
 }
 

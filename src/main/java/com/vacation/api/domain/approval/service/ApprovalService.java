@@ -7,6 +7,8 @@ import com.vacation.api.domain.expense.entity.ExpenseClaim;
 import com.vacation.api.domain.expense.repository.ExpenseClaimRepository;
 import com.vacation.api.domain.rental.entity.RentalSupport;
 import com.vacation.api.domain.rental.repository.RentalSupportRepository;
+import com.vacation.api.domain.rental.entity.RentalApproval;
+import com.vacation.api.domain.rental.repository.RentalApprovalRepository;
 import com.vacation.api.domain.user.entity.User;
 import com.vacation.api.domain.user.repository.UserRepository;
 import com.vacation.api.domain.vacation.entity.VacationHistory;
@@ -33,6 +35,7 @@ public class ApprovalService {
     private final VacationHistoryRepository vacationHistoryRepository;
     private final ExpenseClaimRepository expenseClaimRepository;
     private final RentalSupportRepository rentalSupportRepository;
+    private final RentalApprovalRepository rentalApprovalRepository;
     private final ApprovalRejectionRepository approvalRejectionRepository;
     private final UserRepository userRepository;
     private final AlarmService alarmService;
@@ -726,5 +729,225 @@ public class ApprovalService {
                 rentalSupport.getUserId(), "RENTAL", seq, rejectionReason);
 
         log.info("월세 지원 신청 본부장 반려 완료: seq={}", seq);
+    }
+
+    /**
+     * 월세 지원 품의서 승인 (팀장)
+     */
+    @Transactional
+    public void approveRentalApprovalByTeamLeader(Long seq, Long approverId) {
+        log.info("월세 지원 품의서 팀장 승인: seq={}, approverId={}", seq, approverId);
+
+        RentalApproval rentalApproval = rentalApprovalRepository.findById(seq)
+                .orElseThrow(() -> {
+                    log.warn("존재하지 않는 월세 지원 품의서: seq={}", seq);
+                    return new ApiException(ApiErrorCode.INVALID_REQUEST_FORMAT, "존재하지 않는 월세 지원 품의서입니다.");
+                });
+
+        // 승인 가능한 상태 확인 (A 또는 AM만 승인 가능, null은 A로 간주)
+        String currentStatus = rentalApproval.getApprovalStatus();
+        if (currentStatus == null) {
+            currentStatus = "A"; // null은 초기 생성 상태로 간주
+        }
+        if (!"A".equals(currentStatus) && !"AM".equals(currentStatus)) {
+            log.warn("승인 불가능한 상태: seq={}, status={}", seq, currentStatus);
+            throw new ApiException(ApiErrorCode.INVALID_REQUEST_FORMAT, "승인할 수 없는 상태입니다.");
+        }
+
+        User approver = userRepository.findById(approverId)
+                .orElseThrow(() -> new ApiException(ApiErrorCode.USER_NOT_FOUND));
+        
+        String approverAuthVal = approver.getAuthVal();
+        if (!"tj".equals(approverAuthVal) && !"ma".equals(approverAuthVal)) {
+            throw new ApiException(ApiErrorCode.ACCESS_DENIED, "팀장만 승인할 수 있습니다.");
+        }
+
+        // 팀원 확인 (관리자는 제외)
+        if (!"ma".equals(approverAuthVal)) {
+            User applicant = userRepository.findById(rentalApproval.getUserId())
+                    .orElseThrow(() -> new ApiException(ApiErrorCode.USER_NOT_FOUND));
+
+            if (!applicant.getDivision().equals(approver.getDivision()) ||
+                !applicant.getTeam().equals(approver.getTeam())) {
+                throw new ApiException(ApiErrorCode.ACCESS_DENIED, "같은 팀의 신청만 승인할 수 있습니다.");
+            }
+        }
+
+        rentalApproval.setApprovalStatus("B");
+        rentalApprovalRepository.save(rentalApproval);
+
+        // 알람 생성: 신청자 및 본부장에게
+        alarmService.createTeamLeaderApprovedAlarm(
+                rentalApproval.getUserId(), approverId, "RENTAL_APPROVAL", seq);
+
+        log.info("월세 지원 품의서 팀장 승인 완료: seq={}", seq);
+    }
+
+    /**
+     * 월세 지원 품의서 반려 (팀장)
+     */
+    @Transactional
+    public void rejectRentalApprovalByTeamLeader(Long seq, Long approverId, String rejectionReason) {
+        log.info("월세 지원 품의서 팀장 반려: seq={}, approverId={}, reason={}", seq, approverId, rejectionReason);
+
+        RentalApproval rentalApproval = rentalApprovalRepository.findById(seq)
+                .orElseThrow(() -> {
+                    log.warn("존재하지 않는 월세 지원 품의서: seq={}", seq);
+                    return new ApiException(ApiErrorCode.INVALID_REQUEST_FORMAT, "존재하지 않는 월세 지원 품의서입니다.");
+                });
+
+        // 반려 가능한 상태 확인 (A 또는 AM만 반려 가능, null은 A로 간주)
+        String currentStatus = rentalApproval.getApprovalStatus();
+        if (currentStatus == null) {
+            currentStatus = "A"; // null은 초기 생성 상태로 간주
+        }
+        if (!"A".equals(currentStatus) && !"AM".equals(currentStatus)) {
+            log.warn("반려 불가능한 상태: seq={}, status={}", seq, currentStatus);
+            throw new ApiException(ApiErrorCode.INVALID_REQUEST_FORMAT, "반려할 수 없는 상태입니다.");
+        }
+
+        User approver = userRepository.findById(approverId)
+                .orElseThrow(() -> new ApiException(ApiErrorCode.USER_NOT_FOUND));
+        
+        String approverAuthVal = approver.getAuthVal();
+        if (!"tj".equals(approverAuthVal) && !"ma".equals(approverAuthVal)) {
+            throw new ApiException(ApiErrorCode.ACCESS_DENIED, "팀장만 반려할 수 있습니다.");
+        }
+
+        // 팀원 확인 (관리자는 제외)
+        if (!"ma".equals(approverAuthVal)) {
+            User applicant = userRepository.findById(rentalApproval.getUserId())
+                    .orElseThrow(() -> new ApiException(ApiErrorCode.USER_NOT_FOUND));
+
+            if (!applicant.getDivision().equals(approver.getDivision()) ||
+                !applicant.getTeam().equals(approver.getTeam())) {
+                throw new ApiException(ApiErrorCode.ACCESS_DENIED, "같은 팀의 신청만 반려할 수 있습니다.");
+            }
+        }
+
+        rentalApproval.setApprovalStatus("RB");
+        rentalApprovalRepository.save(rentalApproval);
+
+        ApprovalRejection rejection = ApprovalRejection.builder()
+                .applicationType("RENTAL_APPROVAL")
+                .applicationSeq(seq)
+                .rejectedBy(approverId)
+                .rejectionLevel("TEAM_LEADER")
+                .rejectionReason(rejectionReason)
+                .build();
+        approvalRejectionRepository.save(rejection);
+
+        // 알람 생성: 신청자에게
+        alarmService.createRejectedAlarm(
+                rentalApproval.getUserId(), "RENTAL_APPROVAL", seq, rejectionReason);
+
+        log.info("월세 지원 품의서 팀장 반려 완료: seq={}", seq);
+    }
+
+    /**
+     * 월세 지원 품의서 승인 (본부장)
+     */
+    @Transactional
+    public void approveRentalApprovalByDivisionHead(Long seq, Long approverId) {
+        log.info("월세 지원 품의서 본부장 승인: seq={}, approverId={}", seq, approverId);
+
+        RentalApproval rentalApproval = rentalApprovalRepository.findById(seq)
+                .orElseThrow(() -> {
+                    log.warn("존재하지 않는 월세 지원 품의서: seq={}", seq);
+                    return new ApiException(ApiErrorCode.INVALID_REQUEST_FORMAT, "존재하지 않는 월세 지원 품의서입니다.");
+                });
+
+        // 승인 가능한 상태 확인 (B만 승인 가능)
+        String currentStatus = rentalApproval.getApprovalStatus();
+        // null이거나 B가 아니면 에러
+        if (currentStatus == null || !"B".equals(currentStatus)) {
+            log.warn("승인 불가능한 상태: seq={}, status={}", seq, currentStatus);
+            throw new ApiException(ApiErrorCode.INVALID_REQUEST_FORMAT, "승인할 수 없는 상태입니다.");
+        }
+
+        User approver = userRepository.findById(approverId)
+                .orElseThrow(() -> new ApiException(ApiErrorCode.USER_NOT_FOUND));
+        
+        String approverAuthVal = approver.getAuthVal();
+        if (!"bb".equals(approverAuthVal) && !"ma".equals(approverAuthVal)) {
+            throw new ApiException(ApiErrorCode.ACCESS_DENIED, "본부장만 승인할 수 있습니다.");
+        }
+
+        // 같은 본부 확인 (관리자는 제외)
+        if (!"ma".equals(approverAuthVal)) {
+            User applicant = userRepository.findById(rentalApproval.getUserId())
+                    .orElseThrow(() -> new ApiException(ApiErrorCode.USER_NOT_FOUND));
+
+            if (!applicant.getDivision().equals(approver.getDivision())) {
+                throw new ApiException(ApiErrorCode.ACCESS_DENIED, "같은 본부의 신청만 승인할 수 있습니다.");
+            }
+        }
+
+        rentalApproval.setApprovalStatus("C");
+        rentalApprovalRepository.save(rentalApproval);
+
+        // 알람 생성: 신청자에게
+        alarmService.createDivisionHeadApprovedAlarm(
+                rentalApproval.getUserId(), "RENTAL_APPROVAL", seq);
+
+        log.info("월세 지원 품의서 본부장 승인 완료: seq={}", seq);
+    }
+
+    /**
+     * 월세 지원 품의서 반려 (본부장)
+     */
+    @Transactional
+    public void rejectRentalApprovalByDivisionHead(Long seq, Long approverId, String rejectionReason) {
+        log.info("월세 지원 품의서 본부장 반려: seq={}, approverId={}, reason={}", seq, approverId, rejectionReason);
+
+        RentalApproval rentalApproval = rentalApprovalRepository.findById(seq)
+                .orElseThrow(() -> {
+                    log.warn("존재하지 않는 월세 지원 품의서: seq={}", seq);
+                    return new ApiException(ApiErrorCode.INVALID_REQUEST_FORMAT, "존재하지 않는 월세 지원 품의서입니다.");
+                });
+
+        // 반려 가능한 상태 확인 (B만 반려 가능)
+        String currentStatus = rentalApproval.getApprovalStatus();
+        // null이거나 B가 아니면 에러
+        if (currentStatus == null || !"B".equals(currentStatus)) {
+            log.warn("반려 불가능한 상태: seq={}, status={}", seq, currentStatus);
+            throw new ApiException(ApiErrorCode.INVALID_REQUEST_FORMAT, "반려할 수 없는 상태입니다.");
+        }
+
+        User approver = userRepository.findById(approverId)
+                .orElseThrow(() -> new ApiException(ApiErrorCode.USER_NOT_FOUND));
+        
+        String approverAuthVal = approver.getAuthVal();
+        if (!"bb".equals(approverAuthVal) && !"ma".equals(approverAuthVal)) {
+            throw new ApiException(ApiErrorCode.ACCESS_DENIED, "본부장만 반려할 수 있습니다.");
+        }
+
+        // 같은 본부 확인 (관리자는 제외)
+        if (!"ma".equals(approverAuthVal)) {
+            User applicant = userRepository.findById(rentalApproval.getUserId())
+                    .orElseThrow(() -> new ApiException(ApiErrorCode.USER_NOT_FOUND));
+
+            if (!applicant.getDivision().equals(approver.getDivision())) {
+                throw new ApiException(ApiErrorCode.ACCESS_DENIED, "같은 본부의 신청만 반려할 수 있습니다.");
+            }
+        }
+
+        rentalApproval.setApprovalStatus("RC");
+        rentalApprovalRepository.save(rentalApproval);
+
+        ApprovalRejection rejection = ApprovalRejection.builder()
+                .applicationType("RENTAL_APPROVAL")
+                .applicationSeq(seq)
+                .rejectedBy(approverId)
+                .rejectionLevel("DIVISION_HEAD")
+                .rejectionReason(rejectionReason)
+                .build();
+        approvalRejectionRepository.save(rejection);
+
+        // 알람 생성: 신청자에게
+        alarmService.createRejectedAlarm(
+                rentalApproval.getUserId(), "RENTAL_APPROVAL", seq, rejectionReason);
+
+        log.info("월세 지원 품의서 본부장 반려 완료: seq={}", seq);
     }
 }

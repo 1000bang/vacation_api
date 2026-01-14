@@ -99,5 +99,20 @@ public interface VacationHistoryRepository extends JpaRepository<VacationHistory
     List<VacationHistory> findByUserIdInAndApprovalStatusInOrderByCreatedAtDesc(
             List<Long> userIds, List<String> approvalStatuses);
     
+    /**
+     * 승인 상태 목록으로 연차 내역 조회 (관리자용, 생성일 내림차순)
+     *
+     * @param approvalStatuses 승인 상태 목록
+     * @return 연차 내역 목록
+     */
+    List<VacationHistory> findByApprovalStatusInOrderByCreatedAtDesc(List<String> approvalStatuses);
+    
+    /**
+     * 승인 상태가 null인 연차 내역 조회 (생성일 내림차순)
+     *
+     * @return 연차 내역 목록
+     */
+    List<VacationHistory> findByApprovalStatusIsNullOrderByCreatedAtDesc();
+    
 }
 

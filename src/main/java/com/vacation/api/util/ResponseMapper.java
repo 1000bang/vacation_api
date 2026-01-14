@@ -44,6 +44,7 @@ public class ResponseMapper {
         map.put("billingAmount", approval.getBillingAmount());
         map.put("billingStartDate", approval.getBillingStartDate());
         map.put("billingReason", approval.getBillingReason());
+        map.put("approvalStatus", approval.getApprovalStatus());
         map.put("createdAt", approval.getCreatedAt());
         map.put("applicant", applicantName != null ? applicantName : "");
         return map;

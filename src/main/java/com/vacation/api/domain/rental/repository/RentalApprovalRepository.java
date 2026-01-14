@@ -33,5 +33,29 @@ public interface RentalApprovalRepository extends JpaRepository<RentalApproval, 
      * @return 월세 지원 정보
      */
     Optional<RentalApproval> findBySeqAndUserId(Long seq, Long userId);
+
+    /**
+     * 사용자 ID 목록과 승인 상태 목록으로 월세 지원 정보 목록 조회 (생성일 내림차순)
+     *
+     * @param userIds 사용자 ID 목록
+     * @param approvalStatuses 승인 상태 목록
+     * @return 월세 지원 정보 목록
+     */
+    List<RentalApproval> findByUserIdInAndApprovalStatusInOrderByCreatedAtDesc(List<Long> userIds, List<String> approvalStatuses);
+    
+    /**
+     * 승인 상태 목록으로 월세 지원 품의서 조회 (관리자용, 생성일 내림차순)
+     *
+     * @param approvalStatuses 승인 상태 목록
+     * @return 월세 지원 품의서 목록
+     */
+    List<RentalApproval> findByApprovalStatusInOrderByCreatedAtDesc(List<String> approvalStatuses);
+    
+    /**
+     * 승인 상태가 null인 월세 지원 품의서 조회 (생성일 내림차순)
+     *
+     * @return 월세 지원 품의서 목록
+     */
+    List<RentalApproval> findByApprovalStatusIsNullOrderByCreatedAtDesc();
 }
 

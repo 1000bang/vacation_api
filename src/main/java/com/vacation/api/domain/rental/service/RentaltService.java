@@ -75,6 +75,21 @@ public class RentaltService {
     public RentalApproval createRentalSupport(Long userId, RentalApprovalRequest request) {
         log.info("월세 지원 정보 생성: userId={}", userId);
         
+        // 사용자 정보 조회 (권한 확인용)
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ApiException(ApiErrorCode.USER_NOT_FOUND));
+        
+        // 권한에 따른 초기 approvalStatus 설정
+        String initialApprovalStatus = "A"; // 기본값: 일반 사용자
+        String authVal = user.getAuthVal();
+        if ("tj".equals(authVal)) {
+            // 팀장 권한: B (팀장 승인)로 시작
+            initialApprovalStatus = "B";
+        } else if ("bb".equals(authVal)) {
+            // 본부장 권한: C (본부장 승인)로 시작
+            initialApprovalStatus = "C";
+        }
+        
         RentalApproval rentalApproval = RentalApproval.builder()
                 .userId(userId)
                 .previousAddress(request.getPreviousAddress())
@@ -85,10 +100,11 @@ public class RentaltService {
                 .billingAmount(request.getBillingAmount())
                 .billingStartDate(request.getBillingStartDate())
                 .billingReason(request.getBillingReason())
+                .approvalStatus(initialApprovalStatus)
                 .build();
         
         RentalApproval saved = rentalApprovalRepository.save(rentalApproval);
-        log.info("월세 지원 정보 생성 완료: seq={}, userId={}", saved.getSeq(), userId);
+        log.info("월세 지원 정보 생성 완료: seq={}, userId={}, approvalStatus={}", saved.getSeq(), userId, saved.getApprovalStatus());
         
         return saved;
     }
@@ -119,9 +135,10 @@ public class RentaltService {
         rentalApproval.setBillingAmount(request.getBillingAmount());
         rentalApproval.setBillingStartDate(request.getBillingStartDate());
         rentalApproval.setBillingReason(request.getBillingReason());
+        rentalApproval.setApprovalStatus("AM"); // 수정 시 무조건 AM 상태로 변경
         
         RentalApproval updated = rentalApprovalRepository.save(rentalApproval);
-        log.info("월세 지원 정보 수정 완료: seq={}, userId={}", seq, userId);
+        log.info("월세 지원 정보 수정 완료: seq={}, userId={}, approvalStatus={}", seq, userId, updated.getApprovalStatus());
         
         return updated;
     }

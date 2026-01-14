@@ -86,12 +86,16 @@ public class AlarmService {
                 .orElseThrow(() -> new RuntimeException("신청자를 찾을 수 없습니다."));
 
         // 신청자에게 알람
+        String applicantMessage = "RENTAL_APPROVAL".equals(applicationType)
+                ? "월세 지원 품의서 신청이 승인 되었습니다."
+                : String.format("%s 신청이 팀장 승인되었습니다.", getApplicationTypeName(applicationType));
+        
         UserAlarm applicantAlarm = UserAlarm.builder()
                 .userId(applicantId)
                 .alarmType("TEAM_LEADER_APPROVED")
                 .applicationType(applicationType)
                 .applicationSeq(applicationSeq)
-                .message(String.format("%s 신청이 팀장 승인되었습니다.", getApplicationTypeName(applicationType)))
+                .message(applicantMessage)
                 .redirectUrl("/my-applications")
                 .isRead(false)
                 .build();
@@ -125,12 +129,16 @@ public class AlarmService {
         log.info("본부장 승인 알람 생성: applicantId={}, applicationType={}, applicationSeq={}", 
                 applicantId, applicationType, applicationSeq);
 
+        String message = "RENTAL_APPROVAL".equals(applicationType)
+                ? "월세 지원 품의서 신청이 승인 되었습니다."
+                : String.format("%s 신청이 최종 승인되었습니다.", getApplicationTypeName(applicationType));
+        
         UserAlarm alarm = UserAlarm.builder()
                 .userId(applicantId)
                 .alarmType("DIVISION_HEAD_APPROVED")
                 .applicationType(applicationType)
                 .applicationSeq(applicationSeq)
-                .message(String.format("%s 신청이 최종 승인되었습니다.", getApplicationTypeName(applicationType)))
+                .message(message)
                 .redirectUrl("/my-applications")
                 .isRead(false)
                 .build();
@@ -146,13 +154,17 @@ public class AlarmService {
         log.info("반려 알람 생성: applicantId={}, applicationType={}, applicationSeq={}", 
                 applicantId, applicationType, applicationSeq);
 
+        String message = "RENTAL_APPROVAL".equals(applicationType)
+                ? "월세 지원 품의서 신청이 반려 되었습니다."
+                : String.format("%s 신청이 반려되었습니다. 사유: %s", 
+                        getApplicationTypeName(applicationType), rejectionReason);
+        
         UserAlarm alarm = UserAlarm.builder()
                 .userId(applicantId)
                 .alarmType("REJECTED")
                 .applicationType(applicationType)
                 .applicationSeq(applicationSeq)
-                .message(String.format("%s 신청이 반려되었습니다. 사유: %s", 
-                        getApplicationTypeName(applicationType), rejectionReason))
+                .message(message)
                 .redirectUrl("/my-applications")
                 .isRead(false)
                 .build();
@@ -198,6 +210,7 @@ public class AlarmService {
             case "VACATION" -> "휴가";
             case "EXPENSE" -> "개인 비용";
             case "RENTAL" -> "월세 지원";
+            case "RENTAL_APPROVAL" -> "월세 지원 품의서";
             default -> "신청";
         };
     }

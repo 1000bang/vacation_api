@@ -87,6 +87,13 @@ public class RentalApproval {
     private String billingReason;
 
     /**
+     * 승인 상태 (A: 초기 생성, AM: 수정됨, B: 팀장 승인, RB: 팀장 반려, C: 본부장 승인, RC: 본부장 반려)
+     */
+    @Column(name = "approval_status", length = 2)
+    @Builder.Default
+    private String approvalStatus = "A";
+
+    /**
      * 생성일
      */
     @Column(name = "created_at", nullable = false, updatable = false)
