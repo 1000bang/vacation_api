@@ -55,13 +55,50 @@ public class RentaltService {
      * 월세 지원 정보 조회
      *
      * @param seq 시퀀스
-     * @param userId 사용자 ID
+     * @param requesterId 요청자 사용자 ID
      * @return 월세 지원 정보 (없으면 null)
      */
-    public RentalApproval getRentalSupport(Long seq, Long userId) {
-        log.info("월세 지원 정보 조회: seq={}, userId={}", seq, userId);
-        return rentalApprovalRepository.findBySeqAndUserId(seq, userId)
-                .orElse(null);
+    public RentalApproval getRentalSupport(Long seq, Long requesterId) {
+        log.info("월세 지원 정보 조회: seq={}, requesterId={}", seq, requesterId);
+        User requester = userRepository.findById(requesterId)
+                .orElseThrow(() -> new ApiException(ApiErrorCode.USER_NOT_FOUND));
+
+        String authVal = requester.getAuthVal();
+        
+        if ("ma".equals(authVal)) {
+            // 관리자(ma)는 모든 월세 지원 품의서 조회 가능
+            return rentalApprovalRepository.findById(seq)
+                    .orElse(null);
+        } else if ("bb".equals(authVal)) {
+            // 본부장(bb)은 자신의 본부만 모든 월세 지원 품의서 조회 가능
+            RentalApproval rentalApproval = rentalApprovalRepository.findById(seq)
+                    .orElse(null);
+            if (rentalApproval != null) {
+                User applicant = userRepository.findById(rentalApproval.getUserId())
+                        .orElse(null);
+                if (applicant != null && requester.getDivision().equals(applicant.getDivision())) {
+                    return rentalApproval;
+                }
+            }
+            return null;
+        } else if ("tj".equals(authVal)) {
+            // 팀장(tj)은 자신의 팀만 모든 월세 지원 품의서 조회 가능
+            RentalApproval rentalApproval = rentalApprovalRepository.findById(seq)
+                    .orElse(null);
+            if (rentalApproval != null) {
+                User applicant = userRepository.findById(rentalApproval.getUserId())
+                        .orElse(null);
+                if (applicant != null && requester.getDivision().equals(applicant.getDivision()) 
+                    && requester.getTeam().equals(applicant.getTeam())) {
+                    return rentalApproval;
+                }
+            }
+            return null;
+        } else {
+            // 일반 사용자는 본인 신청 내역만 조회 가능
+            return rentalApprovalRepository.findBySeqAndUserId(seq, requesterId)
+                    .orElse(null);
+        }
     }
 
     /**
