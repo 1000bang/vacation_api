@@ -57,5 +57,13 @@ public interface RentalApprovalRepository extends JpaRepository<RentalApproval, 
      * @return 월세 지원 품의서 목록
      */
     List<RentalApproval> findByApprovalStatusIsNullOrderByCreatedAtDesc();
+    
+    /**
+     * 사용자 ID로 월세 지원 품의서 개수 조회
+     *
+     * @param userId 사용자 ID
+     * @return 개수
+     */
+    long countByUserId(Long userId);
 }
 

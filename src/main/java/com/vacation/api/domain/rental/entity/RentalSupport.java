@@ -18,7 +18,8 @@ import java.time.LocalDateTime;
  * @since 2026-01-07
  */
 @Entity
-@Table(name = "tbl_rental_support")
+@Table(name = "tbl_rental_support",
+       uniqueConstraints = @UniqueConstraint(columnNames = {"user_id", "billing_yy_month"}))
 @Data
 @Builder
 @NoArgsConstructor

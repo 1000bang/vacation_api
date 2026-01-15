@@ -267,6 +267,12 @@ public class VacationService {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new ApiException(ApiErrorCode.USER_NOT_FOUND));
         
+        // 같은 날짜에 휴가 신청이 이미 존재하는지 확인
+        if (vacationHistoryRepository.existsByUserIdAndStartDate(userId, request.getStartDate())) {
+            log.warn("같은 날짜에 휴가 신청이 이미 존재함: userId={}, startDate={}", userId, request.getStartDate());
+            throw new ApiException(ApiErrorCode.DUPLICATE_VACATION_DATE);
+        }
+        
         // 권한에 따른 초기 approvalStatus 설정
         String initialApprovalStatus = "A"; // 기본값: 일반 사용자
         String authVal = user.getAuthVal();

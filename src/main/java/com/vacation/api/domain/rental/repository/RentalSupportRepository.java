@@ -80,5 +80,14 @@ public interface RentalSupportRepository extends JpaRepository<RentalSupport, Lo
      * @return 월세 지원 신청 목록
      */
     List<RentalSupport> findByApprovalStatusIsNullOrderByCreatedAtDesc();
+    
+    /**
+     * 사용자 ID와 청구 년월로 월세 지원 신청 존재 여부 확인
+     *
+     * @param userId 사용자 ID
+     * @param billingYyMonth 청구 년월 (YYYYMM 형식)
+     * @return 존재 여부
+     */
+    boolean existsByUserIdAndBillingYyMonth(Long userId, Integer billingYyMonth);
 }
 

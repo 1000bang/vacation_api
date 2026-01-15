@@ -149,6 +149,18 @@ public class ExpenseClaimService {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new ApiException(ApiErrorCode.USER_NOT_FOUND));
         
+        // 청구 년월 계산 (YYYYMM 형식)
+        int billingYyMonth = com.vacation.api.util.BillingUtil.calculateBillingYyMonth(
+                request.getRequestDate(), 
+                request.getMonth()
+        );
+        
+        // 같은 월에 개인비용 신청이 이미 존재하는지 확인
+        if (expenseClaimRepository.existsByUserIdAndBillingYyMonth(userId, billingYyMonth)) {
+            log.warn("해당 월에 개인비용 신청이 이미 존재함: userId={}, billingYyMonth={}", userId, billingYyMonth);
+            throw new ApiException(ApiErrorCode.DUPLICATE_EXPENSE_MONTH);
+        }
+        
         // 권한에 따른 초기 approvalStatus 설정
         String initialApprovalStatus = "A"; // 기본값: 일반 사용자
         String authVal = user.getAuthVal();
@@ -164,12 +176,6 @@ public class ExpenseClaimService {
         Long totalAmount = request.getExpenseItems().stream()
                 .mapToLong(item -> item.getAmount() != null ? item.getAmount() : 0L)
                 .sum();
-
-        // 청구 년월 계산 (YYYYMM 형식)
-        int billingYyMonth = com.vacation.api.util.BillingUtil.calculateBillingYyMonth(
-                request.getRequestDate(), 
-                request.getMonth()
-        );
 
         // 부모 엔티티 생성
         ExpenseClaim expenseClaim = ExpenseClaim.builder()

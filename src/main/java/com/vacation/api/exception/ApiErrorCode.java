@@ -22,6 +22,10 @@ public enum ApiErrorCode {
     VACATION_HISTORY_NOT_FOUND("911", "연차 내역을 찾을 수 없습니다."),
     CANNOT_DELETE_OLD_VACATION("912", "최신 항목만 삭제할 수 있습니다."),
     ACCESS_DENIED("913", "권한이 없습니다."),
+    DUPLICATE_VACATION_DATE("914", "같은 날짜에 휴가 신청이 이미 존재합니다. 기존 신청을 취소한 후 다시 신청해주세요."),
+    DUPLICATE_EXPENSE_MONTH("915", "해당 월에 개인비용 신청이 이미 존재합니다. 기존 신청을 취소한 후 다시 신청해주세요."),
+    DUPLICATE_RENTAL_MONTH("916", "해당 월에 월세지원 신청이 이미 존재합니다. 기존 신청을 취소한 후 다시 신청해주세요."),
+    DUPLICATE_RENTAL_APPROVAL("917", "월세지원 품의서는 한 건만 신청 가능합니다. 기존 신청을 수정하여 변경해주세요."),
     UNKNOWN_ERROR("9999", "알 수 없는 오류가 발생했습니다.");
 
     private final String code;

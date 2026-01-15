@@ -79,6 +79,13 @@ public class RentaltService {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new ApiException(ApiErrorCode.USER_NOT_FOUND));
         
+        // user_id당 하나만 신청 가능 (count > 1이면 반환)
+        long existingCount = rentalApprovalRepository.countByUserId(userId);
+        if (existingCount > 0) {
+            log.warn("월세지원 품의서가 이미 존재함: userId={}, count={}", userId, existingCount);
+            throw new ApiException(ApiErrorCode.DUPLICATE_RENTAL_APPROVAL);
+        }
+        
         // 권한에 따른 초기 approvalStatus 설정
         String initialApprovalStatus = "A"; // 기본값: 일반 사용자
         String authVal = user.getAuthVal();
@@ -267,17 +274,6 @@ public class RentaltService {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new ApiException(ApiErrorCode.USER_NOT_FOUND));
         
-        // 권한에 따른 초기 approvalStatus 설정
-        String initialApprovalStatus = "A"; // 기본값: 일반 사용자
-        String authVal = user.getAuthVal();
-        if ("tj".equals(authVal)) {
-            // 팀장 권한: B (팀장 승인)로 시작
-            initialApprovalStatus = "B";
-        } else if ("bb".equals(authVal)) {
-            // 본부장 권한: C (본부장 승인)로 시작
-            initialApprovalStatus = "C";
-        }
-        
         // 청구 기간 및 납입일 계산 (requestDate의 연도 기준)
         LocalDate requestDate = request.getRequestDate();
         int requestYear = requestDate.getYear();
@@ -288,6 +284,23 @@ public class RentaltService {
                 requestDate, 
                 request.getMonth()
         );
+        
+        // 같은 월에 월세지원 신청이 이미 존재하는지 확인
+        if (rentalSupportRepository.existsByUserIdAndBillingYyMonth(userId, billingYyMonth)) {
+            log.warn("해당 월에 월세지원 신청이 이미 존재함: userId={}, billingYyMonth={}", userId, billingYyMonth);
+            throw new ApiException(ApiErrorCode.DUPLICATE_RENTAL_MONTH);
+        }
+        
+        // 권한에 따른 초기 approvalStatus 설정
+        String initialApprovalStatus = "A"; // 기본값: 일반 사용자
+        String authVal = user.getAuthVal();
+        if ("tj".equals(authVal)) {
+            // 팀장 권한: B (팀장 승인)로 시작
+            initialApprovalStatus = "B";
+        } else if ("bb".equals(authVal)) {
+            // 본부장 권한: C (본부장 승인)로 시작
+            initialApprovalStatus = "C";
+        }
         int contractDay = request.getContractStartDate().getDayOfMonth();
         int billingMonth = request.getMonth();
         

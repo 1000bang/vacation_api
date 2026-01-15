@@ -17,7 +17,8 @@ import java.time.LocalDateTime;
  * @since 2026-01-07
  */
 @Entity
-@Table(name = "tbl_vacation_history")
+@Table(name = "tbl_vacation_history", 
+       uniqueConstraints = @UniqueConstraint(columnNames = {"user_id", "start_date"}))
 @Data
 @Builder
 @NoArgsConstructor

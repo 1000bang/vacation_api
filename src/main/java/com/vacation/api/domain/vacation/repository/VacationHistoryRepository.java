@@ -114,5 +114,14 @@ public interface VacationHistoryRepository extends JpaRepository<VacationHistory
      */
     List<VacationHistory> findByApprovalStatusIsNullOrderByCreatedAtDesc();
     
+    /**
+     * 사용자 ID와 시작일로 연차 내역 존재 여부 확인
+     *
+     * @param userId 사용자 ID
+     * @param startDate 시작일
+     * @return 존재 여부
+     */
+    boolean existsByUserIdAndStartDate(Long userId, LocalDate startDate);
+    
 }
 

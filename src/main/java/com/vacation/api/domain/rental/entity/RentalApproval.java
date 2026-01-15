@@ -17,7 +17,8 @@ import java.time.LocalDateTime;
  * @since 2026-01-07
  */
 @Entity
-@Table(name = "tbl_rental_approval")
+@Table(name = "tbl_rental_approval",
+       uniqueConstraints = @UniqueConstraint(columnNames = {"user_id"}))
 @Data
 @Builder
 @NoArgsConstructor
