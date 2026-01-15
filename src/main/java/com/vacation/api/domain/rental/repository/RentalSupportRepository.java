@@ -89,5 +89,16 @@ public interface RentalSupportRepository extends JpaRepository<RentalSupport, Lo
      * @return 존재 여부
      */
     boolean existsByUserIdAndBillingYyMonth(Long userId, Integer billingYyMonth);
+    
+    /**
+     * 사용자 ID와 청구 년월로 월세 지원 신청 존재 여부 확인 (특정 seq 제외)
+     * 수정 시 자기 자신을 제외한 중복 체크용
+     *
+     * @param userId 사용자 ID
+     * @param billingYyMonth 청구 년월 (YYYYMM 형식)
+     * @param seq 제외할 시퀀스
+     * @return 존재 여부
+     */
+    boolean existsByUserIdAndBillingYyMonthAndSeqNot(Long userId, Integer billingYyMonth, Long seq);
 }
 

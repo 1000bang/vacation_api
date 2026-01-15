@@ -51,3 +51,12 @@ springdoc:
     tags-sorter: alpha
     try-it-out-enabled: true
   show-actuator: false
+
+# 파일 업로드 설정
+file:
+  upload:
+    path:
+      prod: /upload
+      dev: /Users/1000bang/Downloads/upload
+      local: C:/Downloads/upload
+    max-size: 10485760  # 10MB (bytes)

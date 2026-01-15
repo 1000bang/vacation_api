@@ -31,3 +31,9 @@ logging:
     com.vacation.api: DEBUG
     org.springframework.web: INFO
 
+# 파일 업로드 설정 (개발 환경)
+file:
+  upload:
+    path:
+      dev: /Users/1000bang/Downloads/upload
+      local: C:/Downloads/upload

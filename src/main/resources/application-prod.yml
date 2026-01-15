@@ -58,10 +58,15 @@ logging:
     org.hibernate.SQL: WARN
     org.hibernate.type.descriptor.sql.BasicBinder: WARN
 
-
 # SpringDoc OpenAPI (Swagger) 설정 (프로덕션에서는 비활성화 권장)
 springdoc:
   api-docs:
     enabled: false  # 프로덕션에서는 보안상 비활성화
   swagger-ui:
     enabled: false  # 프로덕션에서는 보안상 비활성화
+
+# 파일 업로드 설정 (프로덕션)
+file:
+  upload:
+    path:
+      prod: /upload

@@ -1,6 +1,7 @@
 package com.vacation.api.domain.vacation.controller;
 
 import com.vacation.api.common.BaseController;
+import com.vacation.api.domain.attachment.service.FileService;
 import com.vacation.api.domain.user.entity.User;
 import com.vacation.api.domain.user.service.UserService;
 import com.vacation.api.domain.vacation.entity.UserVacationInfo;
@@ -23,6 +24,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
+import org.springframework.core.io.Resource;
 
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
@@ -48,13 +51,16 @@ public class VacationController extends BaseController {
     private final VacationService vacationService;
     private final UserService userService;
     private final ResponseMapper responseMapper;
+    private final FileService fileService;
 
     public VacationController(VacationService vacationService, UserService userService,
-                              ResponseMapper responseMapper, TransactionIDCreator transactionIDCreator) {
+                              ResponseMapper responseMapper, FileService fileService,
+                              TransactionIDCreator transactionIDCreator) {
         super(transactionIDCreator);
         this.vacationService = vacationService;
         this.userService = userService;
         this.responseMapper = responseMapper;
+        this.fileService = fileService;
     }
 
     /**
@@ -378,6 +384,16 @@ public class VacationController extends BaseController {
                 result.put("rejectionReason", rejectionReason);
             }
             
+            // 첨부파일 정보 조회
+            com.vacation.api.domain.attachment.entity.Attachment attachment = fileService.getAttachment("VACATION", seq);
+            if (attachment != null) {
+                Map<String, Object> attachmentInfo = new HashMap<>();
+                attachmentInfo.put("seq", attachment.getSeq());
+                attachmentInfo.put("fileName", attachment.getFileName());
+                attachmentInfo.put("fileSize", attachment.getFileSize());
+                result.put("attachment", attachmentInfo);
+            }
+            
             return ResponseEntity.ok(new ApiResponse<>(transactionId, "0", result, null));
         } catch (Exception e) {
             log.error("연차 내역 조회 실패", e);
@@ -394,12 +410,14 @@ public class VacationController extends BaseController {
      *
      * @param request HTTP 요청
      * @param vacationRequest 휴가 신청 요청 데이터
+     * @param file 첨부파일 (선택)
      * @return 생성된 연차 내역
      */
-    @PostMapping
+    @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<ApiResponse<Object>> createVacation(
             HttpServletRequest request,
-            @Valid @RequestBody VacationRequest vacationRequest) {
+            @RequestPart("vacationRequest") @Valid VacationRequest vacationRequest,
+            @RequestPart(value = "file", required = false) MultipartFile file) {
         log.info("휴가 신청 요청");
 
         String transactionId = MDC.get("transactionId");
@@ -410,6 +428,17 @@ public class VacationController extends BaseController {
         try {
             Long userId = (Long) request.getAttribute("userId");
             VacationHistory vacationHistory = vacationService.createVacation(userId, vacationRequest);
+            
+            // 파일이 있으면 업로드
+            if (file != null && !file.isEmpty()) {
+                try {
+                    fileService.uploadFile(file, "VACATION", vacationHistory.getSeq(), userId);
+                } catch (Exception e) {
+                    log.error("파일 업로드 실패: seq={}", vacationHistory.getSeq(), e);
+                    // 파일 업로드 실패해도 신청은 성공으로 처리
+                }
+            }
+            
             return ResponseEntity.status(HttpStatus.CREATED)
                     .body(new ApiResponse<>(transactionId, "0", vacationHistory, null));
         } catch (Exception e) {
@@ -428,13 +457,15 @@ public class VacationController extends BaseController {
      * @param request HTTP 요청
      * @param seq 시퀀스
      * @param vacationRequest 휴가 신청 요청 데이터
+     * @param file 첨부파일 (선택)
      * @return 수정된 연차 내역
      */
-    @PutMapping("/{seq}")
+    @PutMapping(value = "/{seq}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<ApiResponse<Object>> updateVacation(
             HttpServletRequest request,
             @PathVariable Long seq,
-            @Valid @RequestBody VacationRequest vacationRequest) {
+            @RequestPart("vacationRequest") @Valid VacationRequest vacationRequest,
+            @RequestPart(value = "file", required = false) MultipartFile file) {
         log.info("휴가 신청 수정 요청: seq={}", seq);
 
         String transactionId = MDC.get("transactionId");
@@ -445,6 +476,17 @@ public class VacationController extends BaseController {
         try {
             Long userId = (Long) request.getAttribute("userId");
             VacationHistory vacationHistory = vacationService.updateVacation(seq, userId, vacationRequest);
+            
+            // 파일이 있으면 업로드
+            if (file != null && !file.isEmpty()) {
+                try {
+                    fileService.uploadFile(file, "VACATION", vacationHistory.getSeq(), userId);
+                } catch (Exception e) {
+                    log.error("파일 업로드 실패: seq={}", vacationHistory.getSeq(), e);
+                    // 파일 업로드 실패해도 수정은 성공으로 처리
+                }
+            }
+            
             return ResponseEntity.ok(new ApiResponse<>(transactionId, "0", vacationHistory, null));
         } catch (Exception e) {
             log.error("휴가 신청 수정 실패", e);
@@ -581,6 +623,57 @@ public class VacationController extends BaseController {
                     .body(docBytes);
         } catch (Exception e) {
             log.error("휴가 신청서 다운로드 실패", e);
+            return ResponseEntity.internalServerError().build();
+        }
+    }
+
+    /**
+     * 휴가 신청 첨부파일 다운로드
+     *
+     * @param request HTTP 요청
+     * @param seq 시퀀스
+     * @return 첨부파일
+     */
+    @GetMapping("/history/{seq}/attachment")
+    public ResponseEntity<Resource> downloadVacationAttachment(
+            HttpServletRequest request,
+            @PathVariable Long seq) {
+        log.info("휴가 신청 첨부파일 다운로드 요청: seq={}", seq);
+
+        try {
+            Long requesterId = (Long) request.getAttribute("userId");
+            
+            // 휴가 내역 조회 (권한 체크)
+            VacationHistory vacationHistory = vacationService.getVacationHistory(seq, requesterId);
+            if (vacationHistory == null) {
+                log.warn("존재하지 않는 휴가 신청 또는 권한 없음: seq={}, requesterId={}", seq, requesterId);
+                return ResponseEntity.notFound().build();
+            }
+            
+            // 첨부파일 조회
+            com.vacation.api.domain.attachment.entity.Attachment attachment = fileService.getAttachment("VACATION", seq);
+            if (attachment == null) {
+                log.warn("첨부파일이 없음: seq={}", seq);
+                return ResponseEntity.notFound().build();
+            }
+            
+            // 파일 다운로드
+            Resource resource = fileService.downloadFile(attachment);
+            
+            // 파일명 인코딩
+            String encodedFileName = URLEncoder.encode(attachment.getFileName(), StandardCharsets.UTF_8)
+                    .replace("+", "%20");
+            
+            // HTTP 헤더 설정
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_OCTET_STREAM);
+            headers.set(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=" + encodedFileName);
+            
+            return ResponseEntity.ok()
+                    .headers(headers)
+                    .body(resource);
+        } catch (Exception e) {
+            log.error("휴가 신청 첨부파일 다운로드 실패", e);
             return ResponseEntity.internalServerError().build();
         }
     }

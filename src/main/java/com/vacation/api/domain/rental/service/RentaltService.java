@@ -424,6 +424,15 @@ public class RentaltService {
                 requestDate, 
                 request.getMonth()
         );
+        
+        // billingYyMonth가 변경되는 경우, 자기 자신을 제외한 중복 체크
+        if (!rentalSupport.getBillingYyMonth().equals(billingYyMonth)) {
+            if (rentalSupportRepository.existsByUserIdAndBillingYyMonthAndSeqNot(userId, billingYyMonth, seq)) {
+                log.warn("해당 월에 월세지원 신청이 이미 존재함: userId={}, billingYyMonth={}, seq={}", userId, billingYyMonth, seq);
+                throw new ApiException(ApiErrorCode.DUPLICATE_RENTAL_MONTH);
+            }
+        }
+        
         int contractDay = request.getContractStartDate().getDayOfMonth();
         int billingMonth = request.getMonth();
         

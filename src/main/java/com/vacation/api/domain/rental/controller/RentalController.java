@@ -1,6 +1,8 @@
 package com.vacation.api.domain.rental.controller;
 
 import com.vacation.api.common.BaseController;
+import com.vacation.api.domain.attachment.entity.Attachment;
+import com.vacation.api.domain.attachment.service.FileService;
 import com.vacation.api.domain.rental.entity.RentalApproval;
 import com.vacation.api.domain.rental.entity.RentalSupport;
 import com.vacation.api.domain.rental.request.RentalApprovalRequest;
@@ -19,11 +21,13 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.extern.slf4j.Slf4j;
 import org.slf4j.MDC;
+import org.springframework.core.io.Resource;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
@@ -48,13 +52,16 @@ public class RentalController extends BaseController {
     private final RentaltService rentaltService;
     private final UserService userService;
     private final ResponseMapper responseMapper;
+    private final FileService fileService;
 
     public RentalController(RentaltService rentaltService, UserService userService, 
-                           ResponseMapper responseMapper, TransactionIDCreator transactionIDCreator) {
+                           ResponseMapper responseMapper, FileService fileService,
+                           TransactionIDCreator transactionIDCreator) {
         super(transactionIDCreator);
         this.rentaltService = rentaltService;
         this.userService = userService;
         this.responseMapper = responseMapper;
+        this.fileService = fileService;
     }
 
     /**
@@ -101,7 +108,25 @@ public class RentalController extends BaseController {
         try {
             Long userId = (Long) request.getAttribute("userId");
             RentalApproval rentalApproval = rentaltService.getRentalSupport(seq, userId);
-            return successResponse(rentalApproval);
+            
+            if (rentalApproval == null) {
+                return successResponse(null);
+            }
+            
+            // 첨부파일 정보 조회
+            Map<String, Object> result = new HashMap<>();
+            result.put("rentalApproval", rentalApproval);
+            
+            com.vacation.api.domain.attachment.entity.Attachment attachment = fileService.getAttachment("RENTAL_APPROVAL", seq);
+            if (attachment != null) {
+                Map<String, Object> attachmentInfo = new HashMap<>();
+                attachmentInfo.put("seq", attachment.getSeq());
+                attachmentInfo.put("fileName", attachment.getFileName());
+                attachmentInfo.put("fileSize", attachment.getFileSize());
+                result.put("attachment", attachmentInfo);
+            }
+            
+            return successResponse(result);
         } catch (ApiException e) {
             return errorResponse("월세 지원 정보 조회에 실패했습니다.", e);
         } catch (Exception e) {
@@ -114,17 +139,30 @@ public class RentalController extends BaseController {
      *
      * @param request HTTP 요청
      * @param rentalApprovalRequest 월세 지원 정보 요청 데이터
+     * @param file 첨부파일 (선택)
      * @return 생성된 월세 지원 정보
      */
-    @PostMapping
+    @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<ApiResponse<Object>> createRentalSupport(
             HttpServletRequest request,
-            @Valid @RequestBody RentalApprovalRequest rentalApprovalRequest) {
+            @RequestPart("rentalApprovalRequest") @Valid RentalApprovalRequest rentalApprovalRequest,
+            @RequestPart(value = "file", required = false) MultipartFile file) {
         log.info("월세 지원 정보 생성 요청");
 
         try {
             Long userId = (Long) request.getAttribute("userId");
             RentalApproval rentalApproval = rentaltService.createRentalSupport(userId, rentalApprovalRequest);
+            
+            // 파일이 있으면 업로드
+            if (file != null && !file.isEmpty()) {
+                try {
+                    fileService.uploadFile(file, "RENTAL_APPROVAL", rentalApproval.getSeq(), userId);
+                } catch (Exception e) {
+                    log.error("파일 업로드 실패: seq={}", rentalApproval.getSeq(), e);
+                    // 파일 업로드 실패해도 신청은 성공으로 처리
+                }
+            }
+            
             String transactionId = getOrCreateTransactionId();
             return ResponseEntity.status(org.springframework.http.HttpStatus.CREATED)
                     .body(new ApiResponse<>(transactionId, "0", rentalApproval, null));
@@ -141,13 +179,15 @@ public class RentalController extends BaseController {
      * @param request HTTP 요청
      * @param seq 시퀀스
      * @param rentalApprovalRequest 월세 지원 정보 요청 데이터
+     * @param file 첨부파일 (선택)
      * @return 수정된 월세 지원 정보
      */
-    @PutMapping("/{seq}")
+    @PutMapping(value = "/{seq}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<ApiResponse<Object>> updateRentalSupport(
             HttpServletRequest request,
             @PathVariable Long seq,
-            @Valid @RequestBody RentalApprovalRequest rentalApprovalRequest) {
+            @RequestPart("rentalApprovalRequest") @Valid RentalApprovalRequest rentalApprovalRequest,
+            @RequestPart(value = "file", required = false) MultipartFile file) {
         log.info("월세 지원 정보 수정 요청: seq={}", seq);
 
         String transactionId = MDC.get("transactionId");
@@ -158,6 +198,17 @@ public class RentalController extends BaseController {
         try {
             Long userId = (Long) request.getAttribute("userId");
             RentalApproval rentalApproval = rentaltService.updateRentalSupport(seq, userId, rentalApprovalRequest);
+            
+            // 파일이 있으면 업로드
+            if (file != null && !file.isEmpty()) {
+                try {
+                    fileService.uploadFile(file, "RENTAL_APPROVAL", rentalApproval.getSeq(), userId);
+                } catch (Exception e) {
+                    log.error("파일 업로드 실패: seq={}", rentalApproval.getSeq(), e);
+                    // 파일 업로드 실패해도 수정은 성공으로 처리
+                }
+            }
+            
             return ResponseEntity.ok(new ApiResponse<>(transactionId, "0", rentalApproval, null));
         } catch (Exception e) {
             log.error("월세 지원 정보 수정 실패", e);
@@ -268,7 +319,31 @@ public class RentalController extends BaseController {
         try {
             Long userId = (Long) request.getAttribute("userId");
             RentalSupport rentalSupport = rentaltService.getRentalSupportApplication(seq, userId);
-            return ResponseEntity.ok(new ApiResponse<>(transactionId, "0", rentalSupport, null));
+            
+            if (rentalSupport == null) {
+                return ResponseEntity.ok(new ApiResponse<>(transactionId, "0", null, null));
+            }
+            
+            // 첨부파일 정보 조회
+            Map<String, Object> result = new HashMap<>();
+            result.put("rentalSupport", rentalSupport);
+            
+            List<Attachment> attachments = fileService.getAttachments("RENTAL", seq);
+            log.info("월세 지원 신청 첨부파일 조회: seq={}, applicationType=RENTAL, attachmentCount={}", seq, attachments != null ? attachments.size() : 0);
+            if (attachments != null && !attachments.isEmpty()) {
+                Attachment attachment = attachments.get(0);
+                log.info("월세 지원 신청 첨부파일 정보: attachmentSeq={}, fileName={}, fileSize={}", 
+                        attachment.getSeq(), attachment.getFileName(), attachment.getFileSize());
+                Map<String, Object> attachmentInfo = new HashMap<>();
+                attachmentInfo.put("seq", attachment.getSeq());
+                attachmentInfo.put("fileName", attachment.getFileName());
+                attachmentInfo.put("fileSize", attachment.getFileSize());
+                result.put("attachment", attachmentInfo);
+            } else {
+                log.warn("월세 지원 신청 첨부파일 없음: seq={}, applicationType=RENTAL", seq);
+            }
+            
+            return ResponseEntity.ok(new ApiResponse<>(transactionId, "0", result, null));
         } catch (Exception e) {
             log.error("월세 지원 신청 조회 실패", e);
             Map<String, Object> errorData = new HashMap<>();
@@ -286,10 +361,11 @@ public class RentalController extends BaseController {
      * @param rentalSupportRequest 월세 지원 신청 요청 데이터
      * @return 생성된 월세 지원 신청 정보
      */
-    @PostMapping("/application")
+    @PostMapping(value = "/application", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<ApiResponse<Object>> createRentalSupportApplication(
             HttpServletRequest request,
-            @Valid @RequestBody RentalSupportRequest rentalSupportRequest) {
+            @RequestPart("rentalSupportRequest") @Valid RentalSupportRequest rentalSupportRequest,
+            @RequestPart(value = "file", required = false) MultipartFile file) {
         log.info("월세 지원 신청 생성 요청");
 
         String transactionId = MDC.get("transactionId");
@@ -300,6 +376,21 @@ public class RentalController extends BaseController {
         try {
             Long userId = (Long) request.getAttribute("userId");
             RentalSupport rentalSupport = rentaltService.createRentalSupportApplication(userId, rentalSupportRequest);
+            
+            // 파일이 있으면 업로드
+            if (file != null && !file.isEmpty()) {
+                try {
+                    log.info("월세 지원 신청 파일 업로드 시작: seq={}, fileName={}, fileSize={}", 
+                            rentalSupport.getSeq(), file.getOriginalFilename(), file.getSize());
+                    Attachment attachment = fileService.uploadFile(file, "RENTAL", rentalSupport.getSeq(), userId);
+                    log.info("월세 지원 신청 파일 업로드 완료: attachmentSeq={}, applicationType=RENTAL, applicationSeq={}", 
+                            attachment.getSeq(), rentalSupport.getSeq());
+                } catch (Exception e) {
+                    log.error("파일 업로드 실패: seq={}, fileName={}", rentalSupport.getSeq(), file.getOriginalFilename(), e);
+                    // 파일 업로드 실패해도 신청은 성공으로 처리
+                }
+            }
+            
             return ResponseEntity.status(HttpStatus.CREATED)
                     .body(new ApiResponse<>(transactionId, "0", rentalSupport, null));
         } catch (Exception e) {
@@ -318,13 +409,15 @@ public class RentalController extends BaseController {
      * @param request HTTP 요청
      * @param seq 시퀀스
      * @param rentalSupportRequest 월세 지원 신청 요청 데이터
+     * @param file 첨부파일 (선택)
      * @return 수정된 월세 지원 신청 정보
      */
-    @PutMapping("/application/{seq}")
+    @PutMapping(value = "/application/{seq}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<ApiResponse<Object>> updateRentalSupportApplication(
             HttpServletRequest request,
             @PathVariable Long seq,
-            @Valid @RequestBody RentalSupportRequest rentalSupportRequest) {
+            @RequestPart("rentalSupportRequest") @Valid RentalSupportRequest rentalSupportRequest,
+            @RequestPart(value = "file", required = false) MultipartFile file) {
         log.info("월세 지원 신청 수정 요청: seq={}", seq);
 
         String transactionId = MDC.get("transactionId");
@@ -335,6 +428,21 @@ public class RentalController extends BaseController {
         try {
             Long userId = (Long) request.getAttribute("userId");
             RentalSupport rentalSupport = rentaltService.updateRentalSupportApplication(seq, userId, rentalSupportRequest);
+            
+            // 파일이 있으면 업로드 (기존 파일은 자동 삭제됨)
+            if (file != null && !file.isEmpty()) {
+                try {
+                    log.info("월세 지원 신청 파일 수정 업로드 시작: seq={}, fileName={}, fileSize={}", 
+                            rentalSupport.getSeq(), file.getOriginalFilename(), file.getSize());
+                    Attachment attachment = fileService.uploadFile(file, "RENTAL", rentalSupport.getSeq(), userId);
+                    log.info("월세 지원 신청 파일 수정 업로드 완료: attachmentSeq={}, applicationType=RENTAL, applicationSeq={}", 
+                            attachment.getSeq(), rentalSupport.getSeq());
+                } catch (Exception e) {
+                    log.error("파일 업로드 실패: seq={}, fileName={}", rentalSupport.getSeq(), file.getOriginalFilename(), e);
+                    // 파일 업로드 실패해도 수정은 성공으로 처리
+                }
+            }
+            
             return ResponseEntity.ok(new ApiResponse<>(transactionId, "0", rentalSupport, null));
         } catch (Exception e) {
             log.error("월세 지원 신청 수정 실패", e);
@@ -516,6 +624,110 @@ public class RentalController extends BaseController {
                     .body(docBytes);
         } catch (Exception e) {
             log.error("월세 지원 품의서 다운로드 실패", e);
+            return ResponseEntity.internalServerError().build();
+        }
+    }
+
+    /**
+     * 월세 지원 품의서 첨부파일 다운로드
+     *
+     * @param request HTTP 요청
+     * @param seq 시퀀스
+     * @return 첨부파일
+     */
+    @GetMapping("/{seq}/attachment")
+    public ResponseEntity<Resource> downloadRentalApprovalAttachment(
+            HttpServletRequest request,
+            @PathVariable Long seq) {
+        log.info("월세 지원 품의서 첨부파일 다운로드 요청: seq={}", seq);
+
+        try {
+            Long requesterId = (Long) request.getAttribute("userId");
+            
+            // 월세 지원 품의서 조회 (권한 체크)
+            RentalApproval rentalApproval = rentaltService.getRentalSupport(seq, requesterId);
+            if (rentalApproval == null) {
+                log.warn("존재하지 않는 월세 지원 품의서 또는 권한 없음: seq={}, requesterId={}", seq, requesterId);
+                return ResponseEntity.notFound().build();
+            }
+            
+            // 첨부파일 조회
+            com.vacation.api.domain.attachment.entity.Attachment attachment = fileService.getAttachment("RENTAL_APPROVAL", seq);
+            if (attachment == null) {
+                log.warn("첨부파일이 없음: seq={}", seq);
+                return ResponseEntity.notFound().build();
+            }
+            
+            // 파일 다운로드
+            Resource resource = fileService.downloadFile(attachment);
+            
+            // 파일명 인코딩
+            String encodedFileName = URLEncoder.encode(attachment.getFileName(), StandardCharsets.UTF_8)
+                    .replace("+", "%20");
+            
+            // HTTP 헤더 설정
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_OCTET_STREAM);
+            headers.set(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=" + encodedFileName);
+            
+            return ResponseEntity.ok()
+                    .headers(headers)
+                    .body(resource);
+        } catch (Exception e) {
+            log.error("월세 지원 품의서 첨부파일 다운로드 실패", e);
+            return ResponseEntity.internalServerError().build();
+        }
+    }
+
+    /**
+     * 월세 지원 신청 첨부파일 다운로드
+     *
+     * @param request HTTP 요청
+     * @param seq 시퀀스
+     * @return 첨부파일
+     */
+    @GetMapping("/application/{seq}/attachment")
+    public ResponseEntity<Resource> downloadRentalSupportAttachment(
+            HttpServletRequest request,
+            @PathVariable Long seq) {
+        log.info("월세 지원 신청 첨부파일 다운로드 요청: seq={}", seq);
+
+        try {
+            Long requesterId = (Long) request.getAttribute("userId");
+            
+            // 월세 지원 신청 조회 (권한 체크)
+            RentalSupport rentalSupport = rentaltService.getRentalSupportApplication(seq, requesterId);
+            if (rentalSupport == null) {
+                log.warn("존재하지 않는 월세 지원 신청 또는 권한 없음: seq={}, requesterId={}", seq, requesterId);
+                return ResponseEntity.notFound().build();
+            }
+            
+            // 첨부파일 조회
+            List<com.vacation.api.domain.attachment.entity.Attachment> attachments = fileService.getAttachments("RENTAL", seq);
+            if (attachments == null || attachments.isEmpty()) {
+                log.warn("첨부파일이 없음: seq={}", seq);
+                return ResponseEntity.notFound().build();
+            }
+            
+            com.vacation.api.domain.attachment.entity.Attachment attachment = attachments.get(0);
+            
+            // 파일 다운로드
+            Resource resource = fileService.downloadFile(attachment);
+            
+            // 파일명 인코딩
+            String encodedFileName = URLEncoder.encode(attachment.getFileName(), StandardCharsets.UTF_8)
+                    .replace("+", "%20");
+            
+            // HTTP 헤더 설정
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_OCTET_STREAM);
+            headers.set(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=" + encodedFileName);
+            
+            return ResponseEntity.ok()
+                    .headers(headers)
+                    .body(resource);
+        } catch (Exception e) {
+            log.error("월세 지원 신청 첨부파일 다운로드 실패", e);
             return ResponseEntity.internalServerError().build();
         }
     }
