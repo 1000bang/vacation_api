@@ -21,9 +21,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
 /**
  * 사용자 관련 Controller
@@ -63,17 +61,10 @@ public class UserController extends BaseController {
             // 회원가입 처리
             User user = userService.join(joinRequest);
 
-            // 응답 데이터 생성
-            Map<String, Object> resultData = new HashMap<>();
-            resultData.put("userId", user.getUserId());
-            resultData.put("email", user.getEmail());
-            resultData.put("name", user.getName());
-            resultData.put("status", user.getStatus().getValue());
-
             log.info("회원가입 성공: userId={}, email={}", user.getUserId(), user.getEmail());
             String transactionId = getOrCreateTransactionId();
             return ResponseEntity.status(HttpStatus.CREATED)
-                    .body(new ApiResponse<>(transactionId, "0", resultData, null));
+                    .body(new ApiResponse<>(transactionId, "0", user, null));
 
         } catch (ApiException e) {
             return errorResponse("회원가입에 실패했습니다.", e);

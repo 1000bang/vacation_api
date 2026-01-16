@@ -25,7 +25,7 @@ public enum ApiErrorCode {
     DUPLICATE_VACATION_DATE("914", "같은 날짜에 휴가 신청이 이미 존재합니다. 기존 신청을 취소한 후 다시 신청해주세요."),
     DUPLICATE_EXPENSE_MONTH("915", "해당 월에 개인비용 신청이 이미 존재합니다. 기존 신청을 취소한 후 다시 신청해주세요."),
     DUPLICATE_RENTAL_MONTH("916", "해당 월에 월세지원 신청이 이미 존재합니다. 기존 신청을 취소한 후 다시 신청해주세요."),
-    DUPLICATE_RENTAL_APPROVAL("917", "월세지원 품의서는 한 건만 신청 가능합니다. 기존 신청을 수정하여 변경해주세요."),
+    DUPLICATE_RENTAL_PROPOSAL("917", "월세 품의서는 한 건만 신청 가능합니다. 기존 신청을 수정하여 변경해주세요."),
     UNKNOWN_ERROR("9999", "알 수 없는 오류가 발생했습니다.");
 
     private final String code;

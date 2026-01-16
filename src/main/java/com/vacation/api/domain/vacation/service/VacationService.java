@@ -13,6 +13,7 @@ import com.vacation.api.domain.vacation.request.UpdateVacationInfoRequest;
 import com.vacation.api.domain.vacation.request.VacationRequest;
 import com.vacation.api.exception.ApiErrorCode;
 import com.vacation.api.exception.ApiException;
+import com.vacation.api.util.ApprovalStatusResolver;
 import com.vacation.api.vo.VacationDocumentVO;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -40,6 +41,7 @@ public class VacationService {
     private final UserRepository userRepository;
     private final AlarmService alarmService;
     private final ApprovalRejectionRepository approvalRejectionRepository;
+    private final ApprovalStatusResolver approvalStatusResolver;
 
     /**
      * 사용자별 연차 정보 조회
@@ -274,15 +276,7 @@ public class VacationService {
         }
         
         // 권한에 따른 초기 approvalStatus 설정
-        String initialApprovalStatus = "A"; // 기본값: 일반 사용자
-        String authVal = user.getAuthVal();
-        if ("tj".equals(authVal)) {
-            // 팀장 권한: B (팀장 승인)로 시작
-            initialApprovalStatus = "B";
-        } else if ("bb".equals(authVal)) {
-            // 본부장 권한: C (본부장 승인)로 시작
-            initialApprovalStatus = "C";
-        }
+        String initialApprovalStatus = approvalStatusResolver.resolveInitialApprovalStatus(user.getAuthVal());
 
         // 사용자 연차 정보 조회 또는 생성
         UserVacationInfo vacationInfo = getUserVacationInfo(userId);

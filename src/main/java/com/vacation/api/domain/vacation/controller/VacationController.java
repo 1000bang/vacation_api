@@ -1,6 +1,8 @@
 package com.vacation.api.domain.vacation.controller;
 
 import com.vacation.api.common.BaseController;
+import com.vacation.api.common.PagedResponse;
+import com.vacation.api.domain.attachment.entity.Attachment;
 import com.vacation.api.domain.attachment.service.FileService;
 import com.vacation.api.domain.user.entity.User;
 import com.vacation.api.domain.user.service.UserService;
@@ -9,7 +11,9 @@ import com.vacation.api.domain.vacation.entity.VacationHistory;
 import com.vacation.api.domain.vacation.request.UpdateVacationInfoRequest;
 import com.vacation.api.domain.vacation.request.VacationRequest;
 import com.vacation.api.domain.vacation.response.UserVacationInfoResponse;
+import com.vacation.api.domain.vacation.response.VacationHistoryResponse;
 import com.vacation.api.domain.vacation.service.VacationService;
+import com.vacation.api.enums.ApplicationType;
 import com.vacation.api.exception.ApiException;
 import com.vacation.api.response.data.ApiResponse;
 import com.vacation.api.common.TransactionIDCreator;
@@ -31,10 +35,7 @@ import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
-import org.slf4j.MDC;
 
 /**
  * 연차 Controller
@@ -73,11 +74,6 @@ public class VacationController extends BaseController {
     public ResponseEntity<ApiResponse<Object>> getUserVacationInfo(HttpServletRequest request) {
         log.info("사용자별 연차 정보 조회 요청");
 
-        String transactionId = MDC.get("transactionId");
-        if (transactionId == null) {
-            transactionId = transactionIDCreator.createTransactionId();
-        }
-
         try {
             Long userId = (Long) request.getAttribute("userId");
             User userInfo = userService.getUserInfo(userId);
@@ -97,14 +93,11 @@ public class VacationController extends BaseController {
                     .isFirstLogin(userInfo.getFirstLogin())
                     .build();
 
-            return ResponseEntity.ok(new ApiResponse<>(transactionId, "0", response, null));
+            return successResponse(response);
+        } catch (ApiException e) {
+            return errorResponse("연차 정보 조회에 실패했습니다.", e);
         } catch (Exception e) {
-            log.error("사용자별 연차 정보 조회 실패", e);
-            Map<String, Object> errorData = new HashMap<>();
-            errorData.put("errorCode", "500");
-            errorData.put("errorMessage", "연차 정보 조회에 실패했습니다.");
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(new ApiResponse<>(transactionId, "500", errorData, null));
+            return errorResponse("연차 정보 조회에 실패했습니다.", e);
         }
     }
 
@@ -121,10 +114,6 @@ public class VacationController extends BaseController {
             @Valid @RequestBody UpdateVacationInfoRequest updateRequest) {
         log.info("사용자별 연차 정보 수정 요청");
 
-        String transactionId = MDC.get("transactionId");
-        if (transactionId == null) {
-            transactionId = transactionIDCreator.createTransactionId();
-        }
 
         try {
             Long userId = (Long) request.getAttribute("userId");
@@ -148,14 +137,11 @@ public class VacationController extends BaseController {
                     .isFirstLogin(updatedUserInfo.getFirstLogin())
                     .build();
 
-            return ResponseEntity.ok(new ApiResponse<>(transactionId, "0", response, null));
+            return successResponse(response);
+        } catch (ApiException e) {
+            return errorResponse("연차 정보 수정에 실패했습니다.", e);
         } catch (Exception e) {
-            log.error("사용자별 연차 정보 수정 실패", e);
-            Map<String, Object> errorData = new HashMap<>();
-            errorData.put("errorCode", "500");
-            errorData.put("errorMessage", "연차 정보 수정에 실패했습니다.");
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(new ApiResponse<>(transactionId, "500", errorData, null));
+            return errorResponse("연차 정보 수정에 실패했습니다.", e);
         }
     }
 
@@ -169,10 +155,6 @@ public class VacationController extends BaseController {
     public ResponseEntity<ApiResponse<Object>> getUserVacationInfoByUserId(@PathVariable Long userId) {
         log.info("특정 사용자별 연차 정보 조회 요청: userId={}", userId);
 
-        String transactionId = MDC.get("transactionId");
-        if (transactionId == null) {
-            transactionId = transactionIDCreator.createTransactionId();
-        }
 
         try {
             // TODO: 권한 체크 (관리자만 조회 가능)
@@ -193,14 +175,11 @@ public class VacationController extends BaseController {
                     .isFirstLogin(userInfo.getFirstLogin())
                     .build();
 
-            return ResponseEntity.ok(new ApiResponse<>(transactionId, "0", response, null));
+            return successResponse(response);
+        } catch (ApiException e) {
+            return errorResponse("연차 정보 조회에 실패했습니다.", e);
         } catch (Exception e) {
-            log.error("특정 사용자별 연차 정보 조회 실패", e);
-            Map<String, Object> errorData = new HashMap<>();
-            errorData.put("errorCode", "500");
-            errorData.put("errorMessage", "연차 정보 조회에 실패했습니다.");
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(new ApiResponse<>(transactionId, "500", errorData, null));
+            return errorResponse("연차 정보 조회에 실패했습니다.", e);
         }
     }
 
@@ -217,10 +196,6 @@ public class VacationController extends BaseController {
             @Valid @RequestBody UpdateVacationInfoRequest updateRequest) {
         log.info("특정 사용자별 연차 정보 수정 요청: userId={}", userId);
 
-        String transactionId = MDC.get("transactionId");
-        if (transactionId == null) {
-            transactionId = transactionIDCreator.createTransactionId();
-        }
 
         try {
             // TODO: 권한 체크 (관리자만 수정 가능)
@@ -243,14 +218,11 @@ public class VacationController extends BaseController {
                     .isFirstLogin(userInfo.getFirstLogin())
                     .build();
 
-            return ResponseEntity.ok(new ApiResponse<>(transactionId, "0", response, null));
+            return successResponse(response);
+        } catch (ApiException e) {
+            return errorResponse("연차 정보 수정에 실패했습니다.", e);
         } catch (Exception e) {
-            log.error("특정 사용자별 연차 정보 수정 실패", e);
-            Map<String, Object> errorData = new HashMap<>();
-            errorData.put("errorCode", "500");
-            errorData.put("errorMessage", "연차 정보 수정에 실패했습니다.");
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(new ApiResponse<>(transactionId, "500", errorData, null));
+            return errorResponse("연차 정보 수정에 실패했습니다.", e);
         }
     }
 
@@ -269,10 +241,6 @@ public class VacationController extends BaseController {
             @RequestParam(defaultValue = "5") int size) {
         log.info("연차 내역 목록 조회 요청: page={}, size={}", page, size);
 
-        String transactionId = MDC.get("transactionId");
-        if (transactionId == null) {
-            transactionId = transactionIDCreator.createTransactionId();
-        }
 
         try {
             Long userId = (Long) request.getAttribute("userId");
@@ -283,16 +251,17 @@ public class VacationController extends BaseController {
             // 페이징된 목록 조회
             List<VacationHistory> historyList = vacationService.getVacationHistoryList(userId, page, size);
             
-            // 각 항목에 applicant 추가
-            List<Map<String, Object>> responseList = responseMapper.toVacationHistoryMapList(
+            // 각 항목에 applicant 추가하여 Response VO로 변환
+            List<VacationHistoryResponse> responseList = responseMapper.toVacationHistoryResponseList(
                     historyList, 
                     userService::getUserInfo
             );
             
             // totalCount 포함 응답 생성
-            Map<String, Object> responseData = new HashMap<>();
-            responseData.put("list", responseList);
-            responseData.put("totalCount", totalCount);
+            PagedResponse<VacationHistoryResponse> responseData = PagedResponse.<VacationHistoryResponse>builder()
+                    .list(responseList)
+                    .totalCount(totalCount)
+                    .build();
             
             return successResponse(responseData);
         } catch (ApiException e) {
@@ -317,10 +286,6 @@ public class VacationController extends BaseController {
             @RequestParam(required = false) Integer month) {
         log.info("캘린더용 휴가 목록 조회 요청: year={}, month={}", year, month);
 
-        String transactionId = MDC.get("transactionId");
-        if (transactionId == null) {
-            transactionId = transactionIDCreator.createTransactionId();
-        }
 
         try {
             Long userId = (Long) request.getAttribute("userId");
@@ -334,8 +299,8 @@ public class VacationController extends BaseController {
             
             List<VacationHistory> vacationList = vacationService.getCalendarVacationList(userId, year, month);
             
-            // 각 항목에 applicant 추가
-            List<Map<String, Object>> responseList = responseMapper.toVacationHistoryMapList(
+            // 각 항목에 applicant 추가하여 Response VO로 변환
+            List<VacationHistoryResponse> responseList = responseMapper.toVacationHistoryResponseList(
                     vacationList, 
                     userService::getUserInfo
             );
@@ -361,47 +326,38 @@ public class VacationController extends BaseController {
             @PathVariable Long seq) {
         log.info("연차 내역 조회 요청: seq={}", seq);
 
-        String transactionId = MDC.get("transactionId");
-        if (transactionId == null) {
-            transactionId = transactionIDCreator.createTransactionId();
-        }
 
         try {
             Long userId = (Long) request.getAttribute("userId");
             VacationHistory vacationHistory = vacationService.getVacationHistory(seq, userId);
             
             if (vacationHistory == null) {
-                return ResponseEntity.ok(new ApiResponse<>(transactionId, "0", null, null));
+                return successResponse(null);
             }
             
             // 반려 상태인 경우 반려 사유 조회
-            Map<String, Object> result = new HashMap<>();
-            result.put("vacationHistory", vacationHistory);
-            
+            String rejectionReason = null;
             String approvalStatus = vacationHistory.getApprovalStatus();
             if ("RB".equals(approvalStatus) || "RC".equals(approvalStatus)) {
-                String rejectionReason = vacationService.getRejectionReason(seq);
-                result.put("rejectionReason", rejectionReason);
+                rejectionReason = vacationService.getRejectionReason(seq);
             }
             
             // 첨부파일 정보 조회
-            com.vacation.api.domain.attachment.entity.Attachment attachment = fileService.getAttachment("VACATION", seq);
-            if (attachment != null) {
-                Map<String, Object> attachmentInfo = new HashMap<>();
-                attachmentInfo.put("seq", attachment.getSeq());
-                attachmentInfo.put("fileName", attachment.getFileName());
-                attachmentInfo.put("fileSize", attachment.getFileSize());
-                result.put("attachment", attachmentInfo);
-            }
+            Attachment attachment = fileService.getAttachment(ApplicationType.VACATION.getCode(), seq);
             
-            return ResponseEntity.ok(new ApiResponse<>(transactionId, "0", result, null));
+            // 사용자 정보 조회
+            User user = userService.getUserInfo(vacationHistory.getUserId());
+            String applicantName = user != null ? user.getName() : null;
+            
+            // Response VO로 변환
+            VacationHistoryResponse response = responseMapper.toVacationHistoryResponse(
+                    vacationHistory, applicantName, attachment, rejectionReason);
+            
+            return successResponse(response);
+        } catch (ApiException e) {
+            return errorResponse("연차 내역 조회에 실패했습니다.", e);
         } catch (Exception e) {
-            log.error("연차 내역 조회 실패", e);
-            Map<String, Object> errorData = new HashMap<>();
-            errorData.put("errorCode", "500");
-            errorData.put("errorMessage", "연차 내역 조회에 실패했습니다.");
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(new ApiResponse<>(transactionId, "500", errorData, null));
+            return errorResponse("연차 내역 조회에 실패했습니다.", e);
         }
     }
 
@@ -420,10 +376,6 @@ public class VacationController extends BaseController {
             @RequestPart(value = "file", required = false) MultipartFile file) {
         log.info("휴가 신청 요청");
 
-        String transactionId = MDC.get("transactionId");
-        if (transactionId == null) {
-            transactionId = transactionIDCreator.createTransactionId();
-        }
 
         try {
             Long userId = (Long) request.getAttribute("userId");
@@ -439,15 +391,13 @@ public class VacationController extends BaseController {
                 }
             }
             
+            String transactionId = getOrCreateTransactionId();
             return ResponseEntity.status(HttpStatus.CREATED)
                     .body(new ApiResponse<>(transactionId, "0", vacationHistory, null));
+        } catch (ApiException e) {
+            return errorResponse("휴가 신청에 실패했습니다.", e);
         } catch (Exception e) {
-            log.error("휴가 신청 실패", e);
-            Map<String, Object> errorData = new HashMap<>();
-            errorData.put("errorCode", "500");
-            errorData.put("errorMessage", e.getMessage() != null ? e.getMessage() : "휴가 신청에 실패했습니다.");
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(new ApiResponse<>(transactionId, "500", errorData, null));
+            return errorResponse("휴가 신청에 실패했습니다.", e);
         }
     }
 
@@ -468,10 +418,6 @@ public class VacationController extends BaseController {
             @RequestPart(value = "file", required = false) MultipartFile file) {
         log.info("휴가 신청 수정 요청: seq={}", seq);
 
-        String transactionId = MDC.get("transactionId");
-        if (transactionId == null) {
-            transactionId = transactionIDCreator.createTransactionId();
-        }
 
         try {
             Long userId = (Long) request.getAttribute("userId");
@@ -487,14 +433,11 @@ public class VacationController extends BaseController {
                 }
             }
             
-            return ResponseEntity.ok(new ApiResponse<>(transactionId, "0", vacationHistory, null));
+            return successResponse(vacationHistory);
+        } catch (ApiException e) {
+            return errorResponse("휴가 신청 수정에 실패했습니다.", e);
         } catch (Exception e) {
-            log.error("휴가 신청 수정 실패", e);
-            Map<String, Object> errorData = new HashMap<>();
-            errorData.put("errorCode", "500");
-            errorData.put("errorMessage", e.getMessage() != null ? e.getMessage() : "휴가 신청 수정에 실패했습니다.");
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(new ApiResponse<>(transactionId, "500", errorData, null));
+            return errorResponse("휴가 신청 수정에 실패했습니다.", e);
         }
     }
 
@@ -511,31 +454,15 @@ public class VacationController extends BaseController {
             @PathVariable Long seq) {
         log.info("휴가 신청 삭제 요청: seq={}", seq);
 
-        String transactionId = MDC.get("transactionId");
-        if (transactionId == null) {
-            transactionId = transactionIDCreator.createTransactionId();
-        }
 
         try {
             Long userId = (Long) request.getAttribute("userId");
             vacationService.deleteVacation(seq, userId);
-            Map<String, Object> resultData = new HashMap<>();
-            resultData.put("message", "삭제되었습니다.");
-            return ResponseEntity.ok(new ApiResponse<>(transactionId, "0", resultData, null));
+            return successResponse("삭제되었습니다.");
         } catch (ApiException e) {
-            log.error("휴가 신청 삭제 실패", e);
-            Map<String, Object> errorData = new HashMap<>();
-            errorData.put("errorCode", e.getApiErrorCode().getCode());
-            errorData.put("errorMessage", e.getMessage() != null ? e.getMessage() : e.getApiErrorCode().getDescription());
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                    .body(new ApiResponse<>(transactionId, e.getApiErrorCode().getCode(), errorData, null));
+            return errorResponse("휴가 신청 삭제에 실패했습니다.", e);
         } catch (Exception e) {
-            log.error("휴가 신청 삭제 실패", e);
-            Map<String, Object> errorData = new HashMap<>();
-            errorData.put("errorCode", "500");
-            errorData.put("errorMessage", e.getMessage() != null ? e.getMessage() : "휴가 신청 삭제에 실패했습니다.");
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(new ApiResponse<>(transactionId, "500", errorData, null));
+            return errorResponse("휴가 신청 삭제에 실패했습니다.", e);
         }
     }
 

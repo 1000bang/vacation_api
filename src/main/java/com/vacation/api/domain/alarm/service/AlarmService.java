@@ -4,6 +4,7 @@ import com.vacation.api.domain.alarm.entity.UserAlarm;
 import com.vacation.api.domain.alarm.repository.UserAlarmRepository;
 import com.vacation.api.domain.user.entity.User;
 import com.vacation.api.domain.user.repository.UserRepository;
+import com.vacation.api.enums.ApplicationType;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -87,8 +88,8 @@ public class AlarmService {
                 .orElseThrow(() -> new RuntimeException("신청자를 찾을 수 없습니다."));
 
         // 신청자에게 알람
-        String applicantMessage = "RENTAL_APPROVAL".equals(applicationType)
-                ? "월세 지원 품의서 신청이 승인 되었습니다."
+        String applicantMessage = ApplicationType.RENTAL_PROPOSAL.getCode().equals(applicationType)
+                ? "월세 품의서 신청이 승인 되었습니다."
                 : String.format("%s 신청이 팀장 승인되었습니다.", getApplicationTypeName(applicationType));
         
         UserAlarm applicantAlarm = UserAlarm.builder()
@@ -130,8 +131,8 @@ public class AlarmService {
         log.info("본부장 승인 알람 생성: applicantId={}, applicationType={}, applicationSeq={}", 
                 applicantId, applicationType, applicationSeq);
 
-        String message = "RENTAL_APPROVAL".equals(applicationType)
-                ? "월세 지원 품의서 신청이 승인 되었습니다."
+        String message = ApplicationType.RENTAL_PROPOSAL.getCode().equals(applicationType)
+                ? "월세 품의서 신청이 승인 되었습니다."
                 : String.format("%s 신청이 최종 승인되었습니다.", getApplicationTypeName(applicationType));
         
         UserAlarm alarm = UserAlarm.builder()
@@ -155,8 +156,8 @@ public class AlarmService {
         log.info("반려 알람 생성: applicantId={}, applicationType={}, applicationSeq={}", 
                 applicantId, applicationType, applicationSeq);
 
-        String message = "RENTAL_APPROVAL".equals(applicationType)
-                ? "월세 지원 품의서 신청이 반려 되었습니다."
+        String message = ApplicationType.RENTAL_PROPOSAL.getCode().equals(applicationType)
+                ? "월세 품의서 신청이 반려 되었습니다."
                 : String.format("%s 신청이 반려되었습니다. 사유: %s", 
                         getApplicationTypeName(applicationType), rejectionReason);
         
@@ -213,7 +214,7 @@ public class AlarmService {
             case "VACATION" -> "휴가";
             case "EXPENSE" -> "개인 비용";
             case "RENTAL" -> "월세 지원";
-            case "RENTAL_APPROVAL" -> "월세 지원 품의서";
+            case "RENTAL_PROPOSAL" -> "월세 품의서";
             default -> "신청";
         };
     }

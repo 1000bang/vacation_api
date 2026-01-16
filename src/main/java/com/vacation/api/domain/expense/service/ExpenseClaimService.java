@@ -10,6 +10,7 @@ import com.vacation.api.domain.user.entity.User;
 import com.vacation.api.domain.user.repository.UserRepository;
 import com.vacation.api.exception.ApiErrorCode;
 import com.vacation.api.exception.ApiException;
+import com.vacation.api.util.ApprovalStatusResolver;
 import com.vacation.api.vo.ExpenseClaimVO;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -35,6 +36,7 @@ public class ExpenseClaimService {
     private final ExpenseSubRepository expenseSubRepository;
     private final AlarmService alarmService;
     private final UserRepository userRepository;
+    private final ApprovalStatusResolver approvalStatusResolver;
 
     /**
      * 개인 비용 청구 목록 조회 (페이징)
@@ -162,15 +164,7 @@ public class ExpenseClaimService {
         }
         
         // 권한에 따른 초기 approvalStatus 설정
-        String initialApprovalStatus = "A"; // 기본값: 일반 사용자
-        String authVal = user.getAuthVal();
-        if ("tj".equals(authVal)) {
-            // 팀장 권한: B (팀장 승인)로 시작
-            initialApprovalStatus = "B";
-        } else if ("bb".equals(authVal)) {
-            // 본부장 권한: C (본부장 승인)로 시작
-            initialApprovalStatus = "C";
-        }
+        String initialApprovalStatus = approvalStatusResolver.resolveInitialApprovalStatus(user.getAuthVal());
 
         // 총 금액 계산
         Long totalAmount = request.getExpenseItems().stream()

@@ -1,206 +1,308 @@
 package com.vacation.api.util;
 
+import com.vacation.api.domain.attachment.entity.Attachment;
+import com.vacation.api.domain.attachment.response.AttachmentResponse;
 import com.vacation.api.domain.expense.entity.ExpenseClaim;
-import com.vacation.api.domain.rental.entity.RentalApproval;
+import com.vacation.api.domain.expense.entity.ExpenseSub;
+import com.vacation.api.domain.expense.response.ExpenseClaimResponse;
+import com.vacation.api.domain.expense.response.ExpenseSubResponse;
+import com.vacation.api.domain.rental.entity.RentalProposal;
 import com.vacation.api.domain.rental.entity.RentalSupport;
+import com.vacation.api.domain.rental.response.RentalProposalResponse;
+import com.vacation.api.domain.rental.response.RentalSupportResponse;
 import com.vacation.api.domain.user.entity.User;
 import com.vacation.api.domain.vacation.entity.VacationHistory;
+import com.vacation.api.domain.vacation.response.VacationHistoryResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
- * Entity를 Map으로 변환하는 Mapper 클래스
+ * Entity를 Response VO로 변환하는 Mapper 클래스
  *
  * @author vacation-api
  * @version 1.0
- * @since 2026-01-07
+ * @since 2026-01-16
  */
 @Slf4j
 @Component
 public class ResponseMapper {
 
     /**
-     * RentalApproval을 Map으로 변환하고 applicant 추가
+     * Attachment를 AttachmentResponse로 변환
      *
-     * @param approval RentalApproval 엔티티
-     * @param applicantName 신청자 이름
-     * @return Map
+     * @param attachment Attachment 엔티티
+     * @return AttachmentResponse
      */
-    public Map<String, Object> toRentalApprovalMap(RentalApproval approval, String applicantName) {
-        Map<String, Object> map = new HashMap<>();
-        map.put("seq", approval.getSeq());
-        map.put("userId", approval.getUserId());
-        map.put("previousAddress", approval.getPreviousAddress());
-        map.put("rentalAddress", approval.getRentalAddress());
-        map.put("contractStartDate", approval.getContractStartDate());
-        map.put("contractEndDate", approval.getContractEndDate());
-        map.put("contractMonthlyRent", approval.getContractMonthlyRent());
-        map.put("billingAmount", approval.getBillingAmount());
-        map.put("billingStartDate", approval.getBillingStartDate());
-        map.put("billingReason", approval.getBillingReason());
-        map.put("approvalStatus", approval.getApprovalStatus());
-        map.put("createdAt", approval.getCreatedAt());
-        map.put("applicant", applicantName != null ? applicantName : "");
-        return map;
+    public AttachmentResponse toAttachmentResponse(Attachment attachment) {
+        if (attachment == null) {
+            return null;
+        }
+        return AttachmentResponse.builder()
+                .seq(attachment.getSeq())
+                .fileName(attachment.getFileName())
+                .fileSize(attachment.getFileSize())
+                .build();
     }
 
     /**
-     * RentalSupport를 Map으로 변환하고 applicant 추가
+     * RentalProposal을 RentalProposalResponse로 변환하고 applicant 추가
+     *
+     * @param proposal RentalProposal 엔티티
+     * @param applicantName 신청자 이름
+     * @param attachment 첨부파일 (선택)
+     * @return RentalProposalResponse
+     */
+    public RentalProposalResponse toRentalProposalResponse(RentalProposal proposal, String applicantName, Attachment attachment) {
+        if (proposal == null) {
+            return null;
+        }
+        return RentalProposalResponse.builder()
+                .seq(proposal.getSeq())
+                .userId(proposal.getUserId())
+                .applicant(applicantName != null ? applicantName : "")
+                .previousAddress(proposal.getPreviousAddress())
+                .rentalAddress(proposal.getRentalAddress())
+                .contractStartDate(proposal.getContractStartDate())
+                .contractEndDate(proposal.getContractEndDate())
+                .contractMonthlyRent(proposal.getContractMonthlyRent())
+                .billingAmount(proposal.getBillingAmount())
+                .billingStartDate(proposal.getBillingStartDate())
+                .billingReason(proposal.getBillingReason())
+                .approvalStatus(proposal.getApprovalStatus())
+                .createdAt(proposal.getCreatedAt())
+                .attachment(toAttachmentResponse(attachment))
+                .build();
+    }
+
+    /**
+     * RentalSupport를 RentalSupportResponse로 변환하고 applicant 추가
      *
      * @param rental RentalSupport 엔티티
      * @param applicantName 신청자 이름
-     * @return Map
+     * @param attachment 첨부파일 (선택)
+     * @return RentalSupportResponse
      */
-    public Map<String, Object> toRentalSupportMap(RentalSupport rental, String applicantName) {
-        Map<String, Object> map = new HashMap<>();
-        map.put("seq", rental.getSeq());
-        map.put("userId", rental.getUserId());
-        map.put("requestDate", rental.getRequestDate());
-        map.put("billingYyMonth", rental.getBillingYyMonth());
-        map.put("contractStartDate", rental.getContractStartDate());
-        map.put("contractEndDate", rental.getContractEndDate());
-        map.put("contractMonthlyRent", rental.getContractMonthlyRent());
-        map.put("paymentType", rental.getPaymentType());
-        map.put("billingStartDate", rental.getBillingStartDate());
-        map.put("billingPeriodStartDate", rental.getBillingPeriodStartDate());
-        map.put("billingPeriodEndDate", rental.getBillingPeriodEndDate());
-        map.put("paymentDate", rental.getPaymentDate());
-        map.put("paymentAmount", rental.getPaymentAmount());
-        map.put("billingAmount", rental.getBillingAmount());
-        map.put("approvalStatus", rental.getApprovalStatus());
-        map.put("createdAt", rental.getCreatedAt());
-        map.put("applicant", applicantName != null ? applicantName : "");
-        return map;
+    public RentalSupportResponse toRentalSupportResponse(RentalSupport rental, String applicantName, Attachment attachment) {
+        if (rental == null) {
+            return null;
+        }
+        return RentalSupportResponse.builder()
+                .seq(rental.getSeq())
+                .userId(rental.getUserId())
+                .applicant(applicantName != null ? applicantName : "")
+                .requestDate(rental.getRequestDate())
+                .billingYyMonth(rental.getBillingYyMonth())
+                .contractStartDate(rental.getContractStartDate())
+                .contractEndDate(rental.getContractEndDate())
+                .contractMonthlyRent(rental.getContractMonthlyRent())
+                .paymentType(rental.getPaymentType())
+                .billingStartDate(rental.getBillingStartDate())
+                .billingPeriodStartDate(rental.getBillingPeriodStartDate())
+                .billingPeriodEndDate(rental.getBillingPeriodEndDate())
+                .paymentDate(rental.getPaymentDate())
+                .paymentAmount(rental.getPaymentAmount())
+                .billingAmount(rental.getBillingAmount())
+                .approvalStatus(rental.getApprovalStatus())
+                .createdAt(rental.getCreatedAt())
+                .attachment(toAttachmentResponse(attachment))
+                .build();
     }
 
     /**
-     * ExpenseClaim을 Map으로 변환하고 applicant 추가
+     * ExpenseClaim을 ExpenseClaimResponse로 변환하고 applicant 추가
      *
      * @param claim ExpenseClaim 엔티티
      * @param applicantName 신청자 이름
-     * @return Map
+     * @param expenseSubList 상세 항목 목록
+     * @return ExpenseClaimResponse
      */
-    public Map<String, Object> toExpenseClaimMap(ExpenseClaim claim, String applicantName) {
-        Map<String, Object> map = new HashMap<>();
-        map.put("seq", claim.getSeq());
-        map.put("userId", claim.getUserId());
-        map.put("requestDate", claim.getRequestDate());
-        map.put("billingYyMonth", claim.getBillingYyMonth());
-        map.put("childCnt", claim.getChildCnt());
-        map.put("totalAmount", claim.getTotalAmount());
-        map.put("approvalStatus", claim.getApprovalStatus());
-        map.put("createdAt", claim.getCreatedAt());
-        map.put("applicant", applicantName != null ? applicantName : "");
-        return map;
+    public ExpenseClaimResponse toExpenseClaimResponse(ExpenseClaim claim, String applicantName, List<ExpenseSubResponse> expenseSubList) {
+        if (claim == null) {
+            return null;
+        }
+        return ExpenseClaimResponse.builder()
+                .seq(claim.getSeq())
+                .userId(claim.getUserId())
+                .applicant(applicantName != null ? applicantName : "")
+                .requestDate(claim.getRequestDate())
+                .billingYyMonth(claim.getBillingYyMonth())
+                .childCnt(claim.getChildCnt())
+                .totalAmount(claim.getTotalAmount())
+                .approvalStatus(claim.getApprovalStatus())
+                .createdAt(claim.getCreatedAt())
+                .expenseSubList(expenseSubList)
+                .build();
     }
 
     /**
-     * VacationHistory를 Map으로 변환하고 applicant 추가
+     * ExpenseSub를 ExpenseSubResponse로 변환
+     *
+     * @param expenseSub ExpenseSub 엔티티
+     * @param attachment 첨부파일 (선택)
+     * @return ExpenseSubResponse
+     */
+    public ExpenseSubResponse toExpenseSubResponse(ExpenseSub expenseSub, Attachment attachment) {
+        if (expenseSub == null) {
+            return null;
+        }
+        ExpenseSubResponse response = ExpenseSubResponse.builder()
+                .seq(expenseSub.getSeq())
+                .expenseClaimSeq(expenseSub.getParentSeq())
+                .parentSeq(expenseSub.getParentSeq())
+                .childNo(expenseSub.getChildNo())
+                .date(expenseSub.getDate())
+                .usageDetail(expenseSub.getUsageDetail())
+                .itemName(expenseSub.getUsageDetail()) // 호환성을 위해 동일한 값
+                .vendor(expenseSub.getVendor())
+                .paymentMethod(expenseSub.getPaymentMethod())
+                .project(expenseSub.getProject())
+                .amount(expenseSub.getAmount())
+                .note(expenseSub.getNote())
+                .description(expenseSub.getNote()) // 호환성을 위해 동일한 값
+                .createdAt(expenseSub.getCreatedAt())
+                .attachment(toAttachmentResponse(attachment))
+                .build();
+        
+        // 디버깅용 로그 (개발 환경에서만)
+        log.debug("ExpenseSubResponse 매핑: seq={}, date={}, usageDetail={}, vendor={}, paymentMethod={}, project={}, note={}", 
+                response.getSeq(), response.getDate(), response.getUsageDetail(), 
+                response.getVendor(), response.getPaymentMethod(), response.getProject(), response.getNote());
+        
+        return response;
+    }
+
+    /**
+     * VacationHistory를 VacationHistoryResponse로 변환하고 applicant 추가
      *
      * @param history VacationHistory 엔티티
      * @param applicantName 신청자 이름
-     * @return Map
+     * @param attachment 첨부파일 (선택)
+     * @param rejectionReason 반려 사유 (선택)
+     * @return VacationHistoryResponse
      */
-    public Map<String, Object> toVacationHistoryMap(VacationHistory history, String applicantName) {
-        Map<String, Object> map = new HashMap<>();
-        map.put("seq", history.getSeq());
-        map.put("userId", history.getUserId());
-        map.put("startDate", history.getStartDate());
-        map.put("endDate", history.getEndDate());
-        map.put("period", history.getPeriod());
-        map.put("type", history.getType());
-        map.put("reason", history.getReason());
-        map.put("requestDate", history.getRequestDate());
-        map.put("annualVacationDays", history.getAnnualVacationDays());
-        map.put("previousRemainingDays", history.getPreviousRemainingDays());
-        map.put("usedVacationDays", history.getUsedVacationDays());
-        map.put("remainingVacationDays", history.getRemainingVacationDays());
-        map.put("status", history.getStatus());
-        map.put("approvalStatus", history.getApprovalStatus());
-        map.put("createdAt", history.getCreatedAt());
-        map.put("applicant", applicantName != null ? applicantName : "");
-        return map;
+    public VacationHistoryResponse toVacationHistoryResponse(VacationHistory history, String applicantName, Attachment attachment, String rejectionReason) {
+        if (history == null) {
+            return null;
+        }
+        return VacationHistoryResponse.builder()
+                .seq(history.getSeq())
+                .userId(history.getUserId())
+                .applicant(applicantName != null ? applicantName : "")
+                .startDate(history.getStartDate())
+                .endDate(history.getEndDate())
+                .period(history.getPeriod())
+                .type(history.getType())
+                .reason(history.getReason())
+                .requestDate(history.getRequestDate())
+                .annualVacationDays(history.getAnnualVacationDays())
+                .previousRemainingDays(history.getPreviousRemainingDays())
+                .usedVacationDays(history.getUsedVacationDays())
+                .remainingVacationDays(history.getRemainingVacationDays())
+                .status(history.getStatus())
+                .approvalStatus(history.getApprovalStatus())
+                .createdAt(history.getCreatedAt())
+                .attachment(toAttachmentResponse(attachment))
+                .rejectionReason(rejectionReason)
+                .build();
     }
 
     /**
-     * RentalApproval 리스트를 Map 리스트로 변환 (applicant 포함)
-     *
-     * @param approvals RentalApproval 리스트
+     * 공통 리스트 변환 헬퍼 메서드
+     * applicantName 추출 로직을 재사용
+     * 
+     * @param entities 엔티티 리스트
      * @param userProvider userId로 User를 조회하는 함수
-     * @return Map 리스트
+     * @param converter 엔티티를 Response로 변환하는 함수
+     * @return Response 리스트
      */
-    public List<Map<String, Object>> toRentalApprovalMapList(
-            List<RentalApproval> approvals,
-            Function<Long, User> userProvider) {
-        return approvals.stream()
-                .map(approval -> {
-                    User user = userProvider.apply(approval.getUserId());
+    private <E, R> List<R> convertListWithApplicant(
+            List<E> entities,
+            Function<Long, User> userProvider,
+            Function<E, Long> userIdExtractor,
+            java.util.function.BiFunction<E, String, R> converter) {
+        return entities.stream()
+                .map(entity -> {
+                    Long userId = userIdExtractor.apply(entity);
+                    User user = userProvider.apply(userId);
                     String applicantName = user != null ? user.getName() : null;
-                    return toRentalApprovalMap(approval, applicantName);
+                    return converter.apply(entity, applicantName);
                 })
                 .collect(Collectors.toList());
     }
 
     /**
-     * RentalSupport 리스트를 Map 리스트로 변환 (applicant 포함)
+     * RentalProposal 리스트를 RentalProposalResponse 리스트로 변환 (applicant 포함)
+     *
+     * @param proposals RentalProposal 리스트
+     * @param userProvider userId로 User를 조회하는 함수
+     * @return RentalProposalResponse 리스트
+     */
+    public List<RentalProposalResponse> toRentalProposalResponseList(
+            List<RentalProposal> proposals,
+            Function<Long, User> userProvider) {
+        return convertListWithApplicant(
+                proposals,
+                userProvider,
+                RentalProposal::getUserId,
+                (proposal, applicantName) -> toRentalProposalResponse(proposal, applicantName, null)
+        );
+    }
+
+    /**
+     * RentalSupport 리스트를 RentalSupportResponse 리스트로 변환 (applicant 포함)
      *
      * @param rentals RentalSupport 리스트
      * @param userProvider userId로 User를 조회하는 함수
-     * @return Map 리스트
+     * @return RentalSupportResponse 리스트
      */
-    public List<Map<String, Object>> toRentalSupportMapList(
+    public List<RentalSupportResponse> toRentalSupportResponseList(
             List<RentalSupport> rentals,
             Function<Long, User> userProvider) {
-        return rentals.stream()
-                .map(rental -> {
-                    User user = userProvider.apply(rental.getUserId());
-                    String applicantName = user != null ? user.getName() : null;
-                    return toRentalSupportMap(rental, applicantName);
-                })
-                .collect(Collectors.toList());
+        return convertListWithApplicant(
+                rentals,
+                userProvider,
+                RentalSupport::getUserId,
+                (rental, applicantName) -> toRentalSupportResponse(rental, applicantName, null)
+        );
     }
 
     /**
-     * ExpenseClaim 리스트를 Map 리스트로 변환 (applicant 포함)
+     * ExpenseClaim 리스트를 ExpenseClaimResponse 리스트로 변환 (applicant 포함)
      *
      * @param claims ExpenseClaim 리스트
      * @param userProvider userId로 User를 조회하는 함수
-     * @return Map 리스트
+     * @return ExpenseClaimResponse 리스트
      */
-    public List<Map<String, Object>> toExpenseClaimMapList(
+    public List<ExpenseClaimResponse> toExpenseClaimResponseList(
             List<ExpenseClaim> claims,
             Function<Long, User> userProvider) {
-        return claims.stream()
-                .map(claim -> {
-                    User user = userProvider.apply(claim.getUserId());
-                    String applicantName = user != null ? user.getName() : null;
-                    return toExpenseClaimMap(claim, applicantName);
-                })
-                .collect(Collectors.toList());
+        return convertListWithApplicant(
+                claims,
+                userProvider,
+                ExpenseClaim::getUserId,
+                (claim, applicantName) -> toExpenseClaimResponse(claim, applicantName, null)
+        );
     }
 
     /**
-     * VacationHistory 리스트를 Map 리스트로 변환 (applicant 포함)
+     * VacationHistory 리스트를 VacationHistoryResponse 리스트로 변환 (applicant 포함)
      *
      * @param histories VacationHistory 리스트
      * @param userProvider userId로 User를 조회하는 함수
-     * @return Map 리스트
+     * @return VacationHistoryResponse 리스트
      */
-    public List<Map<String, Object>> toVacationHistoryMapList(
+    public List<VacationHistoryResponse> toVacationHistoryResponseList(
             List<VacationHistory> histories,
             Function<Long, User> userProvider) {
-        return histories.stream()
-                .map(history -> {
-                    User user = userProvider.apply(history.getUserId());
-                    String applicantName = user != null ? user.getName() : null;
-                    return toVacationHistoryMap(history, applicantName);
-                })
-                .collect(Collectors.toList());
+        return convertListWithApplicant(
+                histories,
+                userProvider,
+                VacationHistory::getUserId,
+                (history, applicantName) -> toVacationHistoryResponse(history, applicantName, null, null)
+        );
     }
 }

@@ -9,16 +9,16 @@ import lombok.NoArgsConstructor;
 import java.time.LocalDate;
 
 /**
- * 월세 지원 신청 정보 요청 DTO
+ * 월세 품의 신청 정보 요청 DTO
  *
  * @author vacation-api
  * @version 1.0
- * @since 2026-01-07
+ * @since 2026-01-16
  */
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
-public class RentalApprovalRequest {
+public class RentalProposalRequest {
 
     /**
      * 기존 거주지 주소
@@ -66,4 +66,3 @@ public class RentalApprovalRequest {
      */
     private String billingReason;
 }
-

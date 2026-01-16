@@ -11,6 +11,12 @@ spring:
     mode: HTML
     encoding: UTF-8
     cache: false
+  
+  servlet:
+    multipart:
+      max-file-size: 10MB  # 개별 파일 최대 크기
+      max-request-size: 10MB  # 전체 요청 최대 크기 (파일 + 데이터)
+      enabled: true
 
 server:
   port: 8080

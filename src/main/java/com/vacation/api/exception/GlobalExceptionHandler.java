@@ -8,6 +8,7 @@ import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -75,6 +76,20 @@ public class GlobalExceptionHandler {
             errors.put(error.getObjectName(), error.getDefaultMessage());
         });
         errorResponse.put("errors", errors);
+        
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(errorResponse);
+    }
+
+    /**
+     * 파일 업로드 크기 초과 예외 처리
+     */
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    public ResponseEntity<Map<String, Object>> handleMaxUploadSizeExceededException(MaxUploadSizeExceededException e) {
+        log.warn("파일 업로드 크기 초과: {}", e.getMessage());
+        
+        Map<String, Object> errorResponse = new HashMap<>();
+        errorResponse.put("errorCode", ApiErrorCode.INVALID_REQUEST_FORMAT.getCode());
+        errorResponse.put("errorMessage", "파일 크기는 10MB를 초과할 수 없습니다.");
         
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(errorResponse);
     }

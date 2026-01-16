@@ -14,16 +14,16 @@ import java.time.LocalDateTime;
  *
  * @author vacation-api
  * @version 1.0
- * @since 2026-01-07
+ * @since 2026-01-16
  */
 @Entity
-@Table(name = "tbl_rental_approval",
+@Table(name = "tbl_rental_proposal",
        uniqueConstraints = @UniqueConstraint(columnNames = {"user_id"}))
 @Data
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class RentalApproval {
+public class RentalProposal {
 
     /**
      * 시퀀스 (PK)
@@ -111,4 +111,3 @@ public class RentalApproval {
         }
     }
 }
-

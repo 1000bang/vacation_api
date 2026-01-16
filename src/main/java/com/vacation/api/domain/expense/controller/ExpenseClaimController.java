@@ -1,11 +1,14 @@
 package com.vacation.api.domain.expense.controller;
 
 import com.vacation.api.common.BaseController;
+import com.vacation.api.common.PagedResponse;
 import com.vacation.api.domain.attachment.entity.Attachment;
 import com.vacation.api.domain.attachment.service.FileService;
 import com.vacation.api.domain.expense.entity.ExpenseClaim;
 import com.vacation.api.domain.expense.entity.ExpenseSub;
 import com.vacation.api.domain.expense.request.ExpenseClaimRequest;
+import com.vacation.api.domain.expense.response.ExpenseClaimResponse;
+import com.vacation.api.domain.expense.response.ExpenseSubResponse;
 import com.vacation.api.domain.expense.service.ExpenseClaimService;
 import com.vacation.api.domain.user.entity.User;
 import com.vacation.api.domain.user.service.UserService;
@@ -18,7 +21,6 @@ import com.vacation.api.vo.ExpenseClaimVO;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.extern.slf4j.Slf4j;
-import org.slf4j.MDC;
 import org.springframework.core.io.Resource;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
@@ -31,9 +33,7 @@ import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
@@ -87,16 +87,17 @@ public class ExpenseClaimController extends BaseController {
             // 페이징된 목록 조회
             List<ExpenseClaim> expenseClaimList = expenseClaimService.getExpenseClaimList(userId, page, size);
             
-            // 각 항목에 applicant 추가
-            List<Map<String, Object>> responseList = responseMapper.toExpenseClaimMapList(
+            // 각 항목에 applicant 추가하여 Response VO로 변환
+            List<ExpenseClaimResponse> responseList = responseMapper.toExpenseClaimResponseList(
                     expenseClaimList, 
                     userService::getUserInfo
             );
             
             // totalCount 포함 응답 생성
-            Map<String, Object> responseData = new HashMap<>();
-            responseData.put("list", responseList);
-            responseData.put("totalCount", totalCount);
+            PagedResponse<ExpenseClaimResponse> responseData = PagedResponse.<ExpenseClaimResponse>builder()
+                    .list(responseList)
+                    .totalCount(totalCount)
+                    .build();
             
             return successResponse(responseData);
         } catch (ApiException e) {
@@ -119,65 +120,42 @@ public class ExpenseClaimController extends BaseController {
             @PathVariable Long seq) {
         log.info("개인 비용 청구 조회 요청: seq={}", seq);
 
-        String transactionId = MDC.get("transactionId");
-        if (transactionId == null) {
-            transactionId = transactionIDCreator.createTransactionId();
-        }
-
         try {
             Long userId = (Long) request.getAttribute("userId");
             ExpenseClaim expenseClaim = expenseClaimService.getExpenseClaim(seq, userId);
             
             if (expenseClaim == null) {
-                return ResponseEntity.ok(new ApiResponse<>(transactionId, "0", null, null));
+                return successResponse(null);
             }
 
             // 상세 항목 목록 조회
             List<ExpenseSub> expenseSubList = expenseClaimService.getExpenseSubList(seq);
             
-            // 각 항목에 첨부파일 정보 추가
-            List<Map<String, Object>> expenseSubListWithAttachments = expenseSubList.stream()
+            // 각 항목에 첨부파일 정보 추가하여 Response VO로 변환
+            List<ExpenseSubResponse> expenseSubListWithAttachments = expenseSubList.stream()
                     .map(sub -> {
-                        Map<String, Object> subMap = new HashMap<>();
-                        subMap.put("seq", sub.getSeq());
-                        subMap.put("parentSeq", sub.getParentSeq());
-                        subMap.put("childNo", sub.getChildNo());
-                        subMap.put("date", sub.getDate());
-                        subMap.put("usageDetail", sub.getUsageDetail());
-                        subMap.put("vendor", sub.getVendor());
-                        subMap.put("paymentMethod", sub.getPaymentMethod());
-                        subMap.put("project", sub.getProject());
-                        subMap.put("amount", sub.getAmount());
-                        subMap.put("note", sub.getNote());
-                        subMap.put("createdAt", sub.getCreatedAt());
-                        
                         // 첨부파일 정보 조회
                         List<Attachment> attachments = fileService.getExpenseItemAttachments(sub.getSeq());
-                        if (attachments != null && !attachments.isEmpty()) {
-                            Attachment attachment = attachments.get(0);
-                            Map<String, Object> attachmentMap = new HashMap<>();
-                            attachmentMap.put("seq", attachment.getSeq());
-                            attachmentMap.put("fileName", attachment.getFileName());
-                            attachmentMap.put("fileSize", attachment.getFileSize());
-                            subMap.put("attachment", attachmentMap);
-                        }
+                        Attachment attachment = (attachments != null && !attachments.isEmpty()) 
+                                ? attachments.get(0) : null;
                         
-                        return subMap;
+                        return responseMapper.toExpenseSubResponse(sub, attachment);
                     })
                     .collect(Collectors.toList());
             
-            Map<String, Object> result = new HashMap<>();
-            result.put("expenseClaim", expenseClaim);
-            result.put("expenseSubList", expenseSubListWithAttachments);
+            // 사용자 정보 조회
+            User user = userService.getUserInfo(expenseClaim.getUserId());
+            String applicantName = user != null ? user.getName() : null;
             
-            return ResponseEntity.ok(new ApiResponse<>(transactionId, "0", result, null));
+            // Response VO로 변환
+            ExpenseClaimResponse response = responseMapper.toExpenseClaimResponse(
+                    expenseClaim, applicantName, expenseSubListWithAttachments);
+            
+            return successResponse(response);
+        } catch (ApiException e) {
+            return errorResponse("개인 비용 청구 조회에 실패했습니다.", e);
         } catch (Exception e) {
-            log.error("개인 비용 청구 조회 실패", e);
-            Map<String, Object> errorData = new HashMap<>();
-            errorData.put("errorCode", "500");
-            errorData.put("errorMessage", "개인 비용 청구 조회에 실패했습니다.");
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(new ApiResponse<>(transactionId, "500", errorData, null));
+            return errorResponse("개인 비용 청구 조회에 실패했습니다.", e);
         }
     }
 
@@ -194,23 +172,16 @@ public class ExpenseClaimController extends BaseController {
             @Valid @RequestBody ExpenseClaimRequest expenseClaimRequest) {
         log.info("개인 비용 청구 생성 요청");
 
-        String transactionId = MDC.get("transactionId");
-        if (transactionId == null) {
-            transactionId = transactionIDCreator.createTransactionId();
-        }
-
         try {
             Long userId = (Long) request.getAttribute("userId");
             ExpenseClaim expenseClaim = expenseClaimService.createExpenseClaim(userId, expenseClaimRequest);
+            String transactionId = getOrCreateTransactionId();
             return ResponseEntity.status(HttpStatus.CREATED)
                     .body(new ApiResponse<>(transactionId, "0", expenseClaim, null));
+        } catch (ApiException e) {
+            return errorResponse("개인 비용 청구 생성에 실패했습니다.", e);
         } catch (Exception e) {
-            log.error("개인 비용 청구 생성 실패", e);
-            Map<String, Object> errorData = new HashMap<>();
-            errorData.put("errorCode", "500");
-            errorData.put("errorMessage", "개인 비용 청구 생성에 실패했습니다.");
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(new ApiResponse<>(transactionId, "500", errorData, null));
+            return errorResponse("개인 비용 청구 생성에 실패했습니다.", e);
         }
     }
 
@@ -229,22 +200,14 @@ public class ExpenseClaimController extends BaseController {
             @Valid @RequestBody ExpenseClaimRequest expenseClaimRequest) {
         log.info("개인 비용 청구 수정 요청: seq={}", seq);
 
-        String transactionId = MDC.get("transactionId");
-        if (transactionId == null) {
-            transactionId = transactionIDCreator.createTransactionId();
-        }
-
         try {
             Long userId = (Long) request.getAttribute("userId");
             ExpenseClaim expenseClaim = expenseClaimService.updateExpenseClaim(seq, userId, expenseClaimRequest);
-            return ResponseEntity.ok(new ApiResponse<>(transactionId, "0", expenseClaim, null));
+            return successResponse(expenseClaim);
+        } catch (ApiException e) {
+            return errorResponse("개인 비용 청구 수정에 실패했습니다.", e);
         } catch (Exception e) {
-            log.error("개인 비용 청구 수정 실패", e);
-            Map<String, Object> errorData = new HashMap<>();
-            errorData.put("errorCode", "500");
-            errorData.put("errorMessage", "개인 비용 청구 수정에 실패했습니다.");
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(new ApiResponse<>(transactionId, "500", errorData, null));
+            return errorResponse("개인 비용 청구 수정에 실패했습니다.", e);
         }
     }
 
@@ -261,24 +224,14 @@ public class ExpenseClaimController extends BaseController {
             @PathVariable Long seq) {
         log.info("개인 비용 청구 삭제 요청: seq={}", seq);
 
-        String transactionId = MDC.get("transactionId");
-        if (transactionId == null) {
-            transactionId = transactionIDCreator.createTransactionId();
-        }
-
         try {
             Long userId = (Long) request.getAttribute("userId");
             expenseClaimService.deleteExpenseClaim(seq, userId);
-            Map<String, Object> resultData = new HashMap<>();
-            resultData.put("message", "삭제되었습니다.");
-            return ResponseEntity.ok(new ApiResponse<>(transactionId, "0", resultData, null));
+            return successResponse("삭제되었습니다.");
+        } catch (ApiException e) {
+            return errorResponse("개인 비용 청구 삭제에 실패했습니다.", e);
         } catch (Exception e) {
-            log.error("개인 비용 청구 삭제 실패", e);
-            Map<String, Object> errorData = new HashMap<>();
-            errorData.put("errorCode", "500");
-            errorData.put("errorMessage", "개인 비용 청구 삭제에 실패했습니다.");
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(new ApiResponse<>(transactionId, "500", errorData, null));
+            return errorResponse("개인 비용 청구 삭제에 실패했습니다.", e);
         }
     }
 
@@ -387,11 +340,6 @@ public class ExpenseClaimController extends BaseController {
             @RequestPart("file") MultipartFile file) {
         log.info("개인비용 항목별 첨부파일 업로드 요청: seq={}, expenseSubSeq={}", seq, expenseSubSeq);
 
-        String transactionId = MDC.get("transactionId");
-        if (transactionId == null) {
-            transactionId = transactionIDCreator.createTransactionId();
-        }
-
         try {
             Long userId = (Long) request.getAttribute("userId");
             
@@ -399,11 +347,7 @@ public class ExpenseClaimController extends BaseController {
             ExpenseClaim expenseClaim = expenseClaimService.getExpenseClaim(seq, userId);
             if (expenseClaim == null) {
                 log.warn("존재하지 않는 개인비용 신청 또는 권한 없음: seq={}, userId={}", seq, userId);
-                Map<String, Object> errorData = new HashMap<>();
-                errorData.put("errorCode", "404");
-                errorData.put("errorMessage", "개인비용 신청을 찾을 수 없습니다.");
-                return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                        .body(new ApiResponse<>(transactionId, "404", errorData, null));
+                return errorResponse("404", "개인비용 신청을 찾을 수 없습니다.");
             }
             
             // 항목이 해당 신청에 속하는지 확인
@@ -413,22 +357,18 @@ public class ExpenseClaimController extends BaseController {
             
             if (!isValidSub) {
                 log.warn("유효하지 않은 개인비용 항목: seq={}, expenseSubSeq={}", seq, expenseSubSeq);
-                Map<String, Object> errorData = new HashMap<>();
-                errorData.put("errorCode", "400");
-                errorData.put("errorMessage", "유효하지 않은 개인비용 항목입니다.");
-                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                        .body(new ApiResponse<>(transactionId, "400", errorData, null));
+                return errorResponse("400", "유효하지 않은 개인비용 항목입니다.");
             }
             
             // 파일 업로드
             Attachment attachment = fileService.uploadExpenseItemFile(file, "EXPENSE", seq, expenseSubSeq, userId);
             
+            String transactionId = getOrCreateTransactionId();
             return ResponseEntity.status(HttpStatus.CREATED)
                     .body(new ApiResponse<>(transactionId, "0", attachment, null));
         } catch (ApiException e) {
             return errorResponse("첨부파일 업로드에 실패했습니다.", e);
         } catch (Exception e) {
-            log.error("개인비용 항목별 첨부파일 업로드 실패", e);
             return errorResponse("첨부파일 업로드에 실패했습니다.", e);
         }
     }
@@ -513,11 +453,6 @@ public class ExpenseClaimController extends BaseController {
             @PathVariable Long expenseSubSeq) {
         log.info("개인비용 항목별 첨부파일 삭제 요청: seq={}, expenseSubSeq={}", seq, expenseSubSeq);
 
-        String transactionId = MDC.get("transactionId");
-        if (transactionId == null) {
-            transactionId = transactionIDCreator.createTransactionId();
-        }
-
         try {
             Long userId = (Long) request.getAttribute("userId");
             
@@ -525,11 +460,7 @@ public class ExpenseClaimController extends BaseController {
             ExpenseClaim expenseClaim = expenseClaimService.getExpenseClaim(seq, userId);
             if (expenseClaim == null || !expenseClaim.getUserId().equals(userId)) {
                 log.warn("존재하지 않는 개인비용 신청 또는 권한 없음: seq={}, userId={}", seq, userId);
-                Map<String, Object> errorData = new HashMap<>();
-                errorData.put("errorCode", "403");
-                errorData.put("errorMessage", "첨부파일 삭제 권한이 없습니다.");
-                return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                        .body(new ApiResponse<>(transactionId, "403", errorData, null));
+                return errorResponse("403", "첨부파일 삭제 권한이 없습니다.");
             }
             
             // 항목이 해당 신청에 속하는지 확인
@@ -539,26 +470,17 @@ public class ExpenseClaimController extends BaseController {
             
             if (!isValidSub) {
                 log.warn("유효하지 않은 개인비용 항목: seq={}, expenseSubSeq={}", seq, expenseSubSeq);
-                Map<String, Object> errorData = new HashMap<>();
-                errorData.put("errorCode", "400");
-                errorData.put("errorMessage", "유효하지 않은 개인비용 항목입니다.");
-                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                        .body(new ApiResponse<>(transactionId, "400", errorData, null));
+                return errorResponse("400", "유효하지 않은 개인비용 항목입니다.");
             }
             
             // 첨부파일 삭제
             fileService.deleteExpenseItemAttachments(expenseSubSeq);
             
-            Map<String, Object> resultData = new HashMap<>();
-            resultData.put("message", "첨부파일이 삭제되었습니다.");
-            return ResponseEntity.ok(new ApiResponse<>(transactionId, "0", resultData, null));
+            return successResponse("첨부파일이 삭제되었습니다.");
+        } catch (ApiException e) {
+            return errorResponse("첨부파일 삭제에 실패했습니다.", e);
         } catch (Exception e) {
-            log.error("개인비용 항목별 첨부파일 삭제 실패", e);
-            Map<String, Object> errorData = new HashMap<>();
-            errorData.put("errorCode", "500");
-            errorData.put("errorMessage", "첨부파일 삭제에 실패했습니다.");
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(new ApiResponse<>(transactionId, "500", errorData, null));
+            return errorResponse("첨부파일 삭제에 실패했습니다.", e);
         }
     }
 }

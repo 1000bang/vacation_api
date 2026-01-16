@@ -1,8 +1,9 @@
 package com.vacation.api.common;
 
+import com.vacation.api.domain.user.entity.User;
+import com.vacation.api.domain.user.service.UserService;
 import com.vacation.api.exception.ApiException;
 import com.vacation.api.response.data.ApiResponse;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.slf4j.MDC;
 import org.springframework.http.HttpStatus;
@@ -10,6 +11,7 @@ import org.springframework.http.ResponseEntity;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.function.Supplier;
 
 /**
  * 모든 Controller의 공통 기능을 제공하는 Base Controller
@@ -110,5 +112,47 @@ public abstract class BaseController {
         errorData.put("errorMessage", errorMessage);
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .body(new ApiResponse<>(transactionId, errorCode, errorData, null));
+    }
+
+    /**
+     * 사용자 이름 조회 헬퍼 메서드
+     * 
+     * @param userId 사용자 ID
+     * @param userService UserService 인스턴스
+     * @return 사용자 이름 (없으면 null)
+     */
+    protected String getApplicantName(Long userId, UserService userService) {
+        if (userId == null || userService == null) {
+            return null;
+        }
+        try {
+            User user = userService.getUserInfo(userId);
+            return user != null ? user.getName() : null;
+        } catch (Exception e) {
+            log.warn("사용자 이름 조회 실패: userId={}", userId, e);
+            return null;
+        }
+    }
+
+    /**
+     * 공통 예외 처리 래퍼 메서드
+     * Controller에서 반복되는 try-catch 패턴을 간소화
+     * 
+     * @param errorMessage 에러 발생 시 사용할 메시지
+     * @param supplier 실행할 로직
+     * @return ResponseEntity
+     */
+    @SuppressWarnings("unchecked")
+    protected <T> ResponseEntity<ApiResponse<T>> executeWithErrorHandling(
+            String errorMessage,
+            Supplier<T> supplier) {
+        try {
+            T result = supplier.get();
+            return successResponse(result);
+        } catch (ApiException e) {
+            return (ResponseEntity<ApiResponse<T>>) (ResponseEntity<?>) errorResponse(errorMessage, e);
+        } catch (Exception e) {
+            return (ResponseEntity<ApiResponse<T>>) (ResponseEntity<?>) errorResponse(errorMessage, e);
+        }
     }
 }

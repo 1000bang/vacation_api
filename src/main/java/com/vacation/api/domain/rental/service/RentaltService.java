@@ -1,17 +1,19 @@
 package com.vacation.api.domain.rental.service;
 
 import com.vacation.api.domain.alarm.service.AlarmService;
-import com.vacation.api.domain.rental.entity.RentalApproval;
+import com.vacation.api.domain.rental.entity.RentalProposal;
 import com.vacation.api.domain.rental.entity.RentalSupport;
-import com.vacation.api.domain.rental.repository.RentalApprovalRepository;
+import com.vacation.api.domain.rental.repository.RentalProposalRepository;
 import com.vacation.api.domain.rental.repository.RentalSupportRepository;
-import com.vacation.api.domain.rental.request.RentalApprovalRequest;
+import com.vacation.api.domain.rental.request.RentalProposalRequest;
 import com.vacation.api.domain.rental.request.RentalSupportRequest;
 import com.vacation.api.domain.user.entity.User;
 import com.vacation.api.domain.user.repository.UserRepository;
+import com.vacation.api.enums.ApplicationType;
 import com.vacation.api.enums.PaymentType;
 import com.vacation.api.exception.ApiErrorCode;
 import com.vacation.api.exception.ApiException;
+import com.vacation.api.util.ApprovalStatusResolver;
 import com.vacation.api.vo.RentalSupportApplicationVO;
 import com.vacation.api.vo.RentalSupportProposalVO;
 import lombok.RequiredArgsConstructor;
@@ -35,10 +37,11 @@ import java.util.List;
 @RequiredArgsConstructor
 public class RentaltService {
 
-    private final RentalApprovalRepository rentalApprovalRepository;
+    private final RentalProposalRepository rentalProposalRepository;
     private final UserRepository userRepository;
     private final RentalSupportRepository rentalSupportRepository;
     private final AlarmService alarmService;
+    private final ApprovalStatusResolver approvalStatusResolver;
 
     /**
      * 월세 지원 정보 목록 조회
@@ -46,9 +49,9 @@ public class RentaltService {
      * @param userId 사용자 ID
      * @return 월세 지원 정보 목록
      */
-    public List<RentalApproval> getRentalSupportList(Long userId) {
-        log.info("월세 지원 정보 목록 조회: userId={}", userId);
-        return rentalApprovalRepository.findByUserIdOrderBySeqDesc(userId);
+    public List<RentalProposal> getRentalSupportList(Long userId) {
+        log.info("월세 품의 정보 목록 조회: userId={}", userId);
+        return rentalProposalRepository.findByUserIdOrderBySeqDesc(userId);
     }
 
     /**
@@ -58,45 +61,45 @@ public class RentaltService {
      * @param requesterId 요청자 사용자 ID
      * @return 월세 지원 정보 (없으면 null)
      */
-    public RentalApproval getRentalSupport(Long seq, Long requesterId) {
-        log.info("월세 지원 정보 조회: seq={}, requesterId={}", seq, requesterId);
+    public RentalProposal getRentalSupport(Long seq, Long requesterId) {
+        log.info("월세 품의 정보 조회: seq={}, requesterId={}", seq, requesterId);
         User requester = userRepository.findById(requesterId)
                 .orElseThrow(() -> new ApiException(ApiErrorCode.USER_NOT_FOUND));
 
         String authVal = requester.getAuthVal();
         
         if ("ma".equals(authVal)) {
-            // 관리자(ma)는 모든 월세 지원 품의서 조회 가능
-            return rentalApprovalRepository.findById(seq)
+            // 관리자(ma)는 모든 월세 품의서 조회 가능
+            return rentalProposalRepository.findById(seq)
                     .orElse(null);
         } else if ("bb".equals(authVal)) {
-            // 본부장(bb)은 자신의 본부만 모든 월세 지원 품의서 조회 가능
-            RentalApproval rentalApproval = rentalApprovalRepository.findById(seq)
+            // 본부장(bb)은 자신의 본부만 모든 월세 품의서 조회 가능
+            RentalProposal rentalProposal = rentalProposalRepository.findById(seq)
                     .orElse(null);
-            if (rentalApproval != null) {
-                User applicant = userRepository.findById(rentalApproval.getUserId())
+            if (rentalProposal != null) {
+                User applicant = userRepository.findById(rentalProposal.getUserId())
                         .orElse(null);
                 if (applicant != null && requester.getDivision().equals(applicant.getDivision())) {
-                    return rentalApproval;
+                    return rentalProposal;
                 }
             }
             return null;
         } else if ("tj".equals(authVal)) {
-            // 팀장(tj)은 자신의 팀만 모든 월세 지원 품의서 조회 가능
-            RentalApproval rentalApproval = rentalApprovalRepository.findById(seq)
+            // 팀장(tj)은 자신의 팀만 모든 월세 품의서 조회 가능
+            RentalProposal rentalProposal = rentalProposalRepository.findById(seq)
                     .orElse(null);
-            if (rentalApproval != null) {
-                User applicant = userRepository.findById(rentalApproval.getUserId())
+            if (rentalProposal != null) {
+                User applicant = userRepository.findById(rentalProposal.getUserId())
                         .orElse(null);
                 if (applicant != null && requester.getDivision().equals(applicant.getDivision()) 
                     && requester.getTeam().equals(applicant.getTeam())) {
-                    return rentalApproval;
+                    return rentalProposal;
                 }
             }
             return null;
         } else {
             // 일반 사용자는 본인 신청 내역만 조회 가능
-            return rentalApprovalRepository.findBySeqAndUserId(seq, requesterId)
+            return rentalProposalRepository.findBySeqAndUserId(seq, requesterId)
                     .orElse(null);
         }
     }
@@ -109,32 +112,24 @@ public class RentaltService {
      * @return 생성된 월세 지원 정보
      */
     @Transactional
-    public RentalApproval createRentalSupport(Long userId, RentalApprovalRequest request) {
-        log.info("월세 지원 정보 생성: userId={}", userId);
+    public RentalProposal createRentalSupport(Long userId, RentalProposalRequest request) {
+        log.info("월세 품의 정보 생성: userId={}", userId);
         
         // 사용자 정보 조회 (권한 확인용)
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new ApiException(ApiErrorCode.USER_NOT_FOUND));
         
         // user_id당 하나만 신청 가능 (count > 1이면 반환)
-        long existingCount = rentalApprovalRepository.countByUserId(userId);
+        long existingCount = rentalProposalRepository.countByUserId(userId);
         if (existingCount > 0) {
-            log.warn("월세지원 품의서가 이미 존재함: userId={}, count={}", userId, existingCount);
-            throw new ApiException(ApiErrorCode.DUPLICATE_RENTAL_APPROVAL);
+            log.warn("월세 품의서가 이미 존재함: userId={}, count={}", userId, existingCount);
+            throw new ApiException(ApiErrorCode.DUPLICATE_RENTAL_PROPOSAL);
         }
         
         // 권한에 따른 초기 approvalStatus 설정
-        String initialApprovalStatus = "A"; // 기본값: 일반 사용자
-        String authVal = user.getAuthVal();
-        if ("tj".equals(authVal)) {
-            // 팀장 권한: B (팀장 승인)로 시작
-            initialApprovalStatus = "B";
-        } else if ("bb".equals(authVal)) {
-            // 본부장 권한: C (본부장 승인)로 시작
-            initialApprovalStatus = "C";
-        }
+        String initialApprovalStatus = approvalStatusResolver.resolveInitialApprovalStatus(user.getAuthVal());
         
-        RentalApproval rentalApproval = RentalApproval.builder()
+        RentalProposal rentalProposal = RentalProposal.builder()
                 .userId(userId)
                 .previousAddress(request.getPreviousAddress())
                 .rentalAddress(request.getRentalAddress())
@@ -147,8 +142,8 @@ public class RentaltService {
                 .approvalStatus(initialApprovalStatus)
                 .build();
         
-        RentalApproval saved = rentalApprovalRepository.save(rentalApproval);
-        log.info("월세 지원 정보 생성 완료: seq={}, userId={}, approvalStatus={}", saved.getSeq(), userId, saved.getApprovalStatus());
+        RentalProposal saved = rentalProposalRepository.save(rentalProposal);
+        log.info("월세 품의 정보 생성 완료: seq={}, userId={}, approvalStatus={}", saved.getSeq(), userId, saved.getApprovalStatus());
         
         return saved;
     }
@@ -162,27 +157,27 @@ public class RentaltService {
      * @return 수정된 월세 지원 정보
      */
     @Transactional
-    public RentalApproval updateRentalSupport(Long seq, Long userId, RentalApprovalRequest request) {
-        log.info("월세 지원 정보 수정: seq={}, userId={}", seq, userId);
+    public RentalProposal updateRentalSupport(Long seq, Long userId, RentalProposalRequest request) {
+        log.info("월세 품의 정보 수정: seq={}, userId={}", seq, userId);
         
-        RentalApproval rentalApproval = rentalApprovalRepository.findBySeqAndUserId(seq, userId)
+        RentalProposal rentalProposal = rentalProposalRepository.findBySeqAndUserId(seq, userId)
                 .orElseThrow(() -> {
-                    log.warn("존재하지 않는 월세 지원 정보: seq={}, userId={}", seq, userId);
+                    log.warn("존재하지 않는 월세 품의 정보: seq={}, userId={}", seq, userId);
                     return new ApiException(ApiErrorCode.INVALID_LOGIN);
                 });
         
-        rentalApproval.setPreviousAddress(request.getPreviousAddress());
-        rentalApproval.setRentalAddress(request.getRentalAddress());
-        rentalApproval.setContractStartDate(request.getContractStartDate());
-        rentalApproval.setContractEndDate(request.getContractEndDate());
-        rentalApproval.setContractMonthlyRent(request.getContractMonthlyRent());
-        rentalApproval.setBillingAmount(request.getBillingAmount());
-        rentalApproval.setBillingStartDate(request.getBillingStartDate());
-        rentalApproval.setBillingReason(request.getBillingReason());
-        rentalApproval.setApprovalStatus("AM"); // 수정 시 무조건 AM 상태로 변경
+        rentalProposal.setPreviousAddress(request.getPreviousAddress());
+        rentalProposal.setRentalAddress(request.getRentalAddress());
+        rentalProposal.setContractStartDate(request.getContractStartDate());
+        rentalProposal.setContractEndDate(request.getContractEndDate());
+        rentalProposal.setContractMonthlyRent(request.getContractMonthlyRent());
+        rentalProposal.setBillingAmount(request.getBillingAmount());
+        rentalProposal.setBillingStartDate(request.getBillingStartDate());
+        rentalProposal.setBillingReason(request.getBillingReason());
+        rentalProposal.setApprovalStatus("AM"); // 수정 시 무조건 AM 상태로 변경
         
-        RentalApproval updated = rentalApprovalRepository.save(rentalApproval);
-        log.info("월세 지원 정보 수정 완료: seq={}, userId={}, approvalStatus={}", seq, userId, updated.getApprovalStatus());
+        RentalProposal updated = rentalProposalRepository.save(rentalProposal);
+        log.info("월세 품의 정보 수정 완료: seq={}, userId={}, approvalStatus={}", seq, userId, updated.getApprovalStatus());
         
         return updated;
     }
@@ -195,16 +190,16 @@ public class RentaltService {
      */
     @Transactional
     public void deleteRentalSupport(Long seq, Long userId) {
-        log.info("월세 지원 정보 삭제: seq={}, userId={}", seq, userId);
+        log.info("월세 품의 정보 삭제: seq={}, userId={}", seq, userId);
         
-        RentalApproval rentalApproval = rentalApprovalRepository.findBySeqAndUserId(seq, userId)
+        RentalProposal rentalProposal = rentalProposalRepository.findBySeqAndUserId(seq, userId)
                 .orElseThrow(() -> {
-                    log.warn("존재하지 않는 월세 지원 정보: seq={}, userId={}", seq, userId);
+                    log.warn("존재하지 않는 월세 품의 정보: seq={}, userId={}", seq, userId);
                     return new ApiException(ApiErrorCode.INVALID_LOGIN);
                 });
         
-        rentalApprovalRepository.delete(rentalApproval);
-        log.info("월세 지원 정보 삭제 완료: seq={}, userId={}", seq, userId);
+        rentalProposalRepository.delete(rentalProposal);
+        log.info("월세 품의 정보 삭제 완료: seq={}, userId={}", seq, userId);
     }
 
     // ========== 월세 지원 신청 (청구서) 관련 메서드 ==========
@@ -329,15 +324,8 @@ public class RentaltService {
         }
         
         // 권한에 따른 초기 approvalStatus 설정
-        String initialApprovalStatus = "A"; // 기본값: 일반 사용자
-        String authVal = user.getAuthVal();
-        if ("tj".equals(authVal)) {
-            // 팀장 권한: B (팀장 승인)로 시작
-            initialApprovalStatus = "B";
-        } else if ("bb".equals(authVal)) {
-            // 본부장 권한: C (본부장 승인)로 시작
-            initialApprovalStatus = "C";
-        }
+        String initialApprovalStatus = approvalStatusResolver.resolveInitialApprovalStatus(user.getAuthVal());
+        
         int contractDay = request.getContractStartDate().getDayOfMonth();
         int billingMonth = request.getMonth();
         
@@ -389,7 +377,7 @@ public class RentaltService {
         RentalSupport saved = rentalSupportRepository.save(rentalSupport);
         
         // 알람 생성: 팀장에게
-        alarmService.createApplicationCreatedAlarm(userId, "RENTAL", saved.getSeq());
+        alarmService.createApplicationCreatedAlarm(userId, ApplicationType.RENTAL.getCode(), saved.getSeq());
         
         log.info("월세 지원 신청 생성 완료: seq={}, userId={}", saved.getSeq(), userId);
         
@@ -546,9 +534,9 @@ public class RentaltService {
      * @return RentalSupportProposalVO
      */
     public RentalSupportProposalVO createRentalSupportProposalVO(
-            RentalApproval rentalApproval,
+            RentalProposal rentalProposal,
             com.vacation.api.domain.user.entity.User user) {
-        log.info("월세 지원 품의서 문서 VO 생성: seq={}, userId={}", rentalApproval.getSeq(), rentalApproval.getUserId());
+        log.info("월세 품의서 문서 VO 생성: seq={}, userId={}", rentalProposal.getSeq(), rentalProposal.getUserId());
         
         String department = user.getDivision() + "/" + user.getTeam();
         
@@ -556,14 +544,14 @@ public class RentaltService {
                 .requestDate(LocalDate.now()) // 품의서는 현재 날짜 사용
                 .department(department)
                 .applicant(user.getName())
-                .currentAddress(rentalApproval.getPreviousAddress())
-                .rentalAddress(rentalApproval.getRentalAddress())
-                .contractStartDate(rentalApproval.getContractStartDate())
-                .contractEndDate(rentalApproval.getContractEndDate())
-                .contractMonthlyRent(rentalApproval.getContractMonthlyRent())
-                .billingAmount(rentalApproval.getBillingAmount())
-                .billingStartDate(rentalApproval.getBillingStartDate())
-                .reason(rentalApproval.getBillingReason())
+                .currentAddress(rentalProposal.getPreviousAddress())
+                .rentalAddress(rentalProposal.getRentalAddress())
+                .contractStartDate(rentalProposal.getContractStartDate())
+                .contractEndDate(rentalProposal.getContractEndDate())
+                .contractMonthlyRent(rentalProposal.getContractMonthlyRent())
+                .billingAmount(rentalProposal.getBillingAmount())
+                .billingStartDate(rentalProposal.getBillingStartDate())
+                .reason(rentalProposal.getBillingReason())
                 .build();
     }
 }

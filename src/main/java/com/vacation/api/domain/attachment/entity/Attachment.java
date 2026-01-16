@@ -31,9 +31,9 @@ public class Attachment {
     @Column(name = "seq")
     private Long seq;
 
-    /**
-     * 신청 타입 (VACATION, RENTAL, RENTAL_APPROVAL, EXPENSE)
-     */
+        /**
+         * 신청 타입 (VACATION, RENTAL, RENTAL_PROPOSAL, EXPENSE)
+         */
     @Column(name = "application_type", nullable = false, length = 20)
     private String applicationType;
 
