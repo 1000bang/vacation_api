@@ -68,6 +68,12 @@ public class Attachment {
     private Integer fileOrder;
 
     /**
+     * 개인비용 항목 시퀀스 (EXPENSE 타입일 때 사용, expense_sub.seq)
+     */
+    @Column(name = "expense_sub_seq")
+    private Long expenseSubSeq;
+
+    /**
      * 생성일
      */
     @Column(name = "created_at", nullable = false, updatable = false)

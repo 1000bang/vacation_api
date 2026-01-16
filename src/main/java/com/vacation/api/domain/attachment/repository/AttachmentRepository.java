@@ -42,4 +42,19 @@ public interface AttachmentRepository extends JpaRepository<Attachment, Long> {
      * @param applicationSeq 신청 시퀀스
      */
     void deleteByApplicationTypeAndApplicationSeq(String applicationType, Long applicationSeq);
+
+    /**
+     * 개인비용 항목 시퀀스로 첨부파일 조회
+     *
+     * @param expenseSubSeq 개인비용 항목 시퀀스
+     * @return 첨부파일 목록
+     */
+    List<Attachment> findByExpenseSubSeqOrderByFileOrderAsc(Long expenseSubSeq);
+
+    /**
+     * 개인비용 항목 시퀀스로 첨부파일 삭제
+     *
+     * @param expenseSubSeq 개인비용 항목 시퀀스
+     */
+    void deleteByExpenseSubSeq(Long expenseSubSeq);
 }

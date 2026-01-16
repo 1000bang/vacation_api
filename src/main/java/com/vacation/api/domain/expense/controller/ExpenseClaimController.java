@@ -1,6 +1,8 @@
 package com.vacation.api.domain.expense.controller;
 
 import com.vacation.api.common.BaseController;
+import com.vacation.api.domain.attachment.entity.Attachment;
+import com.vacation.api.domain.attachment.service.FileService;
 import com.vacation.api.domain.expense.entity.ExpenseClaim;
 import com.vacation.api.domain.expense.entity.ExpenseSub;
 import com.vacation.api.domain.expense.request.ExpenseClaimRequest;
@@ -17,11 +19,13 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.extern.slf4j.Slf4j;
 import org.slf4j.MDC;
+import org.springframework.core.io.Resource;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
@@ -30,6 +34,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
  * 개인 비용 청구 Controller
@@ -46,13 +51,16 @@ public class ExpenseClaimController extends BaseController {
     private final ExpenseClaimService expenseClaimService;
     private final UserService userService;
     private final ResponseMapper responseMapper;
+    private final FileService fileService;
 
     public ExpenseClaimController(ExpenseClaimService expenseClaimService, UserService userService,
-                                 ResponseMapper responseMapper, TransactionIDCreator transactionIDCreator) {
+                                 ResponseMapper responseMapper, TransactionIDCreator transactionIDCreator,
+                                 FileService fileService) {
         super(transactionIDCreator);
         this.expenseClaimService = expenseClaimService;
         this.userService = userService;
         this.responseMapper = responseMapper;
+        this.fileService = fileService;
     }
 
     /**
@@ -127,9 +135,40 @@ public class ExpenseClaimController extends BaseController {
             // 상세 항목 목록 조회
             List<ExpenseSub> expenseSubList = expenseClaimService.getExpenseSubList(seq);
             
+            // 각 항목에 첨부파일 정보 추가
+            List<Map<String, Object>> expenseSubListWithAttachments = expenseSubList.stream()
+                    .map(sub -> {
+                        Map<String, Object> subMap = new HashMap<>();
+                        subMap.put("seq", sub.getSeq());
+                        subMap.put("parentSeq", sub.getParentSeq());
+                        subMap.put("childNo", sub.getChildNo());
+                        subMap.put("date", sub.getDate());
+                        subMap.put("usageDetail", sub.getUsageDetail());
+                        subMap.put("vendor", sub.getVendor());
+                        subMap.put("paymentMethod", sub.getPaymentMethod());
+                        subMap.put("project", sub.getProject());
+                        subMap.put("amount", sub.getAmount());
+                        subMap.put("note", sub.getNote());
+                        subMap.put("createdAt", sub.getCreatedAt());
+                        
+                        // 첨부파일 정보 조회
+                        List<Attachment> attachments = fileService.getExpenseItemAttachments(sub.getSeq());
+                        if (attachments != null && !attachments.isEmpty()) {
+                            Attachment attachment = attachments.get(0);
+                            Map<String, Object> attachmentMap = new HashMap<>();
+                            attachmentMap.put("seq", attachment.getSeq());
+                            attachmentMap.put("fileName", attachment.getFileName());
+                            attachmentMap.put("fileSize", attachment.getFileSize());
+                            subMap.put("attachment", attachmentMap);
+                        }
+                        
+                        return subMap;
+                    })
+                    .collect(Collectors.toList());
+            
             Map<String, Object> result = new HashMap<>();
             result.put("expenseClaim", expenseClaim);
-            result.put("expenseSubList", expenseSubList);
+            result.put("expenseSubList", expenseSubListWithAttachments);
             
             return ResponseEntity.ok(new ApiResponse<>(transactionId, "0", result, null));
         } catch (Exception e) {
@@ -328,6 +367,198 @@ public class ExpenseClaimController extends BaseController {
         } catch (Exception e) {
             log.error("개인 비용 청구서 다운로드 실패", e);
             return ResponseEntity.internalServerError().build();
+        }
+    }
+
+    /**
+     * 개인비용 항목별 첨부파일 업로드
+     *
+     * @param request HTTP 요청
+     * @param seq 개인비용 신청 시퀀스
+     * @param expenseSubSeq 개인비용 항목 시퀀스
+     * @param file 업로드할 파일
+     * @return 업로드된 첨부파일 정보
+     */
+    @PostMapping(value = "/{seq}/item/{expenseSubSeq}/file", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<ApiResponse<Object>> uploadExpenseItemFile(
+            HttpServletRequest request,
+            @PathVariable Long seq,
+            @PathVariable Long expenseSubSeq,
+            @RequestPart("file") MultipartFile file) {
+        log.info("개인비용 항목별 첨부파일 업로드 요청: seq={}, expenseSubSeq={}", seq, expenseSubSeq);
+
+        String transactionId = MDC.get("transactionId");
+        if (transactionId == null) {
+            transactionId = transactionIDCreator.createTransactionId();
+        }
+
+        try {
+            Long userId = (Long) request.getAttribute("userId");
+            
+            // 개인비용 신청 조회 및 권한 체크
+            ExpenseClaim expenseClaim = expenseClaimService.getExpenseClaim(seq, userId);
+            if (expenseClaim == null) {
+                log.warn("존재하지 않는 개인비용 신청 또는 권한 없음: seq={}, userId={}", seq, userId);
+                Map<String, Object> errorData = new HashMap<>();
+                errorData.put("errorCode", "404");
+                errorData.put("errorMessage", "개인비용 신청을 찾을 수 없습니다.");
+                return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                        .body(new ApiResponse<>(transactionId, "404", errorData, null));
+            }
+            
+            // 항목이 해당 신청에 속하는지 확인
+            List<ExpenseSub> expenseSubList = expenseClaimService.getExpenseSubList(seq);
+            boolean isValidSub = expenseSubList.stream()
+                    .anyMatch(sub -> sub.getSeq().equals(expenseSubSeq));
+            
+            if (!isValidSub) {
+                log.warn("유효하지 않은 개인비용 항목: seq={}, expenseSubSeq={}", seq, expenseSubSeq);
+                Map<String, Object> errorData = new HashMap<>();
+                errorData.put("errorCode", "400");
+                errorData.put("errorMessage", "유효하지 않은 개인비용 항목입니다.");
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                        .body(new ApiResponse<>(transactionId, "400", errorData, null));
+            }
+            
+            // 파일 업로드
+            Attachment attachment = fileService.uploadExpenseItemFile(file, "EXPENSE", seq, expenseSubSeq, userId);
+            
+            return ResponseEntity.status(HttpStatus.CREATED)
+                    .body(new ApiResponse<>(transactionId, "0", attachment, null));
+        } catch (ApiException e) {
+            return errorResponse("첨부파일 업로드에 실패했습니다.", e);
+        } catch (Exception e) {
+            log.error("개인비용 항목별 첨부파일 업로드 실패", e);
+            return errorResponse("첨부파일 업로드에 실패했습니다.", e);
+        }
+    }
+
+    /**
+     * 개인비용 항목별 첨부파일 다운로드
+     *
+     * @param request HTTP 요청
+     * @param seq 개인비용 신청 시퀀스
+     * @param expenseSubSeq 개인비용 항목 시퀀스
+     * @return 첨부파일
+     */
+    @GetMapping("/{seq}/item/{expenseSubSeq}/file")
+    public ResponseEntity<Resource> downloadExpenseItemFile(
+            HttpServletRequest request,
+            @PathVariable Long seq,
+            @PathVariable Long expenseSubSeq) {
+        log.info("개인비용 항목별 첨부파일 다운로드 요청: seq={}, expenseSubSeq={}", seq, expenseSubSeq);
+
+        try {
+            Long requesterId = (Long) request.getAttribute("userId");
+            
+            // 개인비용 신청 조회 및 권한 체크
+            ExpenseClaim expenseClaim = expenseClaimService.getExpenseClaim(seq, requesterId);
+            if (expenseClaim == null) {
+                log.warn("존재하지 않는 개인비용 신청 또는 권한 없음: seq={}, requesterId={}", seq, requesterId);
+                return ResponseEntity.notFound().build();
+            }
+            
+            // 항목이 해당 신청에 속하는지 확인
+            List<ExpenseSub> expenseSubList = expenseClaimService.getExpenseSubList(seq);
+            boolean isValidSub = expenseSubList.stream()
+                    .anyMatch(sub -> sub.getSeq().equals(expenseSubSeq));
+            
+            if (!isValidSub) {
+                log.warn("유효하지 않은 개인비용 항목: seq={}, expenseSubSeq={}", seq, expenseSubSeq);
+                return ResponseEntity.notFound().build();
+            }
+            
+            // 첨부파일 조회
+            List<Attachment> attachments = fileService.getExpenseItemAttachments(expenseSubSeq);
+            if (attachments == null || attachments.isEmpty()) {
+                log.warn("첨부파일이 없음: expenseSubSeq={}", expenseSubSeq);
+                return ResponseEntity.notFound().build();
+            }
+            
+            Attachment attachment = attachments.get(0);
+            
+            // 파일 다운로드
+            Resource resource = fileService.downloadFile(attachment);
+            
+            // 파일명 인코딩
+            String encodedFileName = URLEncoder.encode(attachment.getFileName(), StandardCharsets.UTF_8)
+                    .replace("+", "%20");
+            
+            // HTTP 헤더 설정
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_OCTET_STREAM);
+            headers.set(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=" + encodedFileName);
+            
+            return ResponseEntity.ok()
+                    .headers(headers)
+                    .body(resource);
+        } catch (Exception e) {
+            log.error("개인비용 항목별 첨부파일 다운로드 실패", e);
+            return ResponseEntity.internalServerError().build();
+        }
+    }
+
+    /**
+     * 개인비용 항목별 첨부파일 삭제
+     *
+     * @param request HTTP 요청
+     * @param seq 개인비용 신청 시퀀스
+     * @param expenseSubSeq 개인비용 항목 시퀀스
+     * @return 삭제 결과
+     */
+    @DeleteMapping("/{seq}/item/{expenseSubSeq}/file")
+    public ResponseEntity<ApiResponse<Object>> deleteExpenseItemFile(
+            HttpServletRequest request,
+            @PathVariable Long seq,
+            @PathVariable Long expenseSubSeq) {
+        log.info("개인비용 항목별 첨부파일 삭제 요청: seq={}, expenseSubSeq={}", seq, expenseSubSeq);
+
+        String transactionId = MDC.get("transactionId");
+        if (transactionId == null) {
+            transactionId = transactionIDCreator.createTransactionId();
+        }
+
+        try {
+            Long userId = (Long) request.getAttribute("userId");
+            
+            // 개인비용 신청 조회 및 권한 체크 (본인만 삭제 가능)
+            ExpenseClaim expenseClaim = expenseClaimService.getExpenseClaim(seq, userId);
+            if (expenseClaim == null || !expenseClaim.getUserId().equals(userId)) {
+                log.warn("존재하지 않는 개인비용 신청 또는 권한 없음: seq={}, userId={}", seq, userId);
+                Map<String, Object> errorData = new HashMap<>();
+                errorData.put("errorCode", "403");
+                errorData.put("errorMessage", "첨부파일 삭제 권한이 없습니다.");
+                return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                        .body(new ApiResponse<>(transactionId, "403", errorData, null));
+            }
+            
+            // 항목이 해당 신청에 속하는지 확인
+            List<ExpenseSub> expenseSubList = expenseClaimService.getExpenseSubList(seq);
+            boolean isValidSub = expenseSubList.stream()
+                    .anyMatch(sub -> sub.getSeq().equals(expenseSubSeq));
+            
+            if (!isValidSub) {
+                log.warn("유효하지 않은 개인비용 항목: seq={}, expenseSubSeq={}", seq, expenseSubSeq);
+                Map<String, Object> errorData = new HashMap<>();
+                errorData.put("errorCode", "400");
+                errorData.put("errorMessage", "유효하지 않은 개인비용 항목입니다.");
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                        .body(new ApiResponse<>(transactionId, "400", errorData, null));
+            }
+            
+            // 첨부파일 삭제
+            fileService.deleteExpenseItemAttachments(expenseSubSeq);
+            
+            Map<String, Object> resultData = new HashMap<>();
+            resultData.put("message", "첨부파일이 삭제되었습니다.");
+            return ResponseEntity.ok(new ApiResponse<>(transactionId, "0", resultData, null));
+        } catch (Exception e) {
+            log.error("개인비용 항목별 첨부파일 삭제 실패", e);
+            Map<String, Object> errorData = new HashMap<>();
+            errorData.put("errorCode", "500");
+            errorData.put("errorMessage", "첨부파일 삭제에 실패했습니다.");
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(new ApiResponse<>(transactionId, "500", errorData, null));
         }
     }
 }
