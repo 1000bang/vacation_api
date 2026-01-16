@@ -9,6 +9,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 /**
@@ -181,9 +182,11 @@ public class AlarmService {
 
     /**
      * 사용자의 모든 알람 목록 조회
+     * 읽은 알람 중 3일이 지난 것은 제외
      */
     public List<UserAlarm> getAllAlarms(Long userId) {
-        return userAlarmRepository.findByUserIdOrderByCreatedAtDesc(userId);
+        LocalDateTime threeDaysAgo = LocalDateTime.now().minusDays(3);
+        return userAlarmRepository.findByUserIdExcludingOldReadAlarms(userId, threeDaysAgo);
     }
 
     /**

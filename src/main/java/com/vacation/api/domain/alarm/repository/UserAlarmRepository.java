@@ -7,6 +7,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 /**
@@ -28,6 +29,16 @@ public interface UserAlarmRepository extends JpaRepository<UserAlarm, Long> {
      * 사용자의 모든 알람 목록 조회
      */
     List<UserAlarm> findByUserIdOrderByCreatedAtDesc(Long userId);
+
+    /**
+     * 사용자의 알람 목록 조회 (읽은 알람 중 3일 지난 것은 제외)
+     * 읽지 않은 알람 또는 읽은 알람 중 3일 이내인 것만 조회
+     */
+    @Query("SELECT u FROM UserAlarm u WHERE u.userId = :userId " +
+           "AND (u.isRead = false OR (u.isRead = true AND u.createdAt >= :threeDaysAgo)) " +
+           "ORDER BY u.createdAt DESC")
+    List<UserAlarm> findByUserIdExcludingOldReadAlarms(@Param("userId") Long userId, 
+                                                       @Param("threeDaysAgo") LocalDateTime threeDaysAgo);
 
     /**
      * 알람 읽음 처리
