@@ -1,5 +1,7 @@
 package com.vacation.api.util;
 
+import com.vacation.api.enums.ApprovalStatus;
+import com.vacation.api.enums.AuthVal;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
@@ -17,29 +19,27 @@ public class ApprovalStatusResolver {
     /**
      * 사용자 권한에 따른 초기 승인 상태 결정
      * 
-     * @param authVal 사용자 권한 값 (tj: 팀장, bb: 본부장, ma: 관리자, tw: 팀원)
-     * @return 초기 승인 상태
-     *         - "tj" (팀장): "B" (팀장 승인 상태로 시작)
-     *         - "bb" (본부장): "C" (본부장 승인 상태로 시작)
-     *         - 기타: "A" (초기 상태)
+     * @param authVal 사용자 권한 값 (코드)
+     * @return 초기 승인 상태 이름 (DB 저장용: A, AM, B, RB, C, RC)
+     *         - 팀장: B
+     *         - 본부장: C
+     *         - 기타: A
      */
     public String resolveInitialApprovalStatus(String authVal) {
-        if (authVal == null) {
-            return "A";
-        }
+        AuthVal auth = AuthVal.fromCode(authVal);
         
-        return switch (authVal) {
-            case "tj" -> {
-                log.debug("팀장 권한: 초기 승인 상태를 B로 설정");
-                yield "B";  // 팀장: 팀장 승인 상태로 시작
+        return switch (auth) {
+            case TEAM_LEADER -> {
+                log.debug("팀장 권한: 초기 승인 상태를 {}로 설정", ApprovalStatus.TEAM_LEADER_APPROVED.getName());
+                yield ApprovalStatus.TEAM_LEADER_APPROVED.getName();
             }
-            case "bb" -> {
-                log.debug("본부장 권한: 초기 승인 상태를 C로 설정");
-                yield "C";  // 본부장: 본부장 승인 상태로 시작
+            case DIVISION_HEAD -> {
+                log.debug("본부장 권한: 초기 승인 상태를 {}로 설정", ApprovalStatus.DIVISION_HEAD_APPROVED.getName());
+                yield ApprovalStatus.DIVISION_HEAD_APPROVED.getName();
             }
             default -> {
-                log.debug("일반 사용자: 초기 승인 상태를 A로 설정");
-                yield "A";  // 일반 사용자: 초기 상태
+                log.debug("일반 사용자: 초기 승인 상태를 {}로 설정", ApprovalStatus.INITIAL.getName());
+                yield ApprovalStatus.INITIAL.getName();
             }
         };
     }

@@ -18,6 +18,7 @@ import com.vacation.api.response.data.ApiResponse;
 import com.vacation.api.common.TransactionIDCreator;
 import com.vacation.api.util.FileGenerateUtil;
 import com.vacation.api.util.ResponseMapper;
+import com.vacation.api.util.ZipFileUtil;
 import com.vacation.api.exception.ApiException;
 import com.vacation.api.vo.RentalSupportApplicationVO;
 import com.vacation.api.vo.RentalSupportProposalVO;
@@ -54,12 +55,12 @@ public class RentalController extends BaseController {
     private final UserService userService;
     private final ResponseMapper responseMapper;
     private final FileService fileService;
-    private final com.vacation.api.util.ZipFileUtil zipFileUtil;
+    private final ZipFileUtil zipFileUtil;
 
     public RentalController(RentaltService rentaltService, UserService userService, 
                            ResponseMapper responseMapper, FileService fileService,
                            TransactionIDCreator transactionIDCreator,
-                           com.vacation.api.util.ZipFileUtil zipFileUtil) {
+                           ZipFileUtil zipFileUtil) {
         super(transactionIDCreator);
         this.rentaltService = rentaltService;
         this.userService = userService;
@@ -356,7 +357,7 @@ public class RentalController extends BaseController {
                 try {
                     log.info("월세 지원 신청 파일 업로드 시작: seq={}, fileName={}, fileSize={}", 
                             rentalSupport.getSeq(), file.getOriginalFilename(), file.getSize());
-                    Attachment attachment = fileService.uploadFile(file, "RENTAL", rentalSupport.getSeq(), userId);
+                    Attachment attachment = fileService.uploadFile(file, ApplicationType.RENTAL.getCode(), rentalSupport.getSeq(), userId);
                     log.info("월세 지원 신청 파일 업로드 완료: attachmentSeq={}, applicationType=RENTAL, applicationSeq={}", 
                             attachment.getSeq(), rentalSupport.getSeq());
                 } catch (Exception e) {
@@ -401,7 +402,7 @@ public class RentalController extends BaseController {
                 try {
                     log.info("월세 지원 신청 파일 수정 업로드 시작: seq={}, fileName={}, fileSize={}", 
                             rentalSupport.getSeq(), file.getOriginalFilename(), file.getSize());
-                    Attachment attachment = fileService.uploadFile(file, "RENTAL", rentalSupport.getSeq(), userId);
+                    Attachment attachment = fileService.uploadFile(file, ApplicationType.RENTAL.getCode(), rentalSupport.getSeq(), userId);
                     log.info("월세 지원 신청 파일 수정 업로드 완료: attachmentSeq={}, applicationType=RENTAL, applicationSeq={}", 
                             attachment.getSeq(), rentalSupport.getSeq());
                 } catch (Exception e) {
@@ -509,8 +510,8 @@ public class RentalController extends BaseController {
             String documentFileName = "월세지원신청서_" + applicant.getName() + "_" + dateStr + ".xlsx";
             
             // 첨부파일 조회
-            List<com.vacation.api.domain.attachment.entity.Attachment> attachments = 
-                    fileService.getAttachments(com.vacation.api.enums.ApplicationType.RENTAL.getCode(), seq);
+            List<Attachment> attachments = 
+                    fileService.getAttachments(ApplicationType.RENTAL.getCode(), seq);
             
             // 첨부파일이 있으면 ZIP으로 묶기
             if (attachments != null && !attachments.isEmpty()) {
@@ -590,8 +591,8 @@ public class RentalController extends BaseController {
             String documentFileName = "월세지원품의서_" + user.getName() + "_" + dateStr + ".docx";
             
             // 첨부파일 조회
-            List<com.vacation.api.domain.attachment.entity.Attachment> attachments = 
-                    fileService.getAttachments(com.vacation.api.enums.ApplicationType.RENTAL_PROPOSAL.getCode(), seq);
+            List<Attachment> attachments = 
+                    fileService.getAttachments(ApplicationType.RENTAL_PROPOSAL.getCode(), seq);
             
             // 첨부파일이 있으면 ZIP으로 묶기
             if (attachments != null && !attachments.isEmpty()) {
@@ -658,7 +659,7 @@ public class RentalController extends BaseController {
             }
             
             // 첨부파일 조회
-            com.vacation.api.domain.attachment.entity.Attachment attachment = fileService.getAttachment(ApplicationType.RENTAL_PROPOSAL.getCode(), seq);
+            Attachment attachment = fileService.getAttachment(ApplicationType.RENTAL_PROPOSAL.getCode(), seq);
             if (attachment == null) {
                 log.warn("첨부파일이 없음: seq={}", seq);
                 return ResponseEntity.notFound().build();
@@ -709,13 +710,13 @@ public class RentalController extends BaseController {
             }
             
             // 첨부파일 조회
-            List<com.vacation.api.domain.attachment.entity.Attachment> attachments = fileService.getAttachments("RENTAL", seq);
+            List<Attachment> attachments = fileService.getAttachments(ApplicationType.RENTAL.getCode(), seq);
             if (attachments == null || attachments.isEmpty()) {
                 log.warn("첨부파일이 없음: seq={}", seq);
                 return ResponseEntity.notFound().build();
             }
             
-            com.vacation.api.domain.attachment.entity.Attachment attachment = attachments.get(0);
+            Attachment attachment = attachments.get(0);
             
             // 파일 다운로드
             Resource resource = fileService.downloadFile(attachment);

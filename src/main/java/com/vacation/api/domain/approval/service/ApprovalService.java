@@ -3,6 +3,7 @@ package com.vacation.api.domain.approval.service;
 import com.vacation.api.domain.alarm.service.AlarmService;
 import com.vacation.api.domain.approval.entity.ApprovalRejection;
 import com.vacation.api.domain.approval.repository.ApprovalRejectionRepository;
+import com.vacation.api.domain.approval.response.PendingApprovalResponse;
 import com.vacation.api.domain.expense.entity.ExpenseClaim;
 import com.vacation.api.domain.expense.repository.ExpenseClaimRepository;
 import com.vacation.api.domain.rental.entity.RentalSupport;
@@ -15,6 +16,8 @@ import com.vacation.api.domain.user.service.UserService;
 import com.vacation.api.domain.vacation.entity.VacationHistory;
 import com.vacation.api.domain.vacation.repository.VacationHistoryRepository;
 import com.vacation.api.enums.ApplicationType;
+import com.vacation.api.enums.ApprovalStatus;
+import com.vacation.api.enums.AuthVal;
 import com.vacation.api.exception.ApiErrorCode;
 import com.vacation.api.exception.ApiException;
 import lombok.RequiredArgsConstructor;
@@ -66,9 +69,9 @@ public class ApprovalService {
         // 승인 가능한 상태 확인 (A 또는 AM만 승인 가능, null은 A로 간주)
         String currentStatus = vacationHistory.getApprovalStatus();
         if (currentStatus == null) {
-            currentStatus = "A"; // null은 초기 생성 상태로 간주
+            currentStatus = ApprovalStatus.INITIAL.getName(); // null은 초기 생성 상태로 간주
         }
-        if (!"A".equals(currentStatus) && !"AM".equals(currentStatus)) {
+        if (!ApprovalStatus.INITIAL.getName().equals(currentStatus) && !ApprovalStatus.MODIFIED.getName().equals(currentStatus)) {
             log.warn("승인 불가능한 상태: seq={}, status={}", seq, currentStatus);
             throw new ApiException(ApiErrorCode.INVALID_REQUEST_FORMAT, "승인할 수 없는 상태입니다.");
         }
@@ -78,13 +81,13 @@ public class ApprovalService {
                 .orElseThrow(() -> new ApiException(ApiErrorCode.USER_NOT_FOUND));
         
         String approverAuthVal = approver.getAuthVal();
-        if (!"tj".equals(approverAuthVal) && !"ma".equals(approverAuthVal)) {
+        if (!AuthVal.TEAM_LEADER.getCode().equals(approverAuthVal) && !AuthVal.MASTER.getCode().equals(approverAuthVal)) {
             log.warn("팀장 권한이 아님: approverId={}, authVal={}", approverId, approverAuthVal);
             throw new ApiException(ApiErrorCode.ACCESS_DENIED, "팀장만 승인할 수 있습니다.");
         }
 
         // 팀원 확인 (관리자는 제외)
-        if (!"ma".equals(approverAuthVal)) {
+        if (!AuthVal.MASTER.getCode().equals(approverAuthVal)) {
             User applicant = userRepository.findById(vacationHistory.getUserId())
                     .orElseThrow(() -> new ApiException(ApiErrorCode.USER_NOT_FOUND));
 
@@ -95,12 +98,12 @@ public class ApprovalService {
             }
         }
 
-        vacationHistory.setApprovalStatus("B");
+        vacationHistory.setApprovalStatus(ApprovalStatus.TEAM_LEADER_APPROVED.getName());
         vacationHistoryRepository.save(vacationHistory);
 
         // 알람 생성: 신청자 및 본부장에게
         alarmService.createTeamLeaderApprovedAlarm(
-                vacationHistory.getUserId(), approverId, "VACATION", seq);
+                vacationHistory.getUserId(), approverId, ApplicationType.VACATION.getCode(), seq);
 
         log.info("휴가 신청 팀장 승인 완료: seq={}", seq);
     }
@@ -125,9 +128,9 @@ public class ApprovalService {
         // 반려 가능한 상태 확인 (A 또는 AM만 반려 가능, null은 A로 간주)
         String currentStatus = vacationHistory.getApprovalStatus();
         if (currentStatus == null) {
-            currentStatus = "A"; // null은 초기 생성 상태로 간주
+            currentStatus = ApprovalStatus.INITIAL.getName(); // null은 초기 생성 상태로 간주
         }
-        if (!"A".equals(currentStatus) && !"AM".equals(currentStatus)) {
+        if (!ApprovalStatus.INITIAL.getName().equals(currentStatus) && !ApprovalStatus.MODIFIED.getName().equals(currentStatus)) {
             log.warn("반려 불가능한 상태: seq={}, status={}", seq, currentStatus);
             throw new ApiException(ApiErrorCode.INVALID_REQUEST_FORMAT, "반려할 수 없는 상태입니다.");
         }
@@ -137,13 +140,13 @@ public class ApprovalService {
                 .orElseThrow(() -> new ApiException(ApiErrorCode.USER_NOT_FOUND));
         
         String approverAuthVal = approver.getAuthVal();
-        if (!"tj".equals(approverAuthVal) && !"ma".equals(approverAuthVal)) {
+        if (!AuthVal.TEAM_LEADER.getCode().equals(approverAuthVal) && !AuthVal.MASTER.getCode().equals(approverAuthVal)) {
             log.warn("팀장 권한이 아님: approverId={}, authVal={}", approverId, approverAuthVal);
             throw new ApiException(ApiErrorCode.ACCESS_DENIED, "팀장만 반려할 수 있습니다.");
         }
 
         // 팀원 확인 (관리자는 제외)
-        if (!"ma".equals(approverAuthVal)) {
+        if (!AuthVal.MASTER.getCode().equals(approverAuthVal)) {
             User applicant = userRepository.findById(vacationHistory.getUserId())
                     .orElseThrow(() -> new ApiException(ApiErrorCode.USER_NOT_FOUND));
 
@@ -154,22 +157,22 @@ public class ApprovalService {
             }
         }
 
-        vacationHistory.setApprovalStatus("RB");
+        vacationHistory.setApprovalStatus(ApprovalStatus.TEAM_LEADER_REJECTED.getName());
         vacationHistoryRepository.save(vacationHistory);
 
         // 반려 사유 저장
         ApprovalRejection rejection = ApprovalRejection.builder()
-                .applicationType("VACATION")
+                .applicationType(ApplicationType.VACATION.getCode())
                 .applicationSeq(seq)
                 .rejectedBy(approverId)
-                .rejectionLevel("TEAM_LEADER")
+                .rejectionLevel(AuthVal.TEAM_LEADER.getName())
                 .rejectionReason(rejectionReason)
                 .build();
         approvalRejectionRepository.save(rejection);
 
         // 알람 생성: 신청자에게
         alarmService.createRejectedAlarm(
-                vacationHistory.getUserId(), "VACATION", seq, rejectionReason);
+                vacationHistory.getUserId(), ApplicationType.VACATION.getCode(), seq, rejectionReason, ApprovalStatus.TEAM_LEADER_REJECTED.getName());
 
         log.info("휴가 신청 팀장 반려 완료: seq={}", seq);
     }
@@ -193,7 +196,7 @@ public class ApprovalService {
         // 승인 가능한 상태 확인 (B만 승인 가능)
         String currentStatus = vacationHistory.getApprovalStatus();
         // null이거나 B가 아니면 에러 (관리자는 null 체크 추가)
-        if (currentStatus == null || !"B".equals(currentStatus)) {
+        if (currentStatus == null || !ApprovalStatus.TEAM_LEADER_APPROVED.getName().equals(currentStatus)) {
             log.warn("승인 불가능한 상태: seq={}, status={}", seq, currentStatus);
             throw new ApiException(ApiErrorCode.INVALID_REQUEST_FORMAT, "승인할 수 없는 상태입니다.");
         }
@@ -203,13 +206,13 @@ public class ApprovalService {
                 .orElseThrow(() -> new ApiException(ApiErrorCode.USER_NOT_FOUND));
         
         String approverAuthVal = approver.getAuthVal();
-        if (!"bb".equals(approverAuthVal) && !"ma".equals(approverAuthVal)) {
+        if (!AuthVal.DIVISION_HEAD.getCode().equals(approverAuthVal) && !AuthVal.MASTER.getCode().equals(approverAuthVal)) {
             log.warn("본부장 권한이 아님: approverId={}, authVal={}", approverId, approverAuthVal);
             throw new ApiException(ApiErrorCode.ACCESS_DENIED, "본부장만 승인할 수 있습니다.");
         }
 
         // 같은 본부 확인 (관리자는 제외)
-        if (!"ma".equals(approverAuthVal)) {
+        if (!AuthVal.MASTER.getCode().equals(approverAuthVal)) {
             User applicant = userRepository.findById(vacationHistory.getUserId())
                     .orElseThrow(() -> new ApiException(ApiErrorCode.USER_NOT_FOUND));
 
@@ -219,12 +222,12 @@ public class ApprovalService {
             }
         }
 
-        vacationHistory.setApprovalStatus("C");
+        vacationHistory.setApprovalStatus(ApprovalStatus.DIVISION_HEAD_APPROVED.getName());
         vacationHistoryRepository.save(vacationHistory);
 
         // 알람 생성: 신청자에게
         alarmService.createDivisionHeadApprovedAlarm(
-                vacationHistory.getUserId(), "VACATION", seq);
+                vacationHistory.getUserId(), ApplicationType.VACATION.getCode(), seq);
 
         log.info("휴가 신청 본부장 승인 완료: seq={}", seq);
     }
@@ -249,7 +252,7 @@ public class ApprovalService {
         // 반려 가능한 상태 확인 (B만 반려 가능)
         String currentStatus = vacationHistory.getApprovalStatus();
         // null이거나 B가 아니면 에러
-        if (currentStatus == null || !"B".equals(currentStatus)) {
+        if (currentStatus == null || !ApprovalStatus.TEAM_LEADER_APPROVED.getName().equals(currentStatus)) {
             log.warn("반려 불가능한 상태: seq={}, status={}", seq, currentStatus);
             throw new ApiException(ApiErrorCode.INVALID_REQUEST_FORMAT, "반려할 수 없는 상태입니다.");
         }
@@ -259,13 +262,13 @@ public class ApprovalService {
                 .orElseThrow(() -> new ApiException(ApiErrorCode.USER_NOT_FOUND));
         
         String approverAuthVal = approver.getAuthVal();
-        if (!"bb".equals(approverAuthVal) && !"ma".equals(approverAuthVal)) {
+        if (!AuthVal.DIVISION_HEAD.getCode().equals(approverAuthVal) && !AuthVal.MASTER.getCode().equals(approverAuthVal)) {
             log.warn("본부장 권한이 아님: approverId={}, authVal={}", approverId, approverAuthVal);
             throw new ApiException(ApiErrorCode.ACCESS_DENIED, "본부장만 반려할 수 있습니다.");
         }
 
         // 같은 본부 확인 (관리자는 제외)
-        if (!"ma".equals(approverAuthVal)) {
+        if (!AuthVal.MASTER.getCode().equals(approverAuthVal)) {
             User applicant = userRepository.findById(vacationHistory.getUserId())
                     .orElseThrow(() -> new ApiException(ApiErrorCode.USER_NOT_FOUND));
 
@@ -275,22 +278,22 @@ public class ApprovalService {
             }
         }
 
-        vacationHistory.setApprovalStatus("RC");
+        vacationHistory.setApprovalStatus(ApprovalStatus.DIVISION_HEAD_REJECTED.getName());
         vacationHistoryRepository.save(vacationHistory);
 
         // 반려 사유 저장
         ApprovalRejection rejection = ApprovalRejection.builder()
-                .applicationType("VACATION")
+                .applicationType(ApplicationType.VACATION.getCode())
                 .applicationSeq(seq)
                 .rejectedBy(approverId)
-                .rejectionLevel("DIVISION_HEAD")
+                    .rejectionLevel(AuthVal.DIVISION_HEAD.getName())
                 .rejectionReason(rejectionReason)
                 .build();
         approvalRejectionRepository.save(rejection);
 
         // 알람 생성: 신청자에게
         alarmService.createRejectedAlarm(
-                vacationHistory.getUserId(), "VACATION", seq, rejectionReason);
+                vacationHistory.getUserId(), ApplicationType.VACATION.getCode(), seq, rejectionReason, ApprovalStatus.DIVISION_HEAD_REJECTED.getName());
 
         log.info("휴가 신청 본부장 반려 완료: seq={}", seq);
     }
@@ -314,9 +317,9 @@ public class ApprovalService {
         // 승인 가능한 상태 확인 (A 또는 AM만 승인 가능, null은 A로 간주)
         String currentStatus = expenseClaim.getApprovalStatus();
         if (currentStatus == null) {
-            currentStatus = "A"; // null은 초기 생성 상태로 간주
+            currentStatus = ApprovalStatus.INITIAL.getName(); // null은 초기 생성 상태로 간주
         }
-        if (!"A".equals(currentStatus) && !"AM".equals(currentStatus)) {
+        if (!ApprovalStatus.INITIAL.getName().equals(currentStatus) && !ApprovalStatus.MODIFIED.getName().equals(currentStatus)) {
             log.warn("승인 불가능한 상태: seq={}, status={}", seq, currentStatus);
             throw new ApiException(ApiErrorCode.INVALID_REQUEST_FORMAT, "승인할 수 없는 상태입니다.");
         }
@@ -325,12 +328,12 @@ public class ApprovalService {
                 .orElseThrow(() -> new ApiException(ApiErrorCode.USER_NOT_FOUND));
         
         String approverAuthVal = approver.getAuthVal();
-        if (!"tj".equals(approverAuthVal) && !"ma".equals(approverAuthVal)) {
+        if (!AuthVal.TEAM_LEADER.getCode().equals(approverAuthVal) && !AuthVal.MASTER.getCode().equals(approverAuthVal)) {
             throw new ApiException(ApiErrorCode.ACCESS_DENIED, "팀장만 승인할 수 있습니다.");
         }
 
         // 팀원 확인 (관리자는 제외)
-        if (!"ma".equals(approverAuthVal)) {
+        if (!AuthVal.MASTER.getCode().equals(approverAuthVal)) {
             User applicant = userRepository.findById(expenseClaim.getUserId())
                     .orElseThrow(() -> new ApiException(ApiErrorCode.USER_NOT_FOUND));
 
@@ -340,12 +343,12 @@ public class ApprovalService {
             }
         }
 
-        expenseClaim.setApprovalStatus("B");
+        expenseClaim.setApprovalStatus(ApprovalStatus.TEAM_LEADER_APPROVED.getName());
         expenseClaimRepository.save(expenseClaim);
 
         // 알람 생성: 신청자 및 본부장에게
         alarmService.createTeamLeaderApprovedAlarm(
-                expenseClaim.getUserId(), approverId, "EXPENSE", seq);
+                expenseClaim.getUserId(), approverId, ApplicationType.EXPENSE.getCode(), seq);
 
         log.info("개인 비용 청구 팀장 승인 완료: seq={}", seq);
     }
@@ -366,9 +369,9 @@ public class ApprovalService {
         // 반려 가능한 상태 확인 (A 또는 AM만 반려 가능, null은 A로 간주)
         String currentStatus = expenseClaim.getApprovalStatus();
         if (currentStatus == null) {
-            currentStatus = "A"; // null은 초기 생성 상태로 간주
+            currentStatus = ApprovalStatus.INITIAL.getName(); // null은 초기 생성 상태로 간주
         }
-        if (!"A".equals(currentStatus) && !"AM".equals(currentStatus)) {
+        if (!ApprovalStatus.INITIAL.getName().equals(currentStatus) && !ApprovalStatus.MODIFIED.getName().equals(currentStatus)) {
             log.warn("반려 불가능한 상태: seq={}, status={}", seq, currentStatus);
             throw new ApiException(ApiErrorCode.INVALID_REQUEST_FORMAT, "반려할 수 없는 상태입니다.");
         }
@@ -377,12 +380,12 @@ public class ApprovalService {
                 .orElseThrow(() -> new ApiException(ApiErrorCode.USER_NOT_FOUND));
         
         String approverAuthVal = approver.getAuthVal();
-        if (!"tj".equals(approverAuthVal) && !"ma".equals(approverAuthVal)) {
+        if (!AuthVal.TEAM_LEADER.getCode().equals(approverAuthVal) && !AuthVal.MASTER.getCode().equals(approverAuthVal)) {
             throw new ApiException(ApiErrorCode.ACCESS_DENIED, "팀장만 반려할 수 있습니다.");
         }
 
         // 팀원 확인 (관리자는 제외)
-        if (!"ma".equals(approverAuthVal)) {
+        if (!AuthVal.MASTER.getCode().equals(approverAuthVal)) {
             User applicant = userRepository.findById(expenseClaim.getUserId())
                     .orElseThrow(() -> new ApiException(ApiErrorCode.USER_NOT_FOUND));
 
@@ -392,21 +395,21 @@ public class ApprovalService {
             }
         }
 
-        expenseClaim.setApprovalStatus("RB");
+        expenseClaim.setApprovalStatus(ApprovalStatus.TEAM_LEADER_REJECTED.getName());
         expenseClaimRepository.save(expenseClaim);
 
         ApprovalRejection rejection = ApprovalRejection.builder()
-                .applicationType("EXPENSE")
+                .applicationType(ApplicationType.EXPENSE.getCode())
                 .applicationSeq(seq)
                 .rejectedBy(approverId)
-                .rejectionLevel("TEAM_LEADER")
+                .rejectionLevel(AuthVal.TEAM_LEADER.getName())
                 .rejectionReason(rejectionReason)
                 .build();
         approvalRejectionRepository.save(rejection);
 
         // 알람 생성: 신청자에게
         alarmService.createRejectedAlarm(
-                expenseClaim.getUserId(), "EXPENSE", seq, rejectionReason);
+                expenseClaim.getUserId(), ApplicationType.EXPENSE.getCode(), seq, rejectionReason, ApprovalStatus.TEAM_LEADER_REJECTED.getName());
 
         log.info("개인 비용 청구 팀장 반려 완료: seq={}", seq);
     }
@@ -427,7 +430,7 @@ public class ApprovalService {
         // 승인 가능한 상태 확인 (B만 승인 가능)
         String currentStatus = expenseClaim.getApprovalStatus();
         // null이거나 B가 아니면 에러
-        if (currentStatus == null || !"B".equals(currentStatus)) {
+        if (currentStatus == null || !ApprovalStatus.TEAM_LEADER_APPROVED.getName().equals(currentStatus)) {
             log.warn("승인 불가능한 상태: seq={}, status={}", seq, currentStatus);
             throw new ApiException(ApiErrorCode.INVALID_REQUEST_FORMAT, "승인할 수 없는 상태입니다.");
         }
@@ -436,12 +439,12 @@ public class ApprovalService {
                 .orElseThrow(() -> new ApiException(ApiErrorCode.USER_NOT_FOUND));
         
         String approverAuthVal = approver.getAuthVal();
-        if (!"bb".equals(approverAuthVal) && !"ma".equals(approverAuthVal)) {
+        if (!AuthVal.DIVISION_HEAD.getCode().equals(approverAuthVal) && !AuthVal.MASTER.getCode().equals(approverAuthVal)) {
             throw new ApiException(ApiErrorCode.ACCESS_DENIED, "본부장만 승인할 수 있습니다.");
         }
 
         // 같은 본부 확인 (관리자는 제외)
-        if (!"ma".equals(approverAuthVal)) {
+        if (!AuthVal.MASTER.getCode().equals(approverAuthVal)) {
             User applicant = userRepository.findById(expenseClaim.getUserId())
                     .orElseThrow(() -> new ApiException(ApiErrorCode.USER_NOT_FOUND));
 
@@ -450,12 +453,12 @@ public class ApprovalService {
             }
         }
 
-        expenseClaim.setApprovalStatus("C");
+        expenseClaim.setApprovalStatus(ApprovalStatus.DIVISION_HEAD_APPROVED.getName());
         expenseClaimRepository.save(expenseClaim);
 
         // 알람 생성: 신청자에게
         alarmService.createDivisionHeadApprovedAlarm(
-                expenseClaim.getUserId(), "EXPENSE", seq);
+                expenseClaim.getUserId(), ApplicationType.EXPENSE.getCode(), seq);
 
         log.info("개인 비용 청구 본부장 승인 완료: seq={}", seq);
     }
@@ -476,7 +479,7 @@ public class ApprovalService {
         // 반려 가능한 상태 확인 (B만 반려 가능)
         String currentStatus = expenseClaim.getApprovalStatus();
         // null이거나 B가 아니면 에러
-        if (currentStatus == null || !"B".equals(currentStatus)) {
+        if (currentStatus == null || !ApprovalStatus.TEAM_LEADER_APPROVED.getName().equals(currentStatus)) {
             log.warn("반려 불가능한 상태: seq={}, status={}", seq, currentStatus);
             throw new ApiException(ApiErrorCode.INVALID_REQUEST_FORMAT, "반려할 수 없는 상태입니다.");
         }
@@ -485,12 +488,12 @@ public class ApprovalService {
                 .orElseThrow(() -> new ApiException(ApiErrorCode.USER_NOT_FOUND));
         
         String approverAuthVal = approver.getAuthVal();
-        if (!"bb".equals(approverAuthVal) && !"ma".equals(approverAuthVal)) {
+        if (!AuthVal.DIVISION_HEAD.getCode().equals(approverAuthVal) && !AuthVal.MASTER.getCode().equals(approverAuthVal)) {
             throw new ApiException(ApiErrorCode.ACCESS_DENIED, "본부장만 반려할 수 있습니다.");
         }
 
         // 같은 본부 확인 (관리자는 제외)
-        if (!"ma".equals(approverAuthVal)) {
+        if (!AuthVal.MASTER.getCode().equals(approverAuthVal)) {
             User applicant = userRepository.findById(expenseClaim.getUserId())
                     .orElseThrow(() -> new ApiException(ApiErrorCode.USER_NOT_FOUND));
 
@@ -499,21 +502,21 @@ public class ApprovalService {
             }
         }
 
-        expenseClaim.setApprovalStatus("RC");
+        expenseClaim.setApprovalStatus(ApprovalStatus.DIVISION_HEAD_REJECTED.getName());
         expenseClaimRepository.save(expenseClaim);
 
         ApprovalRejection rejection = ApprovalRejection.builder()
-                .applicationType("EXPENSE")
+                .applicationType(ApplicationType.EXPENSE.getCode())
                 .applicationSeq(seq)
                 .rejectedBy(approverId)
-                .rejectionLevel("DIVISION_HEAD")
+                .rejectionLevel(AuthVal.DIVISION_HEAD.getName())
                 .rejectionReason(rejectionReason)
                 .build();
         approvalRejectionRepository.save(rejection);
 
         // 알람 생성: 신청자에게
         alarmService.createRejectedAlarm(
-                expenseClaim.getUserId(), "EXPENSE", seq, rejectionReason);
+                expenseClaim.getUserId(), ApplicationType.EXPENSE.getCode(), seq, rejectionReason, ApprovalStatus.DIVISION_HEAD_REJECTED.getName());
 
         log.info("개인 비용 청구 본부장 반려 완료: seq={}", seq);
     }
@@ -534,9 +537,9 @@ public class ApprovalService {
         // 승인 가능한 상태 확인 (A 또는 AM만 승인 가능, null은 A로 간주)
         String currentStatus = rentalSupport.getApprovalStatus();
         if (currentStatus == null) {
-            currentStatus = "A"; // null은 초기 생성 상태로 간주
+            currentStatus = ApprovalStatus.INITIAL.getName(); // null은 초기 생성 상태로 간주
         }
-        if (!"A".equals(currentStatus) && !"AM".equals(currentStatus)) {
+        if (!ApprovalStatus.INITIAL.getName().equals(currentStatus) && !ApprovalStatus.MODIFIED.getName().equals(currentStatus)) {
             log.warn("승인 불가능한 상태: seq={}, status={}", seq, currentStatus);
             throw new ApiException(ApiErrorCode.INVALID_REQUEST_FORMAT, "승인할 수 없는 상태입니다.");
         }
@@ -545,12 +548,12 @@ public class ApprovalService {
                 .orElseThrow(() -> new ApiException(ApiErrorCode.USER_NOT_FOUND));
         
         String approverAuthVal = approver.getAuthVal();
-        if (!"tj".equals(approverAuthVal) && !"ma".equals(approverAuthVal)) {
+        if (!AuthVal.TEAM_LEADER.getCode().equals(approverAuthVal) && !AuthVal.MASTER.getCode().equals(approverAuthVal)) {
             throw new ApiException(ApiErrorCode.ACCESS_DENIED, "팀장만 승인할 수 있습니다.");
         }
 
         // 팀원 확인 (관리자는 제외)
-        if (!"ma".equals(approverAuthVal)) {
+        if (!AuthVal.MASTER.getCode().equals(approverAuthVal)) {
             User applicant = userRepository.findById(rentalSupport.getUserId())
                     .orElseThrow(() -> new ApiException(ApiErrorCode.USER_NOT_FOUND));
 
@@ -560,12 +563,12 @@ public class ApprovalService {
             }
         }
 
-        rentalSupport.setApprovalStatus("B");
+        rentalSupport.setApprovalStatus(ApprovalStatus.TEAM_LEADER_APPROVED.getName());
         rentalSupportRepository.save(rentalSupport);
 
         // 알람 생성: 신청자 및 본부장에게
         alarmService.createTeamLeaderApprovedAlarm(
-                rentalSupport.getUserId(), approverId, "RENTAL", seq);
+                rentalSupport.getUserId(), approverId, ApplicationType.RENTAL.getCode(), seq);
 
         log.info("월세 지원 신청 팀장 승인 완료: seq={}", seq);
     }
@@ -586,9 +589,9 @@ public class ApprovalService {
         // 반려 가능한 상태 확인 (A 또는 AM만 반려 가능, null은 A로 간주)
         String currentStatus = rentalSupport.getApprovalStatus();
         if (currentStatus == null) {
-            currentStatus = "A"; // null은 초기 생성 상태로 간주
+            currentStatus = ApprovalStatus.INITIAL.getName(); // null은 초기 생성 상태로 간주
         }
-        if (!"A".equals(currentStatus) && !"AM".equals(currentStatus)) {
+        if (!ApprovalStatus.INITIAL.getName().equals(currentStatus) && !ApprovalStatus.MODIFIED.getName().equals(currentStatus)) {
             log.warn("반려 불가능한 상태: seq={}, status={}", seq, currentStatus);
             throw new ApiException(ApiErrorCode.INVALID_REQUEST_FORMAT, "반려할 수 없는 상태입니다.");
         }
@@ -597,12 +600,12 @@ public class ApprovalService {
                 .orElseThrow(() -> new ApiException(ApiErrorCode.USER_NOT_FOUND));
         
         String approverAuthVal = approver.getAuthVal();
-        if (!"tj".equals(approverAuthVal) && !"ma".equals(approverAuthVal)) {
+        if (!AuthVal.TEAM_LEADER.getCode().equals(approverAuthVal) && !AuthVal.MASTER.getCode().equals(approverAuthVal)) {
             throw new ApiException(ApiErrorCode.ACCESS_DENIED, "팀장만 반려할 수 있습니다.");
         }
 
         // 팀원 확인 (관리자는 제외)
-        if (!"ma".equals(approverAuthVal)) {
+        if (!AuthVal.MASTER.getCode().equals(approverAuthVal)) {
             User applicant = userRepository.findById(rentalSupport.getUserId())
                     .orElseThrow(() -> new ApiException(ApiErrorCode.USER_NOT_FOUND));
 
@@ -612,21 +615,21 @@ public class ApprovalService {
             }
         }
 
-        rentalSupport.setApprovalStatus("RB");
+        rentalSupport.setApprovalStatus(ApprovalStatus.TEAM_LEADER_REJECTED.getName());
         rentalSupportRepository.save(rentalSupport);
 
         ApprovalRejection rejection = ApprovalRejection.builder()
-                .applicationType("RENTAL")
+                .applicationType(ApplicationType.RENTAL.getCode())
                 .applicationSeq(seq)
                 .rejectedBy(approverId)
-                .rejectionLevel("TEAM_LEADER")
+                .rejectionLevel(AuthVal.TEAM_LEADER.getName())
                 .rejectionReason(rejectionReason)
                 .build();
         approvalRejectionRepository.save(rejection);
 
         // 알람 생성: 신청자에게
         alarmService.createRejectedAlarm(
-                rentalSupport.getUserId(), "RENTAL", seq, rejectionReason);
+                rentalSupport.getUserId(), ApplicationType.RENTAL.getCode(), seq, rejectionReason, ApprovalStatus.TEAM_LEADER_REJECTED.getName());
 
         log.info("월세 지원 신청 팀장 반려 완료: seq={}", seq);
     }
@@ -647,7 +650,7 @@ public class ApprovalService {
         // 승인 가능한 상태 확인 (B만 승인 가능)
         String currentStatus = rentalSupport.getApprovalStatus();
         // null이거나 B가 아니면 에러
-        if (currentStatus == null || !"B".equals(currentStatus)) {
+        if (currentStatus == null || !ApprovalStatus.TEAM_LEADER_APPROVED.getName().equals(currentStatus)) {
             log.warn("승인 불가능한 상태: seq={}, status={}", seq, currentStatus);
             throw new ApiException(ApiErrorCode.INVALID_REQUEST_FORMAT, "승인할 수 없는 상태입니다.");
         }
@@ -656,12 +659,12 @@ public class ApprovalService {
                 .orElseThrow(() -> new ApiException(ApiErrorCode.USER_NOT_FOUND));
         
         String approverAuthVal = approver.getAuthVal();
-        if (!"bb".equals(approverAuthVal) && !"ma".equals(approverAuthVal)) {
+        if (!AuthVal.DIVISION_HEAD.getCode().equals(approverAuthVal) && !AuthVal.MASTER.getCode().equals(approverAuthVal)) {
             throw new ApiException(ApiErrorCode.ACCESS_DENIED, "본부장만 승인할 수 있습니다.");
         }
 
         // 같은 본부 확인 (관리자는 제외)
-        if (!"ma".equals(approverAuthVal)) {
+        if (!AuthVal.MASTER.getCode().equals(approverAuthVal)) {
             User applicant = userRepository.findById(rentalSupport.getUserId())
                     .orElseThrow(() -> new ApiException(ApiErrorCode.USER_NOT_FOUND));
 
@@ -670,12 +673,12 @@ public class ApprovalService {
             }
         }
 
-        rentalSupport.setApprovalStatus("C");
+        rentalSupport.setApprovalStatus(ApprovalStatus.DIVISION_HEAD_APPROVED.getName());
         rentalSupportRepository.save(rentalSupport);
 
         // 알람 생성: 신청자에게
         alarmService.createDivisionHeadApprovedAlarm(
-                rentalSupport.getUserId(), "RENTAL", seq);
+                rentalSupport.getUserId(), ApplicationType.RENTAL.getCode(), seq);
 
         log.info("월세 지원 신청 본부장 승인 완료: seq={}", seq);
     }
@@ -696,7 +699,7 @@ public class ApprovalService {
         // 반려 가능한 상태 확인 (B만 반려 가능)
         String currentStatus = rentalSupport.getApprovalStatus();
         // null이거나 B가 아니면 에러
-        if (currentStatus == null || !"B".equals(currentStatus)) {
+        if (currentStatus == null || !ApprovalStatus.TEAM_LEADER_APPROVED.getName().equals(currentStatus)) {
             log.warn("반려 불가능한 상태: seq={}, status={}", seq, currentStatus);
             throw new ApiException(ApiErrorCode.INVALID_REQUEST_FORMAT, "반려할 수 없는 상태입니다.");
         }
@@ -705,12 +708,12 @@ public class ApprovalService {
                 .orElseThrow(() -> new ApiException(ApiErrorCode.USER_NOT_FOUND));
         
         String approverAuthVal = approver.getAuthVal();
-        if (!"bb".equals(approverAuthVal) && !"ma".equals(approverAuthVal)) {
+        if (!AuthVal.DIVISION_HEAD.getCode().equals(approverAuthVal) && !AuthVal.MASTER.getCode().equals(approverAuthVal)) {
             throw new ApiException(ApiErrorCode.ACCESS_DENIED, "본부장만 반려할 수 있습니다.");
         }
 
         // 같은 본부 확인 (관리자는 제외)
-        if (!"ma".equals(approverAuthVal)) {
+        if (!AuthVal.MASTER.getCode().equals(approverAuthVal)) {
             User applicant = userRepository.findById(rentalSupport.getUserId())
                     .orElseThrow(() -> new ApiException(ApiErrorCode.USER_NOT_FOUND));
 
@@ -719,21 +722,21 @@ public class ApprovalService {
             }
         }
 
-        rentalSupport.setApprovalStatus("RC");
+        rentalSupport.setApprovalStatus(ApprovalStatus.DIVISION_HEAD_REJECTED.getName());
         rentalSupportRepository.save(rentalSupport);
 
         ApprovalRejection rejection = ApprovalRejection.builder()
-                .applicationType("RENTAL")
+                .applicationType(ApplicationType.RENTAL.getCode())
                 .applicationSeq(seq)
                 .rejectedBy(approverId)
-                .rejectionLevel("DIVISION_HEAD")
+                .rejectionLevel(AuthVal.DIVISION_HEAD.getName())
                 .rejectionReason(rejectionReason)
                 .build();
         approvalRejectionRepository.save(rejection);
 
         // 알람 생성: 신청자에게
         alarmService.createRejectedAlarm(
-                rentalSupport.getUserId(), "RENTAL", seq, rejectionReason);
+                rentalSupport.getUserId(), ApplicationType.RENTAL.getCode(), seq, rejectionReason, ApprovalStatus.DIVISION_HEAD_REJECTED.getName());
 
         log.info("월세 지원 신청 본부장 반려 완료: seq={}", seq);
     }
@@ -754,9 +757,9 @@ public class ApprovalService {
         // 승인 가능한 상태 확인 (A 또는 AM만 승인 가능, null은 A로 간주)
         String currentStatus = rentalProposal.getApprovalStatus();
         if (currentStatus == null) {
-            currentStatus = "A"; // null은 초기 생성 상태로 간주
+            currentStatus = ApprovalStatus.INITIAL.getName(); // null은 초기 생성 상태로 간주
         }
-        if (!"A".equals(currentStatus) && !"AM".equals(currentStatus)) {
+        if (!ApprovalStatus.INITIAL.getName().equals(currentStatus) && !ApprovalStatus.MODIFIED.getName().equals(currentStatus)) {
             log.warn("승인 불가능한 상태: seq={}, status={}", seq, currentStatus);
             throw new ApiException(ApiErrorCode.INVALID_REQUEST_FORMAT, "승인할 수 없는 상태입니다.");
         }
@@ -765,12 +768,12 @@ public class ApprovalService {
                 .orElseThrow(() -> new ApiException(ApiErrorCode.USER_NOT_FOUND));
         
         String approverAuthVal = approver.getAuthVal();
-        if (!"tj".equals(approverAuthVal) && !"ma".equals(approverAuthVal)) {
+        if (!AuthVal.TEAM_LEADER.getCode().equals(approverAuthVal) && !AuthVal.MASTER.getCode().equals(approverAuthVal)) {
             throw new ApiException(ApiErrorCode.ACCESS_DENIED, "팀장만 승인할 수 있습니다.");
         }
 
         // 팀원 확인 (관리자는 제외)
-        if (!"ma".equals(approverAuthVal)) {
+        if (!AuthVal.MASTER.getCode().equals(approverAuthVal)) {
             User applicant = userRepository.findById(rentalProposal.getUserId())
                     .orElseThrow(() -> new ApiException(ApiErrorCode.USER_NOT_FOUND));
 
@@ -780,7 +783,7 @@ public class ApprovalService {
             }
         }
 
-        rentalProposal.setApprovalStatus("B");
+        rentalProposal.setApprovalStatus(ApprovalStatus.TEAM_LEADER_APPROVED.getName());
         rentalProposalRepository.save(rentalProposal);
 
         // 알람 생성: 신청자 및 본부장에게
@@ -806,9 +809,9 @@ public class ApprovalService {
         // 반려 가능한 상태 확인 (A 또는 AM만 반려 가능, null은 A로 간주)
         String currentStatus = rentalProposal.getApprovalStatus();
         if (currentStatus == null) {
-            currentStatus = "A"; // null은 초기 생성 상태로 간주
+            currentStatus = ApprovalStatus.INITIAL.getName(); // null은 초기 생성 상태로 간주
         }
-        if (!"A".equals(currentStatus) && !"AM".equals(currentStatus)) {
+        if (!ApprovalStatus.INITIAL.getName().equals(currentStatus) && !ApprovalStatus.MODIFIED.getName().equals(currentStatus)) {
             log.warn("반려 불가능한 상태: seq={}, status={}", seq, currentStatus);
             throw new ApiException(ApiErrorCode.INVALID_REQUEST_FORMAT, "반려할 수 없는 상태입니다.");
         }
@@ -817,12 +820,12 @@ public class ApprovalService {
                 .orElseThrow(() -> new ApiException(ApiErrorCode.USER_NOT_FOUND));
         
         String approverAuthVal = approver.getAuthVal();
-        if (!"tj".equals(approverAuthVal) && !"ma".equals(approverAuthVal)) {
+        if (!AuthVal.TEAM_LEADER.getCode().equals(approverAuthVal) && !AuthVal.MASTER.getCode().equals(approverAuthVal)) {
             throw new ApiException(ApiErrorCode.ACCESS_DENIED, "팀장만 반려할 수 있습니다.");
         }
 
         // 팀원 확인 (관리자는 제외)
-        if (!"ma".equals(approverAuthVal)) {
+        if (!AuthVal.MASTER.getCode().equals(approverAuthVal)) {
             User applicant = userRepository.findById(rentalProposal.getUserId())
                     .orElseThrow(() -> new ApiException(ApiErrorCode.USER_NOT_FOUND));
 
@@ -832,21 +835,21 @@ public class ApprovalService {
             }
         }
 
-        rentalProposal.setApprovalStatus("RB");
+        rentalProposal.setApprovalStatus(ApprovalStatus.TEAM_LEADER_REJECTED.getName());
         rentalProposalRepository.save(rentalProposal);
 
         ApprovalRejection rejection = ApprovalRejection.builder()
                 .applicationType(ApplicationType.RENTAL_PROPOSAL.getCode())
                 .applicationSeq(seq)
                 .rejectedBy(approverId)
-                .rejectionLevel("TEAM_LEADER")
+                .rejectionLevel(AuthVal.TEAM_LEADER.getName())
                 .rejectionReason(rejectionReason)
                 .build();
         approvalRejectionRepository.save(rejection);
 
         // 알람 생성: 신청자에게
         alarmService.createRejectedAlarm(
-                rentalProposal.getUserId(), ApplicationType.RENTAL_PROPOSAL.getCode(), seq, rejectionReason);
+                rentalProposal.getUserId(), ApplicationType.RENTAL_PROPOSAL.getCode(), seq, rejectionReason, ApprovalStatus.TEAM_LEADER_REJECTED.getName());
 
         log.info("월세 품의서 팀장 반려 완료: seq={}", seq);
     }
@@ -867,7 +870,7 @@ public class ApprovalService {
         // 승인 가능한 상태 확인 (B만 승인 가능)
         String currentStatus = rentalProposal.getApprovalStatus();
         // null이거나 B가 아니면 에러
-        if (currentStatus == null || !"B".equals(currentStatus)) {
+        if (currentStatus == null || !ApprovalStatus.TEAM_LEADER_APPROVED.getName().equals(currentStatus)) {
             log.warn("승인 불가능한 상태: seq={}, status={}", seq, currentStatus);
             throw new ApiException(ApiErrorCode.INVALID_REQUEST_FORMAT, "승인할 수 없는 상태입니다.");
         }
@@ -876,12 +879,12 @@ public class ApprovalService {
                 .orElseThrow(() -> new ApiException(ApiErrorCode.USER_NOT_FOUND));
         
         String approverAuthVal = approver.getAuthVal();
-        if (!"bb".equals(approverAuthVal) && !"ma".equals(approverAuthVal)) {
+        if (!AuthVal.DIVISION_HEAD.getCode().equals(approverAuthVal) && !AuthVal.MASTER.getCode().equals(approverAuthVal)) {
             throw new ApiException(ApiErrorCode.ACCESS_DENIED, "본부장만 승인할 수 있습니다.");
         }
 
         // 같은 본부 확인 (관리자는 제외)
-        if (!"ma".equals(approverAuthVal)) {
+        if (!AuthVal.MASTER.getCode().equals(approverAuthVal)) {
             User applicant = userRepository.findById(rentalProposal.getUserId())
                     .orElseThrow(() -> new ApiException(ApiErrorCode.USER_NOT_FOUND));
 
@@ -890,7 +893,7 @@ public class ApprovalService {
             }
         }
 
-        rentalProposal.setApprovalStatus("C");
+        rentalProposal.setApprovalStatus(ApprovalStatus.DIVISION_HEAD_APPROVED.getName());
         rentalProposalRepository.save(rentalProposal);
 
         // 알람 생성: 신청자에게
@@ -916,7 +919,7 @@ public class ApprovalService {
         // 반려 가능한 상태 확인 (B만 반려 가능)
         String currentStatus = rentalProposal.getApprovalStatus();
         // null이거나 B가 아니면 에러
-        if (currentStatus == null || !"B".equals(currentStatus)) {
+        if (currentStatus == null || !ApprovalStatus.TEAM_LEADER_APPROVED.getName().equals(currentStatus)) {
             log.warn("반려 불가능한 상태: seq={}, status={}", seq, currentStatus);
             throw new ApiException(ApiErrorCode.INVALID_REQUEST_FORMAT, "반려할 수 없는 상태입니다.");
         }
@@ -925,12 +928,12 @@ public class ApprovalService {
                 .orElseThrow(() -> new ApiException(ApiErrorCode.USER_NOT_FOUND));
         
         String approverAuthVal = approver.getAuthVal();
-        if (!"bb".equals(approverAuthVal) && !"ma".equals(approverAuthVal)) {
+        if (!AuthVal.DIVISION_HEAD.getCode().equals(approverAuthVal) && !AuthVal.MASTER.getCode().equals(approverAuthVal)) {
             throw new ApiException(ApiErrorCode.ACCESS_DENIED, "본부장만 반려할 수 있습니다.");
         }
 
         // 같은 본부 확인 (관리자는 제외)
-        if (!"ma".equals(approverAuthVal)) {
+        if (!AuthVal.MASTER.getCode().equals(approverAuthVal)) {
             User applicant = userRepository.findById(rentalProposal.getUserId())
                     .orElseThrow(() -> new ApiException(ApiErrorCode.USER_NOT_FOUND));
 
@@ -939,21 +942,21 @@ public class ApprovalService {
             }
         }
 
-        rentalProposal.setApprovalStatus("RC");
+        rentalProposal.setApprovalStatus(ApprovalStatus.DIVISION_HEAD_REJECTED.getName());
         rentalProposalRepository.save(rentalProposal);
 
         ApprovalRejection rejection = ApprovalRejection.builder()
                 .applicationType(ApplicationType.RENTAL_PROPOSAL.getCode())
                 .applicationSeq(seq)
                 .rejectedBy(approverId)
-                .rejectionLevel("DIVISION_HEAD")
+                .rejectionLevel(AuthVal.DIVISION_HEAD.getName())
                 .rejectionReason(rejectionReason)
                 .build();
         approvalRejectionRepository.save(rejection);
 
         // 알람 생성: 신청자에게
         alarmService.createRejectedAlarm(
-                rentalProposal.getUserId(), ApplicationType.RENTAL_PROPOSAL.getCode(), seq, rejectionReason);
+                rentalProposal.getUserId(), ApplicationType.RENTAL_PROPOSAL.getCode(), seq, rejectionReason, ApprovalStatus.DIVISION_HEAD_REJECTED.getName());
 
         log.info("월세 품의서 본부장 반려 완료: seq={}", seq);
     }
@@ -971,7 +974,7 @@ public class ApprovalService {
      * @param size 페이지 크기
      * @return 승인 대기 목록
      */
-    public com.vacation.api.domain.approval.response.PendingApprovalResponse getPendingApprovals(
+    public PendingApprovalResponse getPendingApprovals(
             Long requesterId, String type, String listType, int page, int size) {
         log.info("승인 대기 목록 조회: requesterId={}, type={}, listType={}, page={}, size={}", 
                 requesterId, type, listType, page, size);
@@ -984,40 +987,46 @@ public class ApprovalService {
         final List<String> approvalStatuses;
 
         // 권한별 필터링 조건 설정
-        if ("ma".equals(authVal)) {
+        if (AuthVal.MASTER.getCode().equals(authVal)) {
             userIds = null; // 관리자: 전체 조회
-            approvalStatuses = List.of("A", "AM", "B", "RB", "RC", "C");
-        } else if ("bb".equals(authVal)) {
+            approvalStatuses = List.of(
+                    ApprovalStatus.INITIAL.getName(),
+                    ApprovalStatus.MODIFIED.getName(),
+                    ApprovalStatus.TEAM_LEADER_APPROVED.getName(),
+                    ApprovalStatus.TEAM_LEADER_REJECTED.getName(),
+                    ApprovalStatus.DIVISION_HEAD_REJECTED.getName(),
+                    ApprovalStatus.DIVISION_HEAD_APPROVED.getName());
+        } else if (AuthVal.DIVISION_HEAD.getCode().equals(authVal)) {
             List<User> teamMembers = userService.getUserInfoList(requesterId);
             userIds = teamMembers.stream()
                     .map(User::getUserId)
                     .toList();
-            approvalStatuses = List.of("B", "C");
-        } else if ("tj".equals(authVal)) {
+            approvalStatuses = List.of(ApprovalStatus.TEAM_LEADER_APPROVED.getName(), ApprovalStatus.DIVISION_HEAD_APPROVED.getName());
+        } else if (AuthVal.TEAM_LEADER.getCode().equals(authVal)) {
             List<User> teamMembers = userService.getUserInfoList(requesterId);
             userIds = teamMembers.stream()
                     .map(User::getUserId)
                     .toList();
-            approvalStatuses = List.of("A", "AM");
+            approvalStatuses = List.of(ApprovalStatus.INITIAL.getName(), ApprovalStatus.MODIFIED.getName());
         } else {
             throw new ApiException(ApiErrorCode.ACCESS_DENIED, "승인 권한이 없습니다.");
         }
 
-        com.vacation.api.domain.approval.response.PendingApprovalResponse.PendingApprovalResponseBuilder responseBuilder = 
-                com.vacation.api.domain.approval.response.PendingApprovalResponse.builder();
+        PendingApprovalResponse.PendingApprovalResponseBuilder responseBuilder = 
+                PendingApprovalResponse.builder();
 
         // 휴가 신청 목록
-        if (type == null || "VACATION".equals(type) || (listType != null && "vacation".equals(listType))) {
+        if (type == null || ApplicationType.VACATION.getCode().equals(type) || (listType != null && ApplicationType.VACATION.getLowerCase().equals(listType))) {
             responseBuilder.vacation(buildVacationList(userIds, approvalStatuses, page, size));
         }
 
         // 개인 비용 청구 목록
-        if (type == null || "EXPENSE".equals(type) || (listType != null && "expense".equals(listType))) {
+        if (type == null || ApplicationType.EXPENSE.getCode().equals(type) || (listType != null && ApplicationType.EXPENSE.getLowerCase().equals(listType))) {
             responseBuilder.expense(buildExpenseList(userIds, approvalStatuses, page, size));
         }
 
         // 월세 지원 신청 목록
-        if (type == null || "RENTAL".equals(type) || (listType != null && "rental".equals(listType))) {
+        if (type == null || ApplicationType.RENTAL.getCode().equals(type) || (listType != null && ApplicationType.RENTAL.getLowerCase().equals(listType))) {
             responseBuilder.rental(buildRentalList(userIds, approvalStatuses, page, size));
         }
 
@@ -1032,16 +1041,16 @@ public class ApprovalService {
     /**
      * 휴가 신청 목록 빌드
      */
-    private com.vacation.api.domain.approval.response.PendingApprovalResponse.ApplicationList buildVacationList(
+    private PendingApprovalResponse.ApplicationList buildVacationList(
             List<Long> userIds, List<String> approvalStatuses, int page, int size) {
         List<VacationHistory> vacationList = getVacationList(userIds, approvalStatuses);
         
-        List<com.vacation.api.domain.approval.response.PendingApprovalResponse.ApplicationItem> items = vacationList.stream()
+        List<PendingApprovalResponse.ApplicationItem> items = vacationList.stream()
                 .map(vh -> {
                     User applicant = userRepository.findById(vh.getUserId())
                             .orElse(null);
-                    return com.vacation.api.domain.approval.response.PendingApprovalResponse.ApplicationItem.builder()
-                            .applicationType("VACATION")
+                    return PendingApprovalResponse.ApplicationItem.builder()
+                            .applicationType(ApplicationType.VACATION.getCode())
                             .seq(vh.getSeq())
                             .userId(vh.getUserId())
                             .applicant(applicant != null ? applicant.getName() : "")
@@ -1062,16 +1071,16 @@ public class ApprovalService {
     /**
      * 개인 비용 청구 목록 빌드
      */
-    private com.vacation.api.domain.approval.response.PendingApprovalResponse.ApplicationList buildExpenseList(
+    private PendingApprovalResponse.ApplicationList buildExpenseList(
             List<Long> userIds, List<String> approvalStatuses, int page, int size) {
         List<ExpenseClaim> expenseList = getExpenseList(userIds, approvalStatuses);
         
-        List<com.vacation.api.domain.approval.response.PendingApprovalResponse.ApplicationItem> items = expenseList.stream()
+        List<PendingApprovalResponse.ApplicationItem> items = expenseList.stream()
                 .map(ec -> {
                     User applicant = userRepository.findById(ec.getUserId())
                             .orElse(null);
-                    return com.vacation.api.domain.approval.response.PendingApprovalResponse.ApplicationItem.builder()
-                            .applicationType("EXPENSE")
+                    return PendingApprovalResponse.ApplicationItem.builder()
+                            .applicationType(ApplicationType.EXPENSE.getCode())
                             .seq(ec.getSeq())
                             .userId(ec.getUserId())
                             .applicant(applicant != null ? applicant.getName() : "")
@@ -1091,16 +1100,16 @@ public class ApprovalService {
     /**
      * 월세 지원 신청 목록 빌드
      */
-    private com.vacation.api.domain.approval.response.PendingApprovalResponse.ApplicationList buildRentalList(
+    private PendingApprovalResponse.ApplicationList buildRentalList(
             List<Long> userIds, List<String> approvalStatuses, int page, int size) {
         List<RentalSupport> rentalList = getRentalList(userIds, approvalStatuses);
         
-        List<com.vacation.api.domain.approval.response.PendingApprovalResponse.ApplicationItem> items = rentalList.stream()
+        List<PendingApprovalResponse.ApplicationItem> items = rentalList.stream()
                 .map(rs -> {
                     User applicant = userRepository.findById(rs.getUserId())
                             .orElse(null);
-                    return com.vacation.api.domain.approval.response.PendingApprovalResponse.ApplicationItem.builder()
-                            .applicationType("RENTAL")
+                    return PendingApprovalResponse.ApplicationItem.builder()
+                            .applicationType(ApplicationType.RENTAL.getCode())
                             .seq(rs.getSeq())
                             .userId(rs.getUserId())
                             .applicant(applicant != null ? applicant.getName() : "")
@@ -1121,15 +1130,15 @@ public class ApprovalService {
     /**
      * 월세 품의서 목록 빌드
      */
-    private com.vacation.api.domain.approval.response.PendingApprovalResponse.ApplicationList buildRentalProposalList(
+    private PendingApprovalResponse.ApplicationList buildRentalProposalList(
             List<Long> userIds, List<String> approvalStatuses, int page, int size) {
         List<RentalProposal> rentalProposalList = getRentalProposalList(userIds, approvalStatuses);
         
-        List<com.vacation.api.domain.approval.response.PendingApprovalResponse.ApplicationItem> items = rentalProposalList.stream()
+        List<PendingApprovalResponse.ApplicationItem> items = rentalProposalList.stream()
                 .map(rp -> {
                     User applicant = userRepository.findById(rp.getUserId())
                             .orElse(null);
-                    return com.vacation.api.domain.approval.response.PendingApprovalResponse.ApplicationItem.builder()
+                    return PendingApprovalResponse.ApplicationItem.builder()
                             .applicationType(ApplicationType.RENTAL_PROPOSAL.getCode())
                             .seq(rp.getSeq())
                             .userId(rp.getUserId())
@@ -1137,8 +1146,10 @@ public class ApprovalService {
                             .rentalAddress(rp.getRentalAddress())
                             .contractStartDate(rp.getContractStartDate())
                             .contractEndDate(rp.getContractEndDate())
-                            .contractMonthlyRentProposal(rp.getContractMonthlyRent())
-                            .billingAmountProposal(rp.getBillingAmount())
+                            .contractMonthlyRent(rp.getContractMonthlyRent()) // RENTAL_PROPOSAL도 contractMonthlyRent 사용
+                            .billingAmount(rp.getBillingAmount()) // RENTAL_PROPOSAL도 billingAmount 사용
+                            .contractMonthlyRentProposal(rp.getContractMonthlyRent()) // 호환성을 위해 유지
+                            .billingAmountProposal(rp.getBillingAmount()) // 호환성을 위해 유지
                             .billingStartDate(rp.getBillingStartDate())
                             .approvalStatus(rp.getApprovalStatus())
                             .createdAt(rp.getCreatedAt())
@@ -1152,16 +1163,16 @@ public class ApprovalService {
     /**
      * 페이징 처리
      */
-    private com.vacation.api.domain.approval.response.PendingApprovalResponse.ApplicationList paginate(
-            List<com.vacation.api.domain.approval.response.PendingApprovalResponse.ApplicationItem> items, int page, int size) {
+    private PendingApprovalResponse.ApplicationList paginate(
+            List<PendingApprovalResponse.ApplicationItem> items, int page, int size) {
         long totalCount = items.size();
         int start = page * size;
         int end = Math.min(start + size, items.size());
-        List<com.vacation.api.domain.approval.response.PendingApprovalResponse.ApplicationItem> pagedList = start < items.size() 
+        List<PendingApprovalResponse.ApplicationItem> pagedList = start < items.size() 
                 ? items.subList(start, end) 
                 : List.of();
         
-        return com.vacation.api.domain.approval.response.PendingApprovalResponse.ApplicationList.builder()
+        return PendingApprovalResponse.ApplicationList.builder()
                 .list(pagedList)
                 .totalCount(totalCount)
                 .build();
@@ -1174,7 +1185,7 @@ public class ApprovalService {
         List<VacationHistory> vacationList;
         if (userIds == null) {
             List<VacationHistory> filteredList = vacationHistoryRepository.findByApprovalStatusInOrderByCreatedAtDesc(approvalStatuses);
-            if (approvalStatuses.contains("A")) {
+            if (approvalStatuses.contains(ApprovalStatus.INITIAL.getName())) {
                 List<VacationHistory> nullStatusList = vacationHistoryRepository.findByApprovalStatusIsNullOrderByCreatedAtDesc();
                 Set<Long> existingSeqs = filteredList.stream()
                         .map(VacationHistory::getSeq)
@@ -1191,7 +1202,7 @@ public class ApprovalService {
         } else {
             List<VacationHistory> filteredList = vacationHistoryRepository.findByUserIdInAndApprovalStatusInOrderByCreatedAtDesc(
                     userIds, approvalStatuses);
-            if (approvalStatuses.contains("A")) {
+            if (approvalStatuses.contains(ApprovalStatus.INITIAL.getName())) {
                 List<VacationHistory> nullStatusList = vacationHistoryRepository.findByUserIdInOrderByStartDateAsc(userIds).stream()
                         .filter(vh -> vh.getApprovalStatus() == null)
                         .toList();
@@ -1218,7 +1229,7 @@ public class ApprovalService {
         List<ExpenseClaim> expenseList;
         if (userIds == null) {
             List<ExpenseClaim> filteredList = expenseClaimRepository.findByApprovalStatusInOrderByCreatedAtDesc(approvalStatuses);
-            if (approvalStatuses.contains("A")) {
+            if (approvalStatuses.contains(ApprovalStatus.INITIAL.getName())) {
                 List<ExpenseClaim> nullStatusList = expenseClaimRepository.findByApprovalStatusIsNullOrderByCreatedAtDesc();
                 Set<Long> existingSeqs = filteredList.stream()
                         .map(ExpenseClaim::getSeq)
@@ -1235,7 +1246,7 @@ public class ApprovalService {
         } else {
             List<ExpenseClaim> filteredList = expenseClaimRepository.findByUserIdInAndApprovalStatusInOrderByCreatedAtDesc(
                     userIds, approvalStatuses);
-            if (approvalStatuses.contains("A")) {
+            if (approvalStatuses.contains(ApprovalStatus.INITIAL.getName())) {
                 List<ExpenseClaim> nullStatusList = expenseClaimRepository.findByUserIdOrderBySeqDesc(userIds.get(0)).stream()
                         .filter(ec -> {
                             if (ec.getApprovalStatus() == null) {
@@ -1267,7 +1278,7 @@ public class ApprovalService {
         List<RentalSupport> rentalList;
         if (userIds == null) {
             List<RentalSupport> filteredList = rentalSupportRepository.findByApprovalStatusInOrderByCreatedAtDesc(approvalStatuses);
-            if (approvalStatuses.contains("A")) {
+            if (approvalStatuses.contains(ApprovalStatus.INITIAL.getName())) {
                 List<RentalSupport> nullStatusList = rentalSupportRepository.findByApprovalStatusIsNullOrderByCreatedAtDesc();
                 Set<Long> existingSeqs = filteredList.stream()
                         .map(RentalSupport::getSeq)
@@ -1284,7 +1295,7 @@ public class ApprovalService {
         } else {
             List<RentalSupport> filteredList = rentalSupportRepository.findByUserIdInAndApprovalStatusInOrderByCreatedAtDesc(
                     userIds, approvalStatuses);
-            if (approvalStatuses.contains("A")) {
+            if (approvalStatuses.contains(ApprovalStatus.INITIAL.getName())) {
                 List<RentalSupport> nullStatusList = rentalSupportRepository.findByUserIdOrderBySeqDesc(userIds.get(0)).stream()
                         .filter(rs -> {
                             if (rs.getApprovalStatus() == null) {
@@ -1316,7 +1327,7 @@ public class ApprovalService {
         List<RentalProposal> rentalProposalList;
         if (userIds == null) {
             List<RentalProposal> filteredList = rentalProposalRepository.findByApprovalStatusInOrderByCreatedAtDesc(approvalStatuses);
-            if (approvalStatuses.contains("A")) {
+            if (approvalStatuses.contains(ApprovalStatus.INITIAL.getName())) {
                 List<RentalProposal> nullStatusList = rentalProposalRepository.findByApprovalStatusIsNullOrderByCreatedAtDesc();
                 Set<Long> existingSeqs = filteredList.stream()
                         .map(RentalProposal::getSeq)
@@ -1333,7 +1344,7 @@ public class ApprovalService {
         } else {
             List<RentalProposal> filteredList = rentalProposalRepository.findByUserIdInAndApprovalStatusInOrderByCreatedAtDesc(
                     userIds, approvalStatuses);
-            if (approvalStatuses.contains("A")) {
+            if (approvalStatuses.contains(ApprovalStatus.INITIAL.getName())) {
                 List<RentalProposal> nullStatusList = rentalProposalRepository.findAll().stream()
                         .filter(rp -> {
                             if (rp.getApprovalStatus() == null) {

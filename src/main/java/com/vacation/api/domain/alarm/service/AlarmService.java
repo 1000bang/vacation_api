@@ -5,11 +5,13 @@ import com.vacation.api.domain.alarm.repository.UserAlarmRepository;
 import com.vacation.api.domain.user.entity.User;
 import com.vacation.api.domain.user.repository.UserRepository;
 import com.vacation.api.enums.ApplicationType;
+import com.vacation.api.enums.ApprovalStatus;
+import com.vacation.api.enums.RedirectUrl;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
+import com.vacation.api.domain.alarm.response.AlarmResponse;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -49,11 +51,11 @@ public class AlarmService {
             for (User divisionHead : divisionHeads) {
                 UserAlarm alarm = UserAlarm.builder()
                         .userId(divisionHead.getUserId())
-                        .alarmType("APPLICATION_CREATED")
+                        .alarmType(ApprovalStatus.INITIAL.getCode())
                         .applicationType(applicationType)
                         .applicationSeq(applicationSeq)
                         .message(String.format("%s님이 %s 신청을 제출했습니다.", applicant.getName(), getApplicationTypeName(applicationType)))
-                        .redirectUrl("/approval-list")
+                        .redirectUrl(RedirectUrl.APPROVAL_LIST.getCode())
                         .isRead(false)
                         .build();
                 userAlarmRepository.save(alarm);
@@ -64,11 +66,11 @@ public class AlarmService {
         for (User teamLeader : teamLeaders) {
             UserAlarm alarm = UserAlarm.builder()
                     .userId(teamLeader.getUserId())
-                    .alarmType("APPLICATION_CREATED")
+                    .alarmType(ApprovalStatus.INITIAL.getCode())
                     .applicationType(applicationType)
                     .applicationSeq(applicationSeq)
                     .message(String.format("%s님이 %s 신청을 제출했습니다.", applicant.getName(), getApplicationTypeName(applicationType)))
-                    .redirectUrl("/approval-list")
+                    .redirectUrl(RedirectUrl.APPROVAL_LIST.getCode())
                     .isRead(false)
                     .build();
             userAlarmRepository.save(alarm);
@@ -94,11 +96,11 @@ public class AlarmService {
         
         UserAlarm applicantAlarm = UserAlarm.builder()
                 .userId(applicantId)
-                .alarmType("TEAM_LEADER_APPROVED")
+                .alarmType(ApprovalStatus.TEAM_LEADER_APPROVED.getCode())
                 .applicationType(applicationType)
                 .applicationSeq(applicationSeq)
                 .message(applicantMessage)
-                .redirectUrl("/my-applications")
+                .redirectUrl(RedirectUrl.MY_APPLICATIONS.getCode())
                 .isRead(false)
                 .build();
         userAlarmRepository.save(applicantAlarm);
@@ -110,12 +112,12 @@ public class AlarmService {
         for (User divisionHead : divisionHeads) {
             UserAlarm alarm = UserAlarm.builder()
                     .userId(divisionHead.getUserId())
-                    .alarmType("TEAM_LEADER_APPROVED")
+                    .alarmType(ApprovalStatus.TEAM_LEADER_APPROVED.getCode())
                     .applicationType(applicationType)
                     .applicationSeq(applicationSeq)
                     .message(String.format("%s님의 %s 신청이 팀장 승인되어 결재 대기 중입니다.", 
                             applicant.getName(), getApplicationTypeName(applicationType)))
-                    .redirectUrl("/approval-list")
+                    .redirectUrl(RedirectUrl.APPROVAL_LIST.getCode())
                     .isRead(false)
                     .build();
             userAlarmRepository.save(alarm);
@@ -137,11 +139,11 @@ public class AlarmService {
         
         UserAlarm alarm = UserAlarm.builder()
                 .userId(applicantId)
-                .alarmType("DIVISION_HEAD_APPROVED")
+                .alarmType(ApprovalStatus.DIVISION_HEAD_APPROVED.getCode())
                 .applicationType(applicationType)
                 .applicationSeq(applicationSeq)
                 .message(message)
-                .redirectUrl("/my-applications")
+                .redirectUrl(RedirectUrl.MY_APPLICATIONS.getCode())
                 .isRead(false)
                 .build();
         userAlarmRepository.save(alarm);
@@ -150,24 +152,42 @@ public class AlarmService {
 
     /**
      * 반려 시 신청자에게 알람 생성
+     * 
+     * @param applicantId 신청자 ID
+     * @param applicationType 신청 타입
+     * @param applicationSeq 신청 시퀀스
+     * @param rejectionReason 반려 사유
+     * @param rejectionStatus 반려 상태 (RB: 팀장 반려, RC: 본부장 반려)
      */
     @Transactional
-    public void createRejectedAlarm(Long applicantId, String applicationType, Long applicationSeq, String rejectionReason) {
-        log.info("반려 알람 생성: applicantId={}, applicationType={}, applicationSeq={}", 
-                applicantId, applicationType, applicationSeq);
+    public void createRejectedAlarm(Long applicantId, String applicationType, Long applicationSeq, String rejectionReason, String rejectionStatus) {
+        log.info("반려 알람 생성: applicantId={}, applicationType={}, applicationSeq={}, rejectionStatus={}", 
+                applicantId, applicationType, applicationSeq, rejectionStatus);
 
         String message = ApplicationType.RENTAL_PROPOSAL.getCode().equals(applicationType)
                 ? "월세 품의서 신청이 반려 되었습니다."
                 : String.format("%s 신청이 반려되었습니다. 사유: %s", 
                         getApplicationTypeName(applicationType), rejectionReason);
         
+        // 반려 상태에 따라 알람 타입 결정
+        ApprovalStatus alarmStatus;
+        if ("RB".equals(rejectionStatus) || ApprovalStatus.TEAM_LEADER_REJECTED.getName().equals(rejectionStatus)) {
+            alarmStatus = ApprovalStatus.TEAM_LEADER_REJECTED;
+        } else if ("RC".equals(rejectionStatus) || ApprovalStatus.DIVISION_HEAD_REJECTED.getName().equals(rejectionStatus)) {
+            alarmStatus = ApprovalStatus.DIVISION_HEAD_REJECTED;
+        } else {
+            // 기본값: 팀장 반려로 간주
+            log.warn("알 수 없는 반려 상태: {}, 팀장 반려로 처리", rejectionStatus);
+            alarmStatus = ApprovalStatus.TEAM_LEADER_REJECTED;
+        }
+        
         UserAlarm alarm = UserAlarm.builder()
                 .userId(applicantId)
-                .alarmType("REJECTED")
+                .alarmType(alarmStatus.getCode())
                 .applicationType(applicationType)
                 .applicationSeq(applicationSeq)
                 .message(message)
-                .redirectUrl("/my-applications")
+                .redirectUrl(RedirectUrl.MY_APPLICATIONS.getCode())
                 .isRead(false)
                 .build();
         userAlarmRepository.save(alarm);
@@ -191,6 +211,45 @@ public class AlarmService {
     }
 
     /**
+     * UserAlarm을 AlarmResponse로 변환 (redirectUrl 코드를 실제 URL로 변환)
+     */
+    public AlarmResponse toAlarmResponse(UserAlarm alarm) {
+        String redirectUrl = null;
+        if (alarm.getRedirectUrl() != null) {
+            try {
+                redirectUrl = RedirectUrl.fromCode(alarm.getRedirectUrl()).getUrl();
+            } catch (IllegalArgumentException e) {
+                log.warn("알 수 없는 redirectUrl 코드: {}", alarm.getRedirectUrl());
+                redirectUrl = alarm.getRedirectUrl(); // 코드를 그대로 반환
+            }
+        }
+        
+        // alarmType 코드를 실제 값으로 변환
+        String alarmTypeName = null;
+        if (alarm.getAlarmType() != null) {
+            try {
+                ApprovalStatus status = ApprovalStatus.fromCodeOrName(alarm.getAlarmType());
+                alarmTypeName = status.getName();
+            } catch (IllegalArgumentException e) {
+                log.warn("알 수 없는 alarmType 코드: {}", alarm.getAlarmType());
+                alarmTypeName = alarm.getAlarmType(); // 변환 실패 시 원본 반환
+            }
+        }
+        
+        return AlarmResponse.builder()
+                .seq(alarm.getSeq())
+                .userId(alarm.getUserId())
+                .alarmType(alarmTypeName)
+                .applicationType(alarm.getApplicationType())
+                .applicationSeq(alarm.getApplicationSeq())
+                .message(alarm.getMessage())
+                .isRead(alarm.getIsRead())
+                .redirectUrl(redirectUrl)
+                .createdAt(alarm.getCreatedAt())
+                .build();
+    }
+
+    /**
      * 알람 읽음 처리
      */
     @Transactional
@@ -207,15 +266,18 @@ public class AlarmService {
     }
 
     /**
-     * 신청서 타입 한글 변환
+     * 신청서 타입 한글 변환 (ApplicationType enum 사용)
      */
     private String getApplicationTypeName(String applicationType) {
-        return switch (applicationType) {
-            case "VACATION" -> "휴가";
-            case "EXPENSE" -> "개인 비용";
-            case "RENTAL" -> "월세 지원";
-            case "RENTAL_PROPOSAL" -> "월세 품의서";
-            default -> "신청";
-        };
+        if (applicationType == null) {
+            return "신청";
+        }
+        try {
+            ApplicationType type = ApplicationType.fromCode(applicationType);
+            return type.getDescription();
+        } catch (IllegalArgumentException e) {
+            log.warn("알 수 없는 신청 타입: {}", applicationType);
+            return "신청";
+        }
     }
 }

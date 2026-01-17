@@ -33,10 +33,10 @@ public class UserAlarm {
     private Long userId;
 
     @Column(name = "alarm_type", length = 30, nullable = false)
-    private String alarmType; // APPLICATION_CREATED, TEAM_LEADER_APPROVED, DIVISION_HEAD_APPROVED, REJECTED
+    private String alarmType; // AS_07, AS_03, AS_05, AS_08 (ApprovalStatus enum의 code)
 
     @Column(name = "application_type", length = 20, nullable = false)
-    private String applicationType; // VACATION, EXPENSE, RENTAL
+    private String applicationType; // VACATION, EXPENSE, RENTAL, RENTAL_PROPOSAL (ApplicationType enum의 code)
 
     @Column(name = "application_seq", nullable = false)
     private Long applicationSeq;
@@ -49,7 +49,7 @@ public class UserAlarm {
     private Boolean isRead = false;
 
     @Column(name = "redirect_url", length = 200)
-    private String redirectUrl; // /my-applications 또는 /approval-list
+    private String redirectUrl; // RU_001, RU_002 (RedirectUrl enum의 code)
 
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)

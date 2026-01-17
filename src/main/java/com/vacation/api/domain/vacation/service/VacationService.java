@@ -13,6 +13,8 @@ import com.vacation.api.domain.vacation.request.UpdateVacationInfoRequest;
 import com.vacation.api.domain.vacation.request.VacationRequest;
 import com.vacation.api.exception.ApiErrorCode;
 import com.vacation.api.exception.ApiException;
+import com.vacation.api.enums.ApplicationType;
+import com.vacation.api.enums.AuthVal;
 import com.vacation.api.util.ApprovalStatusResolver;
 import com.vacation.api.vo.VacationDocumentVO;
 import lombok.RequiredArgsConstructor;
@@ -168,7 +170,10 @@ public class VacationService {
         
         // QueryDSL 조인을 사용하여 본부와 날짜 범위로 한 번에 휴가 조회
         List<VacationHistory> vacationList = vacationHistoryRepository
-                .findByDivisionAndDateRange(division, List.of("ma", "bb", "tj", "tw"), prevMonthStart, nextMonthEnd);
+                .findByDivisionAndDateRange(division, 
+                        List.of(AuthVal.MASTER.getCode(), AuthVal.DIVISION_HEAD.getCode(), 
+                                AuthVal.TEAM_LEADER.getCode(), AuthVal.TEAM_MEMBER.getCode()), 
+                        prevMonthStart, nextMonthEnd);
         
         log.info("캘린더용 휴가 목록 조회 완료: userId={}, 본부={}, 범위={}~{}, count={}", 
                 userId, division, prevMonthStart, nextMonthEnd, vacationList.size());
@@ -189,11 +194,11 @@ public class VacationService {
 
         String authVal = requester.getAuthVal();
         
-        if ("ma".equals(authVal)) {
+        if (AuthVal.MASTER.getCode().equals(authVal)) {
             // 관리자(ma)는 모든 휴가 내역 조회 가능
             return vacationHistoryRepository.findById(seq)
                     .orElse(null);
-        } else if ("bb".equals(authVal)) {
+        } else if (AuthVal.DIVISION_HEAD.getCode().equals(authVal)) {
             // 본부장(bb)은 자신의 본부만 모든 휴가 내역 조회 가능
             VacationHistory vacationHistory = vacationHistoryRepository.findById(seq)
                     .orElse(null);
@@ -205,7 +210,7 @@ public class VacationService {
                 }
             }
             return null;
-        } else if ("tj".equals(authVal)) {
+        } else if (AuthVal.TEAM_LEADER.getCode().equals(authVal)) {
             // 팀장(tj)은 자신의 팀만 모든 휴가 내역 조회 가능
             VacationHistory vacationHistory = vacationHistoryRepository.findById(seq)
                     .orElse(null);
@@ -248,7 +253,7 @@ public class VacationService {
         log.info("반려 사유 조회: seq={}", seq);
         // created_at desc로 정렬하여 최신 반려 사유 1개만 조회
         return approvalRejectionRepository
-                .findFirstByApplicationTypeAndApplicationSeqOrderByCreatedAtDesc("VACATION", seq)
+                .findFirstByApplicationTypeAndApplicationSeqOrderByCreatedAtDesc(ApplicationType.VACATION.getCode(), seq)
                 .map(ApprovalRejection::getRejectionReason)
                 .orElse(null);
     }
@@ -324,7 +329,7 @@ public class VacationService {
         VacationHistory saved = vacationHistoryRepository.save(vacationHistory);
 
         // 알람 생성: 팀장에게
-        alarmService.createApplicationCreatedAlarm(userId, "VACATION", saved.getSeq());
+        alarmService.createApplicationCreatedAlarm(userId, ApplicationType.VACATION.getCode(), saved.getSeq());
 
         // 예약중 연차 업데이트 (미래 날짜인 경우)
         if (isFuture) {
@@ -438,7 +443,7 @@ public class VacationService {
         vacationHistory.setUsedVacationDays(request.getPeriod());
         vacationHistory.setRemainingVacationDays(remainingVacationDays);
         // 수정 시 무조건 AM 상태로 변경
-        vacationHistory.setApprovalStatus("AM"); // 수정됨
+        vacationHistory.setApprovalStatus(com.vacation.api.enums.ApprovalStatus.MODIFIED.getName()); // 수정됨
 
         // 새로운 연차 추가 및 status 설정
         boolean isFuture = request.getStartDate().isAfter(today);

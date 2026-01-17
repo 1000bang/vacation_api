@@ -3,6 +3,7 @@ package com.vacation.api.domain.alarm.controller;
 import com.vacation.api.common.BaseController;
 import com.vacation.api.common.TransactionIDCreator;
 import com.vacation.api.domain.alarm.entity.UserAlarm;
+import com.vacation.api.domain.alarm.response.AlarmResponse;
 import com.vacation.api.domain.alarm.service.AlarmService;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
@@ -38,7 +39,10 @@ public class AlarmController extends BaseController {
         try {
             Long userId = (Long) request.getAttribute("userId");
             List<UserAlarm> alarms = alarmService.getUnreadAlarms(userId);
-            return successResponse(alarms);
+            List<AlarmResponse> alarmResponses = alarms.stream()
+                    .map(alarmService::toAlarmResponse)
+                    .toList();
+            return successResponse(alarmResponses);
         } catch (Exception e) {
             log.error("알람 조회 실패", e);
             return errorResponse("알람 조회에 실패했습니다.", e);
@@ -53,7 +57,10 @@ public class AlarmController extends BaseController {
         try {
             Long userId = (Long) request.getAttribute("userId");
             List<UserAlarm> alarms = alarmService.getAllAlarms(userId);
-            return successResponse(alarms);
+            List<AlarmResponse> alarmResponses = alarms.stream()
+                    .map(alarmService::toAlarmResponse)
+                    .toList();
+            return successResponse(alarmResponses);
         } catch (Exception e) {
             log.error("알람 조회 실패", e);
             return errorResponse("알람 조회에 실패했습니다.", e);

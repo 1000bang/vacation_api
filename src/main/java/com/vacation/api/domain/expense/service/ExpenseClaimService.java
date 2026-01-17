@@ -1,6 +1,7 @@
 package com.vacation.api.domain.expense.service;
 
 import com.vacation.api.domain.alarm.service.AlarmService;
+import com.vacation.api.enums.ApplicationType;
 import com.vacation.api.domain.expense.entity.ExpenseClaim;
 import com.vacation.api.domain.expense.entity.ExpenseSub;
 import com.vacation.api.domain.expense.repository.ExpenseClaimRepository;

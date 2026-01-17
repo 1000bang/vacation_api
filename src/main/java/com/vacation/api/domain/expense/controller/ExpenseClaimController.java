@@ -12,10 +12,12 @@ import com.vacation.api.domain.expense.response.ExpenseSubResponse;
 import com.vacation.api.domain.expense.service.ExpenseClaimService;
 import com.vacation.api.domain.user.entity.User;
 import com.vacation.api.domain.user.service.UserService;
+import com.vacation.api.enums.ApplicationType;
 import com.vacation.api.response.data.ApiResponse;
 import com.vacation.api.common.TransactionIDCreator;
 import com.vacation.api.util.FileGenerateUtil;
 import com.vacation.api.util.ResponseMapper;
+import com.vacation.api.util.ZipFileUtil;
 import com.vacation.api.exception.ApiException;
 import com.vacation.api.vo.ExpenseClaimVO;
 import jakarta.servlet.http.HttpServletRequest;
@@ -52,11 +54,11 @@ public class ExpenseClaimController extends BaseController {
     private final UserService userService;
     private final ResponseMapper responseMapper;
     private final FileService fileService;
-    private final com.vacation.api.util.ZipFileUtil zipFileUtil;
+    private final ZipFileUtil zipFileUtil;
 
     public ExpenseClaimController(ExpenseClaimService expenseClaimService, UserService userService,
                                  ResponseMapper responseMapper, TransactionIDCreator transactionIDCreator,
-                                 FileService fileService, com.vacation.api.util.ZipFileUtil zipFileUtil) {
+                                 FileService fileService, ZipFileUtil zipFileUtil) {
         super(transactionIDCreator);
         this.expenseClaimService = expenseClaimService;
         this.userService = userService;
@@ -307,12 +309,12 @@ public class ExpenseClaimController extends BaseController {
             String documentFileName = "개인비용신청서_" + applicant.getName() + "_" + dateStr + ".xlsx";
             
             // 개인비용 항목별 첨부파일 조회 (childNo를 키로 사용)
-            java.util.Map<Integer, List<com.vacation.api.domain.attachment.entity.Attachment>> expenseSubAttachments = 
+            java.util.Map<Integer, List<Attachment>> expenseSubAttachments = 
                     new java.util.HashMap<>();
             boolean hasAttachments = false;
             
             for (ExpenseSub expenseSub : expenseSubList) {
-                List<com.vacation.api.domain.attachment.entity.Attachment> attachments = 
+                List<Attachment> attachments = 
                         fileService.getExpenseItemAttachments(expenseSub.getSeq());
                 if (attachments != null && !attachments.isEmpty()) {
                     expenseSubAttachments.put(expenseSub.getChildNo(), attachments);
@@ -400,7 +402,7 @@ public class ExpenseClaimController extends BaseController {
             }
             
             // 파일 업로드
-            Attachment attachment = fileService.uploadExpenseItemFile(file, "EXPENSE", seq, expenseSubSeq, userId);
+            Attachment attachment = fileService.uploadExpenseItemFile(file, ApplicationType.EXPENSE.getCode(), seq, expenseSubSeq, userId);
             
             String transactionId = getOrCreateTransactionId();
             return ResponseEntity.status(HttpStatus.CREATED)

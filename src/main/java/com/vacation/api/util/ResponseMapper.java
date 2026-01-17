@@ -2,6 +2,8 @@ package com.vacation.api.util;
 
 import com.vacation.api.domain.attachment.entity.Attachment;
 import com.vacation.api.domain.attachment.response.AttachmentResponse;
+import com.vacation.api.enums.ApprovalStatus;
+import com.vacation.api.enums.AuthVal;
 import com.vacation.api.domain.expense.entity.ExpenseClaim;
 import com.vacation.api.domain.expense.entity.ExpenseSub;
 import com.vacation.api.domain.expense.response.ExpenseClaimResponse;
@@ -304,5 +306,45 @@ public class ResponseMapper {
                 VacationHistory::getUserId,
                 (history, applicantName) -> toVacationHistoryResponse(history, applicantName, null, null)
         );
+    }
+
+    /**
+     * 승인 상태 코드를 실제 값으로 변환 (Response용)
+     * DB에 저장된 코드(AS_01) 또는 기존 값(A)을 실제 값(A)으로 변환
+     *
+     * @param approvalStatus 코드 또는 기존 값
+     * @return 실제 값 (A, AM, B, RB, C, RC)
+     */
+    public String convertApprovalStatusForResponse(String approvalStatus) {
+        if (approvalStatus == null) {
+            return ApprovalStatus.INITIAL.getName();
+        }
+        try {
+            ApprovalStatus status = ApprovalStatus.fromCodeOrName(approvalStatus);
+            return status.getName();
+        } catch (IllegalArgumentException e) {
+            log.warn("알 수 없는 승인 상태: {}, 원본 값 반환", approvalStatus);
+            return approvalStatus; // 변환 실패 시 원본 반환
+        }
+    }
+
+    /**
+     * 권한 값을 실제 값으로 변환 (Response용)
+     * DB에 저장된 값(ma, bb, tj, tw)을 그대로 반환
+     *
+     * @param authVal 권한 값
+     * @return 실제 값 (ma, bb, tj, tw)
+     */
+    public String convertAuthValForResponse(String authVal) {
+        if (authVal == null) {
+            return AuthVal.TEAM_MEMBER.getCode();
+        }
+        try {
+            AuthVal auth = AuthVal.fromCode(authVal);
+            return auth.getCode(); // DB에 저장된 값(code)을 그대로 반환
+        } catch (IllegalArgumentException e) {
+            log.warn("알 수 없는 권한 값: {}, 원본 값 반환", authVal);
+            return authVal; // 변환 실패 시 원본 반환
+        }
     }
 }

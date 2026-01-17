@@ -19,6 +19,7 @@ import com.vacation.api.response.data.ApiResponse;
 import com.vacation.api.common.TransactionIDCreator;
 import com.vacation.api.util.FileGenerateUtil;
 import com.vacation.api.util.ResponseMapper;
+import com.vacation.api.util.ZipFileUtil;
 import com.vacation.api.vo.VacationDocumentVO;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
@@ -53,12 +54,12 @@ public class VacationController extends BaseController {
     private final UserService userService;
     private final ResponseMapper responseMapper;
     private final FileService fileService;
-    private final com.vacation.api.util.ZipFileUtil zipFileUtil;
+    private final ZipFileUtil zipFileUtil;
 
     public VacationController(VacationService vacationService, UserService userService,
                               ResponseMapper responseMapper, FileService fileService,
                               TransactionIDCreator transactionIDCreator,
-                              com.vacation.api.util.ZipFileUtil zipFileUtil) {
+                              ZipFileUtil zipFileUtil) {
         super(transactionIDCreator);
         this.vacationService = vacationService;
         this.userService = userService;
@@ -387,7 +388,7 @@ public class VacationController extends BaseController {
             // 파일이 있으면 업로드
             if (file != null && !file.isEmpty()) {
                 try {
-                    fileService.uploadFile(file, "VACATION", vacationHistory.getSeq(), userId);
+                    fileService.uploadFile(file, ApplicationType.VACATION.getCode(), vacationHistory.getSeq(), userId);
                 } catch (Exception e) {
                     log.error("파일 업로드 실패: seq={}", vacationHistory.getSeq(), e);
                     // 파일 업로드 실패해도 신청은 성공으로 처리
@@ -429,7 +430,7 @@ public class VacationController extends BaseController {
             // 파일이 있으면 업로드
             if (file != null && !file.isEmpty()) {
                 try {
-                    fileService.uploadFile(file, "VACATION", vacationHistory.getSeq(), userId);
+                    fileService.uploadFile(file, ApplicationType.VACATION.getCode(), vacationHistory.getSeq(), userId);
                 } catch (Exception e) {
                     log.error("파일 업로드 실패: seq={}", vacationHistory.getSeq(), e);
                     // 파일 업로드 실패해도 수정은 성공으로 처리
@@ -539,8 +540,8 @@ public class VacationController extends BaseController {
             String documentFileName = "휴가(결무)신청서_" + applicant.getName() + "_" + dateStr + ".docx";
             
             // 첨부파일 조회
-            List<com.vacation.api.domain.attachment.entity.Attachment> attachments = 
-                    fileService.getAttachments(com.vacation.api.enums.ApplicationType.VACATION.getCode(), seq);
+            List<Attachment> attachments = 
+                    fileService.getAttachments(ApplicationType.VACATION.getCode(), seq);
             
             // 첨부파일이 있으면 ZIP으로 묶기
             if (attachments != null && !attachments.isEmpty()) {
@@ -607,7 +608,7 @@ public class VacationController extends BaseController {
             }
             
             // 첨부파일 조회
-            com.vacation.api.domain.attachment.entity.Attachment attachment = fileService.getAttachment("VACATION", seq);
+            Attachment attachment = fileService.getAttachment(ApplicationType.VACATION.getCode(), seq);
             if (attachment == null) {
                 log.warn("첨부파일이 없음: seq={}", seq);
                 return ResponseEntity.notFound().build();
