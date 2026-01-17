@@ -54,15 +54,18 @@ public class RentalController extends BaseController {
     private final UserService userService;
     private final ResponseMapper responseMapper;
     private final FileService fileService;
+    private final com.vacation.api.util.ZipFileUtil zipFileUtil;
 
     public RentalController(RentaltService rentaltService, UserService userService, 
                            ResponseMapper responseMapper, FileService fileService,
-                           TransactionIDCreator transactionIDCreator) {
+                           TransactionIDCreator transactionIDCreator,
+                           com.vacation.api.util.ZipFileUtil zipFileUtil) {
         super(transactionIDCreator);
         this.rentaltService = rentaltService;
         this.userService = userService;
         this.responseMapper = responseMapper;
         this.fileService = fileService;
+        this.zipFileUtil = zipFileUtil;
     }
 
     /**
@@ -503,21 +506,47 @@ public class RentalController extends BaseController {
             
             // 파일명 생성 (오늘 날짜 사용)
             String dateStr = LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd"));
-            String fileName = "월세지원신청서_" + applicant.getName() + "_" + dateStr + ".xlsx";
-            String encodedFileName = URLEncoder.encode(fileName, StandardCharsets.UTF_8)
-                    .replace("+", "%20");
+            String documentFileName = "월세지원신청서_" + applicant.getName() + "_" + dateStr + ".xlsx";
             
-            // HTTP 헤더 설정
-            HttpHeaders headers = new HttpHeaders();
-            headers.setContentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"));
-            headers.set(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=" + encodedFileName);
-            headers.setContentLength(excelBytes.length);
+            // 첨부파일 조회
+            List<com.vacation.api.domain.attachment.entity.Attachment> attachments = 
+                    fileService.getAttachments(com.vacation.api.enums.ApplicationType.RENTAL.getCode(), seq);
             
-            log.info("월세 지원 신청서 Excel 생성 완료. 크기: {} bytes", excelBytes.length);
-            
-            return ResponseEntity.ok()
-                    .headers(headers)
-                    .body(excelBytes);
+            // 첨부파일이 있으면 ZIP으로 묶기
+            if (attachments != null && !attachments.isEmpty()) {
+                byte[] zipBytes = zipFileUtil.createZipWithDocumentAndAttachments(
+                        excelBytes, documentFileName, attachments);
+                
+                String zipFileName = documentFileName.replace(".xlsx", ".zip");
+                String encodedFileName = URLEncoder.encode(zipFileName, StandardCharsets.UTF_8)
+                        .replace("+", "%20");
+                
+                HttpHeaders headers = new HttpHeaders();
+                headers.setContentType(MediaType.parseMediaType("application/zip"));
+                headers.set(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=" + encodedFileName);
+                headers.setContentLength(zipBytes.length);
+                
+                log.info("월세 지원 신청서 ZIP 생성 완료. 크기: {} bytes, 첨부파일: {}개", zipBytes.length, attachments.size());
+                
+                return ResponseEntity.ok()
+                        .headers(headers)
+                        .body(zipBytes);
+            } else {
+                // 첨부파일이 없으면 기존처럼 문서만 반환
+                String encodedFileName = URLEncoder.encode(documentFileName, StandardCharsets.UTF_8)
+                        .replace("+", "%20");
+                
+                HttpHeaders headers = new HttpHeaders();
+                headers.setContentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"));
+                headers.set(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=" + encodedFileName);
+                headers.setContentLength(excelBytes.length);
+                
+                log.info("월세 지원 신청서 Excel 생성 완료. 크기: {} bytes", excelBytes.length);
+                
+                return ResponseEntity.ok()
+                        .headers(headers)
+                        .body(excelBytes);
+            }
         } catch (Exception e) {
             log.error("월세 지원 신청서 다운로드 실패", e);
             return ResponseEntity.internalServerError().build();
@@ -558,21 +587,47 @@ public class RentalController extends BaseController {
             
             // 파일명 생성
             String dateStr = LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd"));
-            String fileName = "월세지원품의서_" + user.getName() + "_" + dateStr + ".docx";
-            String encodedFileName = URLEncoder.encode(fileName, StandardCharsets.UTF_8)
-                    .replace("+", "%20");
+            String documentFileName = "월세지원품의서_" + user.getName() + "_" + dateStr + ".docx";
             
-            // HTTP 헤더 설정
-            HttpHeaders headers = new HttpHeaders();
-            headers.setContentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.wordprocessingml.document"));
-            headers.set(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=" + encodedFileName);
-            headers.setContentLength(docBytes.length);
+            // 첨부파일 조회
+            List<com.vacation.api.domain.attachment.entity.Attachment> attachments = 
+                    fileService.getAttachments(com.vacation.api.enums.ApplicationType.RENTAL_PROPOSAL.getCode(), seq);
             
-            log.info("월세 지원 품의서 DOCX 생성 완료. 크기: {} bytes", docBytes.length);
-            
-            return ResponseEntity.ok()
-                    .headers(headers)
-                    .body(docBytes);
+            // 첨부파일이 있으면 ZIP으로 묶기
+            if (attachments != null && !attachments.isEmpty()) {
+                byte[] zipBytes = zipFileUtil.createZipWithDocumentAndAttachments(
+                        docBytes, documentFileName, attachments);
+                
+                String zipFileName = documentFileName.replace(".docx", ".zip");
+                String encodedFileName = URLEncoder.encode(zipFileName, StandardCharsets.UTF_8)
+                        .replace("+", "%20");
+                
+                HttpHeaders headers = new HttpHeaders();
+                headers.setContentType(MediaType.parseMediaType("application/zip"));
+                headers.set(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=" + encodedFileName);
+                headers.setContentLength(zipBytes.length);
+                
+                log.info("월세 지원 품의서 ZIP 생성 완료. 크기: {} bytes, 첨부파일: {}개", zipBytes.length, attachments.size());
+                
+                return ResponseEntity.ok()
+                        .headers(headers)
+                        .body(zipBytes);
+            } else {
+                // 첨부파일이 없으면 기존처럼 문서만 반환
+                String encodedFileName = URLEncoder.encode(documentFileName, StandardCharsets.UTF_8)
+                        .replace("+", "%20");
+                
+                HttpHeaders headers = new HttpHeaders();
+                headers.setContentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.wordprocessingml.document"));
+                headers.set(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=" + encodedFileName);
+                headers.setContentLength(docBytes.length);
+                
+                log.info("월세 지원 품의서 DOCX 생성 완료. 크기: {} bytes", docBytes.length);
+                
+                return ResponseEntity.ok()
+                        .headers(headers)
+                        .body(docBytes);
+            }
         } catch (Exception e) {
             log.error("월세 지원 품의서 다운로드 실패", e);
             return ResponseEntity.internalServerError().build();

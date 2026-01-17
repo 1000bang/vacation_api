@@ -52,15 +52,17 @@ public class ExpenseClaimController extends BaseController {
     private final UserService userService;
     private final ResponseMapper responseMapper;
     private final FileService fileService;
+    private final com.vacation.api.util.ZipFileUtil zipFileUtil;
 
     public ExpenseClaimController(ExpenseClaimService expenseClaimService, UserService userService,
                                  ResponseMapper responseMapper, TransactionIDCreator transactionIDCreator,
-                                 FileService fileService) {
+                                 FileService fileService, com.vacation.api.util.ZipFileUtil zipFileUtil) {
         super(transactionIDCreator);
         this.expenseClaimService = expenseClaimService;
         this.userService = userService;
         this.responseMapper = responseMapper;
         this.fileService = fileService;
+        this.zipFileUtil = zipFileUtil;
     }
 
     /**
@@ -302,21 +304,58 @@ public class ExpenseClaimController extends BaseController {
             
             // 파일명 생성 (오늘 날짜 사용)
             String dateStr = LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd"));
-            String fileName = "개인비용신청서_" + applicant.getName() + "_" + dateStr + ".xlsx";
-            String encodedFileName = URLEncoder.encode(fileName, StandardCharsets.UTF_8)
-                    .replace("+", "%20");
+            String documentFileName = "개인비용신청서_" + applicant.getName() + "_" + dateStr + ".xlsx";
             
-            // HTTP 헤더 설정
-            HttpHeaders headers = new HttpHeaders();
-            headers.setContentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"));
-            headers.set(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=" + encodedFileName);
-            headers.setContentLength(excelBytes.length);
+            // 개인비용 항목별 첨부파일 조회 (childNo를 키로 사용)
+            java.util.Map<Integer, List<com.vacation.api.domain.attachment.entity.Attachment>> expenseSubAttachments = 
+                    new java.util.HashMap<>();
+            boolean hasAttachments = false;
             
-            log.info("개인 비용 청구서 Excel 생성 완료. 크기: {} bytes", excelBytes.length);
+            for (ExpenseSub expenseSub : expenseSubList) {
+                List<com.vacation.api.domain.attachment.entity.Attachment> attachments = 
+                        fileService.getExpenseItemAttachments(expenseSub.getSeq());
+                if (attachments != null && !attachments.isEmpty()) {
+                    expenseSubAttachments.put(expenseSub.getChildNo(), attachments);
+                    hasAttachments = true;
+                }
+            }
             
-            return ResponseEntity.ok()
-                    .headers(headers)
-                    .body(excelBytes);
+            // 첨부파일이 있으면 ZIP으로 묶기
+            if (hasAttachments) {
+                byte[] zipBytes = zipFileUtil.createZipWithDocumentAndExpenseAttachments(
+                        excelBytes, documentFileName, expenseSubAttachments);
+                
+                String zipFileName = documentFileName.replace(".xlsx", ".zip");
+                String encodedFileName = URLEncoder.encode(zipFileName, StandardCharsets.UTF_8)
+                        .replace("+", "%20");
+                
+                HttpHeaders headers = new HttpHeaders();
+                headers.setContentType(MediaType.parseMediaType("application/zip"));
+                headers.set(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=" + encodedFileName);
+                headers.setContentLength(zipBytes.length);
+                
+                int totalAttachments = expenseSubAttachments.values().stream().mapToInt(List::size).sum();
+                log.info("개인 비용 청구서 ZIP 생성 완료. 크기: {} bytes, 첨부파일: {}개", zipBytes.length, totalAttachments);
+                
+                return ResponseEntity.ok()
+                        .headers(headers)
+                        .body(zipBytes);
+            } else {
+                // 첨부파일이 없으면 기존처럼 문서만 반환
+                String encodedFileName = URLEncoder.encode(documentFileName, StandardCharsets.UTF_8)
+                        .replace("+", "%20");
+                
+                HttpHeaders headers = new HttpHeaders();
+                headers.setContentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"));
+                headers.set(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=" + encodedFileName);
+                headers.setContentLength(excelBytes.length);
+                
+                log.info("개인 비용 청구서 Excel 생성 완료. 크기: {} bytes", excelBytes.length);
+                
+                return ResponseEntity.ok()
+                        .headers(headers)
+                        .body(excelBytes);
+            }
         } catch (Exception e) {
             log.error("개인 비용 청구서 다운로드 실패", e);
             return ResponseEntity.internalServerError().build();

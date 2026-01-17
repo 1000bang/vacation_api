@@ -53,15 +53,18 @@ public class VacationController extends BaseController {
     private final UserService userService;
     private final ResponseMapper responseMapper;
     private final FileService fileService;
+    private final com.vacation.api.util.ZipFileUtil zipFileUtil;
 
     public VacationController(VacationService vacationService, UserService userService,
                               ResponseMapper responseMapper, FileService fileService,
-                              TransactionIDCreator transactionIDCreator) {
+                              TransactionIDCreator transactionIDCreator,
+                              com.vacation.api.util.ZipFileUtil zipFileUtil) {
         super(transactionIDCreator);
         this.vacationService = vacationService;
         this.userService = userService;
         this.responseMapper = responseMapper;
         this.fileService = fileService;
+        this.zipFileUtil = zipFileUtil;
     }
 
     /**
@@ -533,21 +536,47 @@ public class VacationController extends BaseController {
             
             // 파일명 생성 (오늘 날짜 사용)
             String dateStr = LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd"));
-            String fileName = "휴가(결무)신청서_" + applicant.getName() + "_" + dateStr + ".docx";
-            String encodedFileName = URLEncoder.encode(fileName, StandardCharsets.UTF_8)
-                    .replace("+", "%20");
+            String documentFileName = "휴가(결무)신청서_" + applicant.getName() + "_" + dateStr + ".docx";
             
-            // HTTP 헤더 설정
-            HttpHeaders headers = new HttpHeaders();
-            headers.setContentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.wordprocessingml.document"));
-            headers.set(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=" + encodedFileName);
-            headers.setContentLength(docBytes.length);
+            // 첨부파일 조회
+            List<com.vacation.api.domain.attachment.entity.Attachment> attachments = 
+                    fileService.getAttachments(com.vacation.api.enums.ApplicationType.VACATION.getCode(), seq);
             
-            log.info("휴가 신청서 DOCX 생성 완료. 크기: {} bytes", docBytes.length);
-            
-            return ResponseEntity.ok()
-                    .headers(headers)
-                    .body(docBytes);
+            // 첨부파일이 있으면 ZIP으로 묶기
+            if (attachments != null && !attachments.isEmpty()) {
+                byte[] zipBytes = zipFileUtil.createZipWithDocumentAndAttachments(
+                        docBytes, documentFileName, attachments);
+                
+                String zipFileName = documentFileName.replace(".docx", ".zip");
+                String encodedFileName = URLEncoder.encode(zipFileName, StandardCharsets.UTF_8)
+                        .replace("+", "%20");
+                
+                HttpHeaders headers = new HttpHeaders();
+                headers.setContentType(MediaType.parseMediaType("application/zip"));
+                headers.set(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=" + encodedFileName);
+                headers.setContentLength(zipBytes.length);
+                
+                log.info("휴가 신청서 ZIP 생성 완료. 크기: {} bytes, 첨부파일: {}개", zipBytes.length, attachments.size());
+                
+                return ResponseEntity.ok()
+                        .headers(headers)
+                        .body(zipBytes);
+            } else {
+                // 첨부파일이 없으면 기존처럼 문서만 반환
+                String encodedFileName = URLEncoder.encode(documentFileName, StandardCharsets.UTF_8)
+                        .replace("+", "%20");
+                
+                HttpHeaders headers = new HttpHeaders();
+                headers.setContentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.wordprocessingml.document"));
+                headers.set(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=" + encodedFileName);
+                headers.setContentLength(docBytes.length);
+                
+                log.info("휴가 신청서 DOCX 생성 완료. 크기: {} bytes", docBytes.length);
+                
+                return ResponseEntity.ok()
+                        .headers(headers)
+                        .body(docBytes);
+            }
         } catch (Exception e) {
             log.error("휴가 신청서 다운로드 실패", e);
             return ResponseEntity.internalServerError().build();
