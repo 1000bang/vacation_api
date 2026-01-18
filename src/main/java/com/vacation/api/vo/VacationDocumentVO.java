@@ -31,4 +31,5 @@ public class VacationDocumentVO {
     private Double totalVacationDays;
     private Double remainingVacationDays;
     private Double requestedVacationDays;
+    private Double usedVacationDays; // 사용 연차
 }

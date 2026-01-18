@@ -286,28 +286,36 @@ public class VacationService {
         // 사용자 연차 정보 조회 또는 생성
         UserVacationInfo vacationInfo = getUserVacationInfo(userId);
 
-        // 잔여 연차 확인
-        Double remainingDays = vacationInfo.getAnnualVacationDays() 
+        // 연차 차감 여부 확인 (기본값: true)
+        boolean isCountedAsUsedVacation = request.getIsCountedAsUsedVacation() != null 
+                ? request.getIsCountedAsUsedVacation() 
+                : true;
+
+        // 직전 남은 연차 계산 (신청 시점)
+        Double previousRemainingDays = vacationInfo.getAnnualVacationDays() 
                 - vacationInfo.getUsedVacationDays() 
                 - vacationInfo.getReservedVacationDays();
 
-        if (remainingDays < request.getPeriod()) {
-            log.warn("잔여 연차 부족: userId={}, remaining={}, requested={}", 
-                    userId, remainingDays, request.getPeriod());
-            throw new ApiException(ApiErrorCode.INVALID_REQUEST_FORMAT, "잔여 연차가 부족합니다.");
+        // 연차 차감이 필요한 경우에만 잔여 연차 확인
+        if (isCountedAsUsedVacation) {
+            if (previousRemainingDays < request.getPeriod()) {
+                log.warn("잔여 연차 부족: userId={}, remaining={}, requested={}", 
+                        userId, previousRemainingDays, request.getPeriod());
+                throw new ApiException(ApiErrorCode.INVALID_REQUEST_FORMAT, "잔여 연차가 부족합니다.");
+            }
         }
 
         // 오늘 날짜 확인
         LocalDate today = LocalDate.now();
         boolean isFuture = request.getStartDate().isAfter(today);
         
-        // 직전 남은 연차 계산 (신청 시점)
-        Double previousRemainingDays = vacationInfo.getAnnualVacationDays() 
-                - vacationInfo.getUsedVacationDays() 
-                - vacationInfo.getReservedVacationDays();
+        // 사용 연차 계산 (연차 차감이 false면 0)
+        Double usedVacationDays = isCountedAsUsedVacation ? request.getPeriod() : 0.0;
         
-        // 남은 연차 계산 (신청 후)
-        Double remainingVacationDays = previousRemainingDays - request.getPeriod();
+        // 남은 연차 계산 (연차 차감이 false면 변경 없음)
+        Double remainingVacationDays = isCountedAsUsedVacation 
+                ? previousRemainingDays - request.getPeriod() 
+                : previousRemainingDays;
 
         // 연차 내역 생성
         VacationHistory vacationHistory = VacationHistory.builder()
@@ -320,7 +328,7 @@ public class VacationService {
                 .requestDate(request.getRequestDate())
                 .annualVacationDays(vacationInfo.getAnnualVacationDays())
                 .previousRemainingDays(previousRemainingDays)
-                .usedVacationDays(request.getPeriod())
+                .usedVacationDays(usedVacationDays)
                 .remainingVacationDays(remainingVacationDays)
                 .status(isFuture ? "R" : "C") // R: 예약중, C: 사용 연차에 카운트됨
                 .approvalStatus(initialApprovalStatus) // 권한에 따라 초기 상태 설정 (tj: B, bb: C, 일반: A)
@@ -331,18 +339,21 @@ public class VacationService {
         // 알람 생성: 팀장에게
         alarmService.createApplicationCreatedAlarm(userId, ApplicationType.VACATION.getCode(), saved.getSeq());
 
-        // 예약중 연차 업데이트 (미래 날짜인 경우)
-        if (isFuture) {
-            vacationInfo.setReservedVacationDays(
-                    vacationInfo.getReservedVacationDays() + request.getPeriod()
-            );
-            userVacationInfoRepository.save(vacationInfo);
-        } else {
-            // 과거 또는 오늘 날짜인 경우 사용 연차로 처리
-            vacationInfo.setUsedVacationDays(
-                    vacationInfo.getUsedVacationDays() + request.getPeriod()
-            );
-            userVacationInfoRepository.save(vacationInfo);
+        // 연차 차감이 필요한 경우에만 UserVacationInfo 업데이트
+        if (isCountedAsUsedVacation) {
+            // 예약중 연차 업데이트 (미래 날짜인 경우)
+            if (isFuture) {
+                vacationInfo.setReservedVacationDays(
+                        vacationInfo.getReservedVacationDays() + request.getPeriod()
+                );
+                userVacationInfoRepository.save(vacationInfo);
+            } else {
+                // 과거 또는 오늘 날짜인 경우 사용 연차로 처리
+                vacationInfo.setUsedVacationDays(
+                        vacationInfo.getUsedVacationDays() + request.getPeriod()
+                );
+                userVacationInfoRepository.save(vacationInfo);
+            }
         }
 
         log.info("휴가 신청 완료: seq={}, userId={}", saved.getSeq(), userId);
@@ -369,38 +380,48 @@ public class VacationService {
 
         UserVacationInfo vacationInfo = getUserVacationInfo(userId);
 
-        // 기존 연차 차감 (status에 따라)
+        // 연차 차감 여부 확인 (기본값: true)
+        boolean isCountedAsUsedVacation = request.getIsCountedAsUsedVacation() != null 
+                ? request.getIsCountedAsUsedVacation() 
+                : true;
+
+        // 기존 연차 차감 (status에 따라, 기존에 연차 차감이 있었던 경우만)
         LocalDate today = LocalDate.now();
         String oldStatus = vacationHistory.getStatus();
+        Double oldUsedVacationDays = vacationHistory.getUsedVacationDays();
         
-        if ("R".equals(oldStatus)) {
-            // 기존에 예약중이었던 경우
-            vacationInfo.setReservedVacationDays(
-                    Math.max(0, vacationInfo.getReservedVacationDays() - vacationHistory.getPeriod())
-            );
-        } else if ("C".equals(oldStatus)) {
-            // 기존에 사용된 경우
-            vacationInfo.setUsedVacationDays(
-                    Math.max(0, vacationInfo.getUsedVacationDays() - vacationHistory.getPeriod())
-            );
+        // 기존에 연차 차감이 있었던 경우만 되돌림
+        if (oldUsedVacationDays != null && oldUsedVacationDays > 0) {
+            if ("R".equals(oldStatus)) {
+                // 기존에 예약중이었던 경우
+                vacationInfo.setReservedVacationDays(
+                        Math.max(0, vacationInfo.getReservedVacationDays() - oldUsedVacationDays)
+                );
+            } else if ("C".equals(oldStatus)) {
+                // 기존에 사용된 경우
+                vacationInfo.setUsedVacationDays(
+                        Math.max(0, vacationInfo.getUsedVacationDays() - oldUsedVacationDays)
+                );
+            }
         }
 
-        // 새로운 연차 확인
-        Double remainingDays = vacationInfo.getAnnualVacationDays() 
-                - vacationInfo.getUsedVacationDays() 
-                - vacationInfo.getReservedVacationDays();
+        // 연차 차감이 필요한 경우에만 잔여 연차 확인
+        if (isCountedAsUsedVacation) {
+            Double remainingDays = vacationInfo.getAnnualVacationDays() 
+                    - vacationInfo.getUsedVacationDays() 
+                    - vacationInfo.getReservedVacationDays();
 
-        if (remainingDays < request.getPeriod()) {
-            log.warn("잔여 연차 부족: userId={}, remaining={}, requested={}", 
-                    userId, remainingDays, request.getPeriod());
-            throw new ApiException(ApiErrorCode.INVALID_REQUEST_FORMAT, "잔여 연차가 부족합니다.");
+            if (remainingDays < request.getPeriod()) {
+                log.warn("잔여 연차 부족: userId={}, remaining={}, requested={}", 
+                        userId, remainingDays, request.getPeriod());
+                throw new ApiException(ApiErrorCode.INVALID_REQUEST_FORMAT, "잔여 연차가 부족합니다.");
+            }
         }
 
         // 직전 남은 연차 계산 (수정 시점)
         // 수정 모드에서 연차 정보가 제공되면 사용, 아니면 자동 계산
         Double previousRemainingDays;
         Double annualVacationDays;
-        Double remainingVacationDays;
         
         if (request.getPreviousRemainingDays() != null && 
             request.getAnnualVacationDays() != null && 
@@ -408,7 +429,6 @@ public class VacationService {
             // 수정 모드에서 연차 정보가 제공된 경우
             previousRemainingDays = request.getPreviousRemainingDays();
             annualVacationDays = request.getAnnualVacationDays();
-            remainingVacationDays = request.getRemainingVacationDays();
         } else {
             // 자동 계산: 해당 신청서 이전의 모든 신청서들을 고려하여 계산
             annualVacationDays = vacationInfo.getAnnualVacationDays();
@@ -424,12 +444,20 @@ public class VacationService {
             // 이전 신청서들을 순차적으로 계산하여 previousRemainingDays 계산
             Double calculatedPreviousRemaining = annualVacationDays;
             for (VacationHistory previous : previousHistories) {
-                calculatedPreviousRemaining = calculatedPreviousRemaining - previous.getPeriod();
+                Double prevUsedDays = previous.getUsedVacationDays() != null ? previous.getUsedVacationDays() : 0.0;
+                calculatedPreviousRemaining = calculatedPreviousRemaining - prevUsedDays;
             }
             
             previousRemainingDays = calculatedPreviousRemaining;
-            remainingVacationDays = previousRemainingDays - request.getPeriod();
         }
+
+        // 사용 연차 계산 (연차 차감이 false면 0)
+        Double usedVacationDays = isCountedAsUsedVacation ? request.getPeriod() : 0.0;
+        
+        // 남은 연차 계산 (연차 차감이 false면 변경 없음)
+        Double calculatedRemainingVacationDays = isCountedAsUsedVacation 
+                ? previousRemainingDays - request.getPeriod() 
+                : previousRemainingDays;
 
         // 연차 내역 수정
         vacationHistory.setStartDate(request.getStartDate());
@@ -440,22 +468,28 @@ public class VacationService {
         vacationHistory.setRequestDate(request.getRequestDate());
         vacationHistory.setAnnualVacationDays(annualVacationDays);
         vacationHistory.setPreviousRemainingDays(previousRemainingDays);
-        vacationHistory.setUsedVacationDays(request.getPeriod());
-        vacationHistory.setRemainingVacationDays(remainingVacationDays);
+        vacationHistory.setUsedVacationDays(usedVacationDays);
+        vacationHistory.setRemainingVacationDays(calculatedRemainingVacationDays);
         // 수정 시 무조건 AM 상태로 변경
         vacationHistory.setApprovalStatus(com.vacation.api.enums.ApprovalStatus.MODIFIED.getName()); // 수정됨
 
-        // 새로운 연차 추가 및 status 설정
-        boolean isFuture = request.getStartDate().isAfter(today);
-        if (isFuture) {
-            vacationInfo.setReservedVacationDays(
-                    vacationInfo.getReservedVacationDays() + request.getPeriod()
-            );
-            vacationHistory.setStatus("R");
+        // 연차 차감이 필요한 경우에만 UserVacationInfo 업데이트
+        if (isCountedAsUsedVacation) {
+            // 새로운 연차 추가 및 status 설정
+            boolean isFuture = request.getStartDate().isAfter(today);
+            if (isFuture) {
+                vacationInfo.setReservedVacationDays(
+                        vacationInfo.getReservedVacationDays() + request.getPeriod()
+                );
+                vacationHistory.setStatus("R");
+            } else {
+                vacationInfo.setUsedVacationDays(
+                        vacationInfo.getUsedVacationDays() + request.getPeriod()
+                );
+                vacationHistory.setStatus("C");
+            }
         } else {
-            vacationInfo.setUsedVacationDays(
-                    vacationInfo.getUsedVacationDays() + request.getPeriod()
-            );
+            // 연차 차감이 없으면 status는 기존과 동일하게 유지 (또는 "C"로 설정)
             vacationHistory.setStatus("C");
         }
 
@@ -486,11 +520,12 @@ public class VacationService {
             Double runningRemaining = vacationInfo.getAnnualVacationDays();
             for (VacationHistory previous : previousHistories) {
                 if (previous.getSeq().equals(seq)) {
-                    // 수정된 항목은 새로운 period로 계산
-                    runningRemaining = runningRemaining - updated.getPeriod();
+                    // 수정된 항목은 새로운 usedVacationDays로 계산
+                    runningRemaining = runningRemaining - updated.getUsedVacationDays();
                 } else {
-                    // 기존 항목은 기존 period로 계산
-                    runningRemaining = runningRemaining - previous.getPeriod();
+                    // 기존 항목은 기존 usedVacationDays로 계산
+                    Double prevUsedDays = previous.getUsedVacationDays() != null ? previous.getUsedVacationDays() : 0.0;
+                    runningRemaining = runningRemaining - prevUsedDays;
                 }
             }
             
@@ -498,7 +533,8 @@ public class VacationService {
             for (VacationHistory subsequent : subsequentHistories) {
                 // 이전 신청서의 remainingVacationDays를 previousRemainingDays로 설정
                 Double subPreviousRemainingDays = runningRemaining;
-                Double subRemainingVacationDays = subPreviousRemainingDays - subsequent.getPeriod();
+                Double subUsedVacationDays = subsequent.getUsedVacationDays() != null ? subsequent.getUsedVacationDays() : 0.0;
+                Double subRemainingVacationDays = subPreviousRemainingDays - subUsedVacationDays;
                 
                 subsequent.setPreviousRemainingDays(subPreviousRemainingDays);
                 subsequent.setRemainingVacationDays(subRemainingVacationDays);
@@ -545,18 +581,22 @@ public class VacationService {
 
         UserVacationInfo vacationInfo = getUserVacationInfo(userId);
 
-        // status에 따라 연차 차감
+        // status에 따라 연차 차감 (usedVacationDays가 0보다 큰 경우만)
         String status = vacationHistory.getStatus();
-        if ("R".equals(status)) {
-            // 예약중이었던 경우 - 예약중 연차에서 차감
-            vacationInfo.setReservedVacationDays(
-                    Math.max(0, vacationInfo.getReservedVacationDays() - vacationHistory.getPeriod())
-            );
-        } else if ("C".equals(status)) {
-            // 사용된 경우 - 사용 연차에서 차감
-            vacationInfo.setUsedVacationDays(
-                    Math.max(0, vacationInfo.getUsedVacationDays() - vacationHistory.getPeriod())
-            );
+        Double usedVacationDays = vacationHistory.getUsedVacationDays() != null ? vacationHistory.getUsedVacationDays() : 0.0;
+        
+        if (usedVacationDays > 0) {
+            if ("R".equals(status)) {
+                // 예약중이었던 경우 - 예약중 연차에서 차감
+                vacationInfo.setReservedVacationDays(
+                        Math.max(0, vacationInfo.getReservedVacationDays() - usedVacationDays)
+                );
+            } else if ("C".equals(status)) {
+                // 사용된 경우 - 사용 연차에서 차감
+                vacationInfo.setUsedVacationDays(
+                        Math.max(0, vacationInfo.getUsedVacationDays() - usedVacationDays)
+                );
+            }
         }
 
         userVacationInfoRepository.save(vacationInfo);
@@ -586,14 +626,16 @@ public class VacationService {
             // 삭제된 항목 이전의 신청서들을 순차적으로 계산하여 초기 remaining 계산
             Double runningRemaining = vacationInfo.getAnnualVacationDays();
             for (VacationHistory previous : previousHistories) {
-                runningRemaining = runningRemaining - previous.getPeriod();
+                Double prevUsedDays = previous.getUsedVacationDays() != null ? previous.getUsedVacationDays() : 0.0;
+                runningRemaining = runningRemaining - prevUsedDays;
             }
             
             // 삭제된 항목 이후의 신청서들을 재계산
             for (VacationHistory subsequent : subsequentHistories) {
                 // 이전 신청서의 remainingVacationDays를 previousRemainingDays로 설정
                 Double previousRemainingDays = runningRemaining;
-                Double remainingVacationDays = previousRemainingDays - subsequent.getPeriod();
+                Double subUsedVacationDays = subsequent.getUsedVacationDays() != null ? subsequent.getUsedVacationDays() : 0.0;
+                Double remainingVacationDays = previousRemainingDays - subUsedVacationDays;
                 
                 subsequent.setPreviousRemainingDays(previousRemainingDays);
                 subsequent.setRemainingVacationDays(remainingVacationDays);
@@ -627,6 +669,9 @@ public class VacationService {
         
         String department = user.getDivision() + "/" + user.getTeam();
         
+        Double usedVacationDays = vacationHistory.getUsedVacationDays() != null ? vacationHistory.getUsedVacationDays() : 0.0;
+        log.debug("문서 VO 생성 - period={}, usedVacationDays={}", vacationHistory.getPeriod(), usedVacationDays);
+        
         return VacationDocumentVO.builder()
                 .requestDate(vacationHistory.getRequestDate())
                 .department(department)
@@ -638,6 +683,7 @@ public class VacationService {
                 .totalVacationDays(vacationInfo.getAnnualVacationDays())
                 .remainingVacationDays(vacationHistory.getPreviousRemainingDays())
                 .requestedVacationDays(vacationHistory.getPeriod())
+                .usedVacationDays(usedVacationDays)
                 .build();
     }
 }

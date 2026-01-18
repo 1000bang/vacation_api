@@ -65,8 +65,10 @@ public class VacationStatusScheduler {
                 Long userId = vacation.getUserId();
                 Double period = vacation.getPeriod();
                 
-                log.info("휴가 내역 처리 시작: seq={}, userId={}, period={}", 
-                        vacation.getSeq(), userId, period);
+                Double usedVacationDays = vacation.getUsedVacationDays() != null ? vacation.getUsedVacationDays() : 0.0;
+                
+                log.info("휴가 내역 처리 시작: seq={}, userId={}, period={}, usedVacationDays={}", 
+                        vacation.getSeq(), userId, period, usedVacationDays);
                 
                 // 사용자별 연차 정보 조회
                 UserVacationInfo vacationInfo = userVacationInfoRepository.findByUserId(userId)
@@ -82,25 +84,32 @@ public class VacationStatusScheduler {
                             return userVacationInfoRepository.save(newInfo);
                         });
                 
-                // RESERVED_VACATION_DAYS에서 제외
-                Double currentReserved = vacationInfo.getReservedVacationDays();
-                Double newReserved = Math.max(0.0, currentReserved - period);
-                vacationInfo.setReservedVacationDays(newReserved);
-                
-                // USED_VACATION_DAYS에 추가
-                Double currentUsed = vacationInfo.getUsedVacationDays();
-                Double newUsed = currentUsed + period;
-                vacationInfo.setUsedVacationDays(newUsed);
-                
-                // 저장
-                userVacationInfoRepository.save(vacationInfo);
+                // 연차 차감이 필요한 경우에만 UserVacationInfo 업데이트
+                if (usedVacationDays > 0) {
+                    // RESERVED_VACATION_DAYS에서 제외
+                    Double currentReserved = vacationInfo.getReservedVacationDays();
+                    Double newReserved = Math.max(0.0, currentReserved - usedVacationDays);
+                    vacationInfo.setReservedVacationDays(newReserved);
+                    
+                    // USED_VACATION_DAYS에 추가
+                    Double currentUsed = vacationInfo.getUsedVacationDays();
+                    Double newUsed = currentUsed + usedVacationDays;
+                    vacationInfo.setUsedVacationDays(newUsed);
+                    
+                    // 저장
+                    userVacationInfoRepository.save(vacationInfo);
+                    
+                    log.info("연차 상태 업데이트 완료: userId={}, usedVacationDays={}, reserved: {} -> {}, used: {} -> {}", 
+                            userId, usedVacationDays, currentReserved, newReserved, currentUsed, newUsed);
+                } else {
+                    log.info("연차 차감이 없는 휴가 내역: seq={}, userId={}, usedVacationDays={}", 
+                            vacation.getSeq(), userId, usedVacationDays);
+                }
                 
                 // status를 'R'에서 'C'로 변경
                 vacation.setStatus("C");
                 vacationHistoryRepository.save(vacation);
                 
-                log.info("연차 상태 업데이트 완료: userId={}, period={}, reserved: {} -> {}, used: {} -> {}, status: R -> C", 
-                        userId, period, currentReserved, newReserved, currentUsed, newUsed);
                 
                 successCount++;
             } catch (Exception e) {

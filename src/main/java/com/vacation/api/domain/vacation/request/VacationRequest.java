@@ -69,5 +69,10 @@ public class VacationRequest {
      * 잔여 연차 (수정 모드에서 사용)
      */
     private Double remainingVacationDays;
+
+    /**
+     * 연차 차감 여부 (true: 연차 차감, false: 연차 차감 안함)
+     */
+    private Boolean isCountedAsUsedVacation;
 }
 

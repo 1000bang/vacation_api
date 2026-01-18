@@ -77,10 +77,10 @@ public class FileGenerateUtil {
             // 기간 문자열 생성
             String period = formatPeriod(vo.getStartDate(), vo.getEndDate());
             
-            // 최종 잔여 연차일수 계산
+            // 최종 잔여 연차일수 계산 (직전 잔여 연차 - 사용 연차)
             Double finalRemainingDays = calculateFinalRemainingDays(
                     vo.getRemainingVacationDays(),
-                    vo.getRequestedVacationDays()
+                    vo.getUsedVacationDays() != null ? vo.getUsedVacationDays() : 0.0
             );
             
             // 현재 연도
@@ -98,7 +98,7 @@ public class FileGenerateUtil {
             values.put(DocumentPlaceholder.REASON.getPlaceholder(), vo.getReason() != null ? vo.getReason() : "");
             values.put(DocumentPlaceholder.TOTAL_VACATION_DAYS.getPlaceholder(), formatVacationDays(vo.getTotalVacationDays()));
             values.put(DocumentPlaceholder.PREVIOUS_REMAINING_DAYS.getPlaceholder(), formatVacationDays(vo.getRemainingVacationDays()));
-            values.put(DocumentPlaceholder.REQUESTED_VACATION_DAYS.getPlaceholder(), formatVacationDays(vo.getRequestedVacationDays()));
+            values.put(DocumentPlaceholder.REQUESTED_VACATION_DAYS.getPlaceholder(), formatVacationDays(vo.getUsedVacationDays()));
             values.put(DocumentPlaceholder.FINAL_REMAINING_DAYS.getPlaceholder(), formatVacationDays(finalRemainingDays));
             values.put(DocumentPlaceholder.CURRENT_YEAR.getPlaceholder(), String.valueOf(currentYear));
 

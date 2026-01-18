@@ -1057,6 +1057,7 @@ public class ApprovalService {
                             .startDate(vh.getStartDate())
                             .endDate(vh.getEndDate())
                             .period(vh.getPeriod())
+                            .usedVacationDays(vh.getUsedVacationDays())
                             .type(vh.getType())
                             .reason(vh.getReason())
                             .approvalStatus(vh.getApprovalStatus())

@@ -52,6 +52,7 @@ public class PendingApprovalResponse {
         private LocalDate startDate;
         private LocalDate endDate;
         private Double period;
+        private Double usedVacationDays; // 사용 연차
         private String type;
         private String reason;
 
