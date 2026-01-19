@@ -436,4 +436,88 @@ public class ApprovalController extends BaseController {
             return errorResponse("반려에 실패했습니다.", e);
         }
     }
+
+    /**
+     * 휴가 신청 최종 승인 (관리자)
+     */
+    @PostMapping("/vacation/{seq}/approve/master")
+    public ResponseEntity<ApiResponse<Object>> approveVacationByMaster(
+            HttpServletRequest request,
+            @PathVariable Long seq) {
+        log.info("휴가 신청 관리자 최종 승인 요청: seq={}", seq);
+
+        try {
+            Long approverId = (Long) request.getAttribute("userId");
+            approvalService.approveVacationByMaster(seq, approverId);
+            return successResponse("승인되었습니다.");
+        } catch (ApiException e) {
+            return errorResponse("승인에 실패했습니다.", e);
+        } catch (Exception e) {
+            log.error("승인 실패", e);
+            return errorResponse("승인에 실패했습니다.", e);
+        }
+    }
+
+    /**
+     * 개인 비용 청구 최종 승인 (관리자)
+     */
+    @PostMapping("/expense/{seq}/approve/master")
+    public ResponseEntity<ApiResponse<Object>> approveExpenseClaimByMaster(
+            HttpServletRequest request,
+            @PathVariable Long seq) {
+        log.info("개인 비용 청구 관리자 최종 승인 요청: seq={}", seq);
+
+        try {
+            Long approverId = (Long) request.getAttribute("userId");
+            approvalService.approveExpenseClaimByMaster(seq, approverId);
+            return successResponse("승인되었습니다.");
+        } catch (ApiException e) {
+            return errorResponse("승인에 실패했습니다.", e);
+        } catch (Exception e) {
+            log.error("승인 실패", e);
+            return errorResponse("승인에 실패했습니다.", e);
+        }
+    }
+
+    /**
+     * 월세 지원 신청 최종 승인 (관리자)
+     */
+    @PostMapping("/rental/{seq}/approve/master")
+    public ResponseEntity<ApiResponse<Object>> approveRentalSupportByMaster(
+            HttpServletRequest request,
+            @PathVariable Long seq) {
+        log.info("월세 지원 신청 관리자 최종 승인 요청: seq={}", seq);
+
+        try {
+            Long approverId = (Long) request.getAttribute("userId");
+            approvalService.approveRentalSupportByMaster(seq, approverId);
+            return successResponse("승인되었습니다.");
+        } catch (ApiException e) {
+            return errorResponse("승인에 실패했습니다.", e);
+        } catch (Exception e) {
+            log.error("승인 실패", e);
+            return errorResponse("승인에 실패했습니다.", e);
+        }
+    }
+
+    /**
+     * 월세 품의서 최종 승인 (관리자)
+     */
+    @PostMapping("/rental-proposal/{seq}/approve/master")
+    public ResponseEntity<ApiResponse<Object>> approveRentalProposalByMaster(
+            HttpServletRequest request,
+            @PathVariable Long seq) {
+        log.info("월세 품의서 관리자 최종 승인 요청: seq={}", seq);
+
+        try {
+            Long approverId = (Long) request.getAttribute("userId");
+            approvalService.approveRentalProposalByMaster(seq, approverId);
+            return successResponse("승인되었습니다.");
+        } catch (ApiException e) {
+            return errorResponse("승인에 실패했습니다.", e);
+        } catch (Exception e) {
+            log.error("승인 실패", e);
+            return errorResponse("승인에 실패했습니다.", e);
+        }
+    }
 }

@@ -35,10 +35,10 @@ public class FileGenerateUtil {
 
     /**
      * 서명 기능 활성화 여부
-     * false: 서명 기능 비활성화 (현재 설정)
-     * true: 서명 기능 활성화
+     * false: 서명 기능 비활성화
+     * true: 서명 기능 활성화 (현재 설정)
      */
-    private static final boolean isSig = false;
+    private static final boolean isSig = true;
 
     /**
      * 연차 신청서 Doc 생성
@@ -655,7 +655,56 @@ public class FileGenerateUtil {
     }
 
     /**
-     * 서명 이미지 로드
+     * 사용자 서명 파일 로드
+     *
+     * @param userId 사용자 ID
+     * @param signatureFileUtil 서명 파일 유틸리티 인스턴스
+     * @return 서명 이미지 바이트 배열, 파일이 없으면 null
+     */
+    public static byte[] loadUserSignature(Long userId, SignatureFileUtil signatureFileUtil) {
+        if (userId == null || signatureFileUtil == null) {
+            return null;
+        }
+
+        try {
+            if (!signatureFileUtil.signatureFileExists(userId)) {
+                log.debug("서명 파일이 존재하지 않습니다: userId={}", userId);
+                return null;
+            }
+            return signatureFileUtil.loadSignatureFile(userId);
+        } catch (Exception e) {
+            log.error("서명 파일 로드 실패: userId={}", userId, e);
+            return null;
+        }
+    }
+
+    /**
+     * 날짜 이미지 생성
+     * 문서 생성 시마다 동적으로 생성하며 저장하지 않습니다.
+     *
+     * @param date 날짜 문자열 (예: "2025.01.16")
+     * @param signaturePlaceholder 서명 플레이스홀더 (SIG2 크기 사용)
+     * @param signatureImageUtil 서명 이미지 유틸리티 인스턴스
+     * @return 날짜 이미지 바이트 배열, 생성 실패 시 null
+     */
+    public static byte[] createDateImage(String date, SignaturePlaceholder signaturePlaceholder, SignatureImageUtil signatureImageUtil) {
+        if (date == null || date.trim().isEmpty() || signaturePlaceholder == null || signatureImageUtil == null) {
+            return null;
+        }
+
+        try {
+            // SIG2 크기로 날짜 이미지 생성
+            // 기본 폰트 사용 (나눔손글씨 강부장님체.ttf)
+            String defaultFont = "나눔손글씨 강부장님체.ttf";
+            return signatureImageUtil.generateDateImage(date, defaultFont);
+        } catch (Exception e) {
+            log.error("날짜 이미지 생성 실패: date={}, placeholder={}", date, signaturePlaceholder, e);
+            return null;
+        }
+    }
+
+    /**
+     * 서명 이미지 로드 (레거시 메서드 - 하위 호환성 유지)
      */
     private static byte[] loadSignatureImage() {
         try {
@@ -671,6 +720,198 @@ public class FileGenerateUtil {
             log.error("서명 이미지 로드 중 오류 발생", e);
             return null;
         }
+    }
+
+    /**
+     * 팀장 서명 포함 여부 결정
+     * 팀장이 작성한 경우 false 반환 (tim_sig 스킵)
+     * 일반 사용자가 작성한 경우 true 반환
+     *
+     * @param applicantAuthVal 작성자 권한
+     * @return 팀장 서명 포함 여부
+     */
+    public static boolean shouldIncludeTeamLeaderSignature(com.vacation.api.enums.AuthVal applicantAuthVal) {
+        if (applicantAuthVal == null) {
+            return true; // 권한 정보가 없으면 포함
+        }
+        // 팀장이 작성한 경우 tim_sig 스킵 (바로 본부장 승인)
+        return applicantAuthVal != com.vacation.api.enums.AuthVal.TEAM_LEADER;
+    }
+
+    /**
+     * 본부장 서명 포함 여부 결정
+     * 본부장이 작성한 경우 false 반환 (bu_sig 스킵)
+     * 일반 사용자/팀장이 작성한 경우 true 반환
+     *
+     * @param applicantAuthVal 작성자 권한
+     * @return 본부장 서명 포함 여부
+     */
+    public static boolean shouldIncludeDivisionHeadSignature(com.vacation.api.enums.AuthVal applicantAuthVal) {
+        if (applicantAuthVal == null) {
+            return true; // 권한 정보가 없으면 포함
+        }
+        // 본부장이 작성한 경우 bu_sig 스킵 (바로 최종 승인 완료)
+        return applicantAuthVal != com.vacation.api.enums.AuthVal.DIVISION_HEAD;
+    }
+
+    /**
+     * 서명 이미지 맵 생성
+     * 승인 상태와 작성자 권한에 따라 서명을 조건부로 포함
+     *
+     * @param applicantUserId 작성자 사용자 ID
+     * @param teamLeaderUserId 팀장 사용자 ID (null 가능)
+     * @param divisionHeadUserId 본부장 사용자 ID (null 가능)
+     * @param applicantAuthVal 작성자 권한
+     * @param approvalStatus 승인 상태 (A, AM, B, RB, C, RC)
+     * @param requestDate 신청일 (날짜 형식: "2025.01.16")
+     * @param signatureFileUtil 서명 파일 유틸리티 인스턴스
+     * @param signatureImageUtil 서명 이미지 유틸리티 인스턴스
+     * @return 서명 이미지 맵 (플레이스홀더 -> 이미지 바이트 배열)
+     */
+    public static Map<String, byte[]> createSignatureImageMap(
+            Long applicantUserId,
+            Long teamLeaderUserId,
+            Long divisionHeadUserId,
+            com.vacation.api.enums.AuthVal applicantAuthVal,
+            String approvalStatus,
+            String requestDate,
+            SignatureFileUtil signatureFileUtil,
+            SignatureImageUtil signatureImageUtil) {
+        
+        Map<String, byte[]> signatureImageMap = new HashMap<>();
+        
+        // 승인 상태 Enum으로 변환
+        com.vacation.api.enums.ApprovalStatus status = com.vacation.api.enums.ApprovalStatus.fromName(approvalStatus);
+        
+        // 작성자 권한에 따라 서명 포함 여부 결정
+        boolean includeDamSig = shouldIncludeDamSignature(applicantAuthVal, status);
+        boolean includeTimSig = shouldIncludeTimSignature(applicantAuthVal, status);
+        boolean includeBuSig = shouldIncludeBuSignature(applicantAuthVal, status);
+        
+        // 작성자 서명: DAM_SIG1, DAM_SIG2
+        if (includeDamSig) {
+            byte[] applicantSig1 = loadUserSignature(applicantUserId, signatureFileUtil);
+            if (applicantSig1 != null) {
+                signatureImageMap.put(SignaturePlaceholder.DAM_SIG1.getPlaceholder(), applicantSig1);
+            }
+            
+            // dam_sig2는 날짜만 표시
+            byte[] dateImage = createDateImage(requestDate, SignaturePlaceholder.DAM_SIG2, signatureImageUtil);
+            if (dateImage != null) {
+                signatureImageMap.put(SignaturePlaceholder.DAM_SIG2.getPlaceholder(), dateImage);
+            }
+        }
+        
+        // 팀장 서명: TIM_SIG1, TIM_SIG2
+        if (includeTimSig && teamLeaderUserId != null) {
+            byte[] teamLeaderSig1 = loadUserSignature(teamLeaderUserId, signatureFileUtil);
+            if (teamLeaderSig1 != null) {
+                signatureImageMap.put(SignaturePlaceholder.TIM_SIG1.getPlaceholder(), teamLeaderSig1);
+            }
+            
+            // tim_sig2는 날짜만 표시
+            byte[] timDateImage = createDateImage(requestDate, SignaturePlaceholder.TIM_SIG2, signatureImageUtil);
+            if (timDateImage != null) {
+                signatureImageMap.put(SignaturePlaceholder.TIM_SIG2.getPlaceholder(), timDateImage);
+            }
+        }
+        
+        // 본부장 서명: BU_SIG1, BU_SIG2
+        if (includeBuSig && divisionHeadUserId != null) {
+            byte[] divisionHeadSig1 = loadUserSignature(divisionHeadUserId, signatureFileUtil);
+            if (divisionHeadSig1 != null) {
+                signatureImageMap.put(SignaturePlaceholder.BU_SIG1.getPlaceholder(), divisionHeadSig1);
+            }
+            
+            // bu_sig2는 날짜만 표시
+            byte[] buDateImage = createDateImage(requestDate, SignaturePlaceholder.BU_SIG2, signatureImageUtil);
+            if (buDateImage != null) {
+                signatureImageMap.put(SignaturePlaceholder.BU_SIG2.getPlaceholder(), buDateImage);
+            }
+        }
+        
+        return signatureImageMap;
+    }
+    
+    /**
+     * 작성자 서명(DAM_SIG) 포함 여부 결정
+     * 
+     * 규칙:
+     * - A or AM or RB + TW → DAM_SIG 포함
+     * - B or RC + TW → DAM_SIG 포함
+     * - C + TW → DAM_SIG 포함
+     * - B + TJ → DAM_SIG 포함
+     * - C + TJ → DAM_SIG 포함
+     * - C + BB → DAM_SIG 제외
+     */
+    private static boolean shouldIncludeDamSignature(
+            com.vacation.api.enums.AuthVal applicantAuthVal,
+            com.vacation.api.enums.ApprovalStatus approvalStatus) {
+        // BB가 작성하고 C 상태인 경우만 DAM_SIG 제외
+        if (applicantAuthVal == com.vacation.api.enums.AuthVal.DIVISION_HEAD 
+                && approvalStatus == com.vacation.api.enums.ApprovalStatus.DIVISION_HEAD_APPROVED) {
+            return false;
+        }
+        return true;
+    }
+    
+    /**
+     * 팀장 서명(TIM_SIG) 포함 여부 결정
+     * 
+     * 규칙:
+     * - A or AM or RB + TW → TIM_SIG 제외
+     * - B or RC + TW → TIM_SIG 포함
+     * - C + TW → TIM_SIG 포함
+     * - B + TJ → TIM_SIG 제외
+     * - C + TJ → TIM_SIG 제외 (TJ는 본부장만 승인)
+     * - C + BB → TIM_SIG 제외
+     */
+    private static boolean shouldIncludeTimSignature(
+            com.vacation.api.enums.AuthVal applicantAuthVal,
+            com.vacation.api.enums.ApprovalStatus approvalStatus) {
+        // TW 작성자
+        if (applicantAuthVal == com.vacation.api.enums.AuthVal.TEAM_MEMBER) {
+            // B, RC, C 상태일 때만 포함 (A, AM, RB는 제외)
+            return approvalStatus == com.vacation.api.enums.ApprovalStatus.TEAM_LEADER_APPROVED
+                    || approvalStatus == com.vacation.api.enums.ApprovalStatus.TEAM_LEADER_REJECTED
+                    || approvalStatus == com.vacation.api.enums.ApprovalStatus.DIVISION_HEAD_APPROVED;
+        }
+        // TJ 작성자: B 상태일 때는 제외, C 상태일 때도 제외 (TJ는 본부장만 승인하므로 TIM_SIG 불필요)
+        // BB 작성자: 제외
+        return false;
+    }
+    
+    /**
+     * 본부장 서명(BU_SIG) 포함 여부 결정
+     * 
+     * 규칙:
+     * - A or AM or RB + TW → BU_SIG 제외
+     * - B or RC + TW → BU_SIG 제외
+     * - C + TW → BU_SIG 포함
+     * - B + TJ → BU_SIG 제외
+     * - C + TJ → BU_SIG 포함
+     * - C + BB → BU_SIG 포함
+     */
+    private static boolean shouldIncludeBuSignature(
+            com.vacation.api.enums.AuthVal applicantAuthVal,
+            com.vacation.api.enums.ApprovalStatus approvalStatus) {
+        // C 상태일 때만 포함
+        if (approvalStatus != com.vacation.api.enums.ApprovalStatus.DIVISION_HEAD_APPROVED) {
+            return false;
+        }
+        // TW 작성자: C 상태일 때 포함
+        if (applicantAuthVal == com.vacation.api.enums.AuthVal.TEAM_MEMBER) {
+            return true;
+        }
+        // TJ 작성자: C 상태일 때 포함
+        if (applicantAuthVal == com.vacation.api.enums.AuthVal.TEAM_LEADER) {
+            return true;
+        }
+        // BB 작성자: C 상태일 때만 BU_SIG 포함 (DAM_SIG 제외)
+        if (applicantAuthVal == com.vacation.api.enums.AuthVal.DIVISION_HEAD) {
+            return true;
+        }
+        return false;
     }
 
     /**

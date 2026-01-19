@@ -20,6 +20,11 @@ import com.vacation.api.common.TransactionIDCreator;
 import com.vacation.api.util.FileGenerateUtil;
 import com.vacation.api.util.ResponseMapper;
 import com.vacation.api.util.ZipFileUtil;
+import com.vacation.api.util.SignatureFileUtil;
+import com.vacation.api.util.SignatureImageUtil;
+import com.vacation.api.util.CommonUtil;
+import com.vacation.api.enums.AuthVal;
+import com.vacation.api.domain.user.repository.UserRepository;
 import com.vacation.api.vo.VacationDocumentVO;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
@@ -37,6 +42,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
+import java.util.Map;
 
 /**
  * 연차 Controller
@@ -55,17 +61,26 @@ public class VacationController extends BaseController {
     private final ResponseMapper responseMapper;
     private final FileService fileService;
     private final ZipFileUtil zipFileUtil;
+    private final SignatureFileUtil signatureFileUtil;
+    private final SignatureImageUtil signatureImageUtil;
+    private final UserRepository userRepository;
 
     public VacationController(VacationService vacationService, UserService userService,
                               ResponseMapper responseMapper, FileService fileService,
                               TransactionIDCreator transactionIDCreator,
-                              ZipFileUtil zipFileUtil) {
+                              ZipFileUtil zipFileUtil,
+                              SignatureFileUtil signatureFileUtil,
+                              SignatureImageUtil signatureImageUtil,
+                              UserRepository userRepository) {
         super(transactionIDCreator);
         this.vacationService = vacationService;
         this.userService = userService;
         this.responseMapper = responseMapper;
         this.fileService = fileService;
         this.zipFileUtil = zipFileUtil;
+        this.signatureFileUtil = signatureFileUtil;
+        this.signatureImageUtil = signatureImageUtil;
+        this.userRepository = userRepository;
     }
 
     /**
@@ -532,8 +547,16 @@ public class VacationController extends BaseController {
             VacationDocumentVO vo = vacationService.createVacationDocumentVO(
                     vacationHistory, applicant, vacationInfo);
             
-            // DOCX 생성 (서명은 null로 전달하여 빈 문자열로 처리)
-            byte[] docBytes = FileGenerateUtil.generateVacationApplicationDoc(vo, null);
+            // 서명 이미지 맵 생성 (승인 상태 포함)
+            String approvalStatus = vacationHistory.getApprovalStatus();
+            if (approvalStatus == null) {
+                approvalStatus = com.vacation.api.enums.ApprovalStatus.INITIAL.getName();
+            }
+            Map<String, byte[]> signatureImageMap = createSignatureImageMapForVacation(
+                    vacationHistory, applicant, approvalStatus, vo.getRequestDate());
+            
+            // DOCX 생성 (서명 이미지 맵 전달)
+            byte[] docBytes = FileGenerateUtil.generateVacationApplicationDoc(vo, signatureImageMap);
             
             // 파일명 생성 (오늘 날짜 사용)
             String dateStr = LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd"));
@@ -632,6 +655,73 @@ public class VacationController extends BaseController {
         } catch (Exception e) {
             log.error("휴가 신청 첨부파일 다운로드 실패", e);
             return ResponseEntity.internalServerError().build();
+        }
+    }
+
+    /**
+     * 휴가 신청서용 서명 이미지 맵 생성
+     *
+     * @param vacationHistory 휴가 내역 (승인자 ID 포함)
+     * @param applicant 신청자 정보
+     * @param approvalStatus 승인 상태 (A, AM, B, RB, C, RC, D)
+     * @param requestDate 신청일
+     * @return 서명 이미지 맵
+     */
+    private Map<String, byte[]> createSignatureImageMapForVacation(
+            VacationHistory vacationHistory, User applicant, String approvalStatus, LocalDate requestDate) {
+        try {
+            // 신청일을 "yyyy.MM.dd" 형식으로 변환
+            String requestDateStr = CommonUtil.formatDateShort(requestDate);
+            
+            // 신청자 권한
+            AuthVal applicantAuthVal = AuthVal.fromCode(applicant.getAuthVal());
+            
+            // 상태값에 따라 실제 승인자 ID 사용
+            Long teamLeaderUserId = null;
+            Long divisionHeadUserId = null;
+            
+            if (com.vacation.api.enums.ApprovalStatus.TEAM_LEADER_APPROVED.getName().equals(approvalStatus)) {
+                // B 상태: tj_approval_id 사용
+                teamLeaderUserId = vacationHistory.getTjApprovalId();
+            } else if (com.vacation.api.enums.ApprovalStatus.DIVISION_HEAD_APPROVED.getName().equals(approvalStatus) ||
+                       com.vacation.api.enums.ApprovalStatus.DONE.getName().equals(approvalStatus)) {
+                // C 또는 D 상태: bb_approval_id 사용
+                divisionHeadUserId = vacationHistory.getBbApprovalId();
+                // B 상태도 지났으므로 tj_approval_id도 사용
+                teamLeaderUserId = vacationHistory.getTjApprovalId();
+            }
+            
+            // 승인자가 없으면 기본 팀장/본부장 조회 (fallback)
+            if (teamLeaderUserId == null) {
+                List<User> teamLeaders = userRepository.findByDivisionAndTeamAndAuthVal(
+                        applicant.getDivision(), applicant.getTeam(), AuthVal.TEAM_LEADER.getCode());
+                teamLeaderUserId = teamLeaders.isEmpty() ? null : teamLeaders.get(0).getUserId();
+            }
+            
+            if (divisionHeadUserId == null && 
+                (com.vacation.api.enums.ApprovalStatus.DIVISION_HEAD_APPROVED.getName().equals(approvalStatus) ||
+                 com.vacation.api.enums.ApprovalStatus.DONE.getName().equals(approvalStatus))) {
+                List<User> divisionHeads = userRepository.findByDivisionAndAuthVal(
+                        applicant.getDivision(), AuthVal.DIVISION_HEAD.getCode());
+                divisionHeadUserId = divisionHeads.isEmpty() ? null : divisionHeads.get(0).getUserId();
+            }
+            
+            // 서명 이미지 맵 생성 (승인 상태 포함)
+            return FileGenerateUtil.createSignatureImageMap(
+                    applicant.getUserId(),
+                    teamLeaderUserId,
+                    divisionHeadUserId,
+                    applicantAuthVal,
+                    approvalStatus,
+                    requestDateStr,
+                    signatureFileUtil,
+                    signatureImageUtil
+            );
+        } catch (Exception e) {
+            log.error("서명 이미지 맵 생성 실패: applicantId={}, approvalStatus={}", 
+                    applicant.getUserId(), approvalStatus, e);
+            // 실패 시 빈 맵 반환 (서명 없이 문서 생성)
+            return new java.util.HashMap<>();
         }
     }
 }

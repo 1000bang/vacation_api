@@ -78,8 +78,22 @@
         <logger name="org.hibernate" level="INFO"/>
     </springProfile>
     
+    <!-- 로컬 환경 설정 -->
+    <springProfile name="local">
+        <root level="DEBUG">
+            <appender-ref ref="CONSOLE"/>
+            <appender-ref ref="FILE"/>
+            <appender-ref ref="ERROR_FILE"/>
+        </root>
+        
+        <!-- 애플리케이션 로그 레벨 -->
+        <logger name="com.vacation.api" level="DEBUG"/>
+        <logger name="org.springframework.web" level="INFO"/>
+        <logger name="org.hibernate" level="INFO"/>
+    </springProfile>
+    
     <!-- 기본 설정 (프로파일이 없을 때) -->
-    <springProfile name="!prod,!dev">
+    <springProfile name="!prod,!dev,!local">
         <root level="INFO">
             <appender-ref ref="CONSOLE"/>
             <appender-ref ref="FILE"/>

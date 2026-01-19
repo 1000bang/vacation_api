@@ -19,7 +19,8 @@ public enum ApprovalStatus {
     TEAM_LEADER_APPROVED("AS_03", "B", "팀장 승인"),
     TEAM_LEADER_REJECTED("AS_04", "RB", "팀장 반려"),
     DIVISION_HEAD_APPROVED("AS_05", "C", "본부장 승인"),
-    DIVISION_HEAD_REJECTED("AS_06", "RC", "본부장 반려");
+    DIVISION_HEAD_REJECTED("AS_06", "RC", "본부장 반려"),
+    DONE("AS_07", "D", "최종 승인");
 
     private final String code;
     private final String name;

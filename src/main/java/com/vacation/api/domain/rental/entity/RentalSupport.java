@@ -121,6 +121,42 @@ public class RentalSupport {
     private String approvalStatus = "A";
 
     /**
+     * 팀장 승인자 ID
+     */
+    @Column(name = "tj_approval_id")
+    private Long tjApprovalId;
+
+    /**
+     * 팀장 승인일
+     */
+    @Column(name = "tj_approval_date")
+    private LocalDate tjApprovalDate;
+
+    /**
+     * 본부장 승인자 ID
+     */
+    @Column(name = "bb_approval_id")
+    private Long bbApprovalId;
+
+    /**
+     * 본부장 승인일
+     */
+    @Column(name = "bb_approval_date")
+    private LocalDate bbApprovalDate;
+
+    /**
+     * 관리자 승인자 ID
+     */
+    @Column(name = "ma_approval_id")
+    private Long maApprovalId;
+
+    /**
+     * 관리자 승인일
+     */
+    @Column(name = "ma_approval_date")
+    private LocalDate maApprovalDate;
+
+    /**
      * 생성일
      */
     @Column(name = "created_at", nullable = false, updatable = false)

@@ -12,16 +12,28 @@ import com.vacation.api.domain.user.response.LoginResponse;
 import com.vacation.api.domain.user.response.RefreshTokenResponse;
 import com.vacation.api.domain.user.response.UserInfoResponse;
 import com.vacation.api.domain.user.service.UserService;
+import com.vacation.api.enums.SignaturePlaceholder;
 import com.vacation.api.exception.ApiException;
 import com.vacation.api.response.data.ApiResponse;
+import com.vacation.api.util.SignatureFileUtil;
+import com.vacation.api.util.SignatureImageUtil;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.core.io.ClassPathResource;
+import org.springframework.core.io.Resource;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
-import java.util.List;
+import java.io.IOException;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
+import java.util.*;
+import java.util.stream.Collectors;
 
 /**
  * 사용자 관련 Controller
@@ -38,11 +50,17 @@ public class UserController extends BaseController {
 
     private final UserService userService;
     private final UserRepository userRepository;
+    private final SignatureFileUtil signatureFileUtil;
+    private final SignatureImageUtil signatureImageUtil;
 
-    public UserController(UserService userService, UserRepository userRepository, TransactionIDCreator transactionIDCreator) {
+    public UserController(UserService userService, UserRepository userRepository, 
+                         SignatureFileUtil signatureFileUtil, SignatureImageUtil signatureImageUtil,
+                         TransactionIDCreator transactionIDCreator) {
         super(transactionIDCreator);
         this.userService = userService;
         this.userRepository = userRepository;
+        this.signatureFileUtil = signatureFileUtil;
+        this.signatureImageUtil = signatureImageUtil;
     }
 
     /**
@@ -325,6 +343,333 @@ public class UserController extends BaseController {
             return errorResponse("사용자 정보 수정에 실패했습니다.", e);
         } catch (Exception e) {
             return errorResponse("사용자 정보 수정에 실패했습니다.", e);
+        }
+    }
+
+    /**
+     * 서명 생성/업로드 API
+     *
+     * @param request HTTP 요청
+     * @param signatureImage 서명 이미지 파일 (PNG)
+     * @param fontType 폰트 타입 (선택, 폰트 방식인 경우)
+     * @param userName 사용자 이름 (선택, 폰트 방식인 경우)
+     * @return 성공/실패 메시지
+     */
+    @PostMapping(value = "/signature", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<ApiResponse<Object>> uploadSignature(
+            HttpServletRequest request,
+            @RequestPart(value = "signatureImage", required = false) MultipartFile signatureImage,
+            @RequestPart(value = "fontType", required = false) String fontType,
+            @RequestPart(value = "userName", required = false) String userName) {
+        log.info("서명 생성/업로드 요청");
+
+        try {
+            Long userId = (Long) request.getAttribute("userId");
+            User user = userService.getUserInfo(userId);
+
+            byte[] imageBytes;
+
+            // 방법 1: 직접 업로드한 이미지 파일 사용
+            if (signatureImage != null && !signatureImage.isEmpty()) {
+                // 파일 형식 검증 (PNG만 허용)
+                String originalFilename = signatureImage.getOriginalFilename();
+                if (originalFilename == null || !originalFilename.toLowerCase().endsWith(".png")) {
+                    return errorResponse("400", "PNG 파일만 업로드 가능합니다.");
+                }
+
+                // 파일 크기 제한 (5MB)
+                long maxSize = 5 * 1024 * 1024; // 5MB
+                if (signatureImage.getSize() > maxSize) {
+                    return errorResponse("400", "파일 크기는 5MB를 초과할 수 없습니다.");
+                }
+
+                imageBytes = signatureImage.getBytes();
+            }
+            // 방법 2: 폰트로 서명 생성
+            else if (fontType != null && !fontType.trim().isEmpty() && userName != null && !userName.trim().isEmpty()) {
+                // 사용자 이름이 제공되지 않으면 DB에서 가져오기
+                String nameToUse = userName.trim().isEmpty() ? user.getName() : userName;
+                
+                // 서명 이미지 생성
+                imageBytes = signatureImageUtil.generateSignatureImage(
+                    nameToUse,
+                    fontType,
+                    SignaturePlaceholder.SignatureSize.SIG1
+                );
+            } else {
+                return errorResponse("400", "서명 이미지 파일 또는 폰트 타입과 사용자 이름을 제공해주세요.");
+            }
+
+            // 기존 서명이 있으면 삭제
+            if (signatureFileUtil.signatureFileExists(userId)) {
+                signatureFileUtil.deleteSignatureFile(userId);
+                log.info("기존 서명 파일 삭제: userId={}", userId);
+            }
+
+            // 서명 파일 저장
+            signatureFileUtil.saveSignatureFile(userId, imageBytes);
+
+            Map<String, Object> responseData = new HashMap<>();
+            responseData.put("message", "서명이 저장되었습니다.");
+
+            log.info("서명 저장 완료: userId={}", userId);
+            return successResponse(responseData);
+
+        } catch (ApiException e) {
+            return errorResponse("서명 저장에 실패했습니다.", e);
+        } catch (IOException e) {
+            log.error("서명 저장 실패", e);
+            return errorResponse("500", "서명 저장에 실패했습니다: " + e.getMessage());
+        } catch (Exception e) {
+            log.error("서명 저장 실패", e);
+            return errorResponse("서명 저장에 실패했습니다.", e);
+        }
+    }
+
+    /**
+     * 서명 미리보기 API (저장하지 않음)
+     *
+     * @param fontType 폰트 타입
+     * @param userName 사용자 이름
+     * @return 서명 이미지 (PNG)
+     */
+    @GetMapping("/signature/preview")
+    public ResponseEntity<byte[]> previewSignature(
+            @RequestParam String fontType,
+            @RequestParam String userName) {
+        log.info("서명 미리보기 요청: fontType={}, userName={}", fontType, userName);
+
+        try {
+            // 서명 이미지 생성 (저장하지 않음)
+            byte[] imageBytes = signatureImageUtil.generateSignatureImage(
+                userName.trim(),
+                fontType,
+                SignaturePlaceholder.SignatureSize.SIG1
+            );
+
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.IMAGE_PNG);
+            headers.setContentLength(imageBytes.length);
+            headers.setCacheControl("no-cache, no-store, must-revalidate");
+            headers.setPragma("no-cache");
+            headers.setExpires(0);
+
+            return ResponseEntity.ok()
+                    .headers(headers)
+                    .body(imageBytes);
+
+        } catch (IOException e) {
+            log.error("서명 미리보기 생성 실패: fontType={}, userName={}", fontType, userName, e);
+            return ResponseEntity.internalServerError().build();
+        } catch (Exception e) {
+            log.error("서명 미리보기 생성 실패: fontType={}, userName={}", fontType, userName, e);
+            return ResponseEntity.internalServerError().build();
+        }
+    }
+
+    /**
+     * 서명 조회 API
+     *
+     * @param request HTTP 요청
+     * @return 서명 파일 정보
+     */
+    @GetMapping("/signature")
+    public ResponseEntity<ApiResponse<Object>> getSignature(HttpServletRequest request) {
+        log.info("서명 조회 요청");
+
+        try {
+            Long userId = (Long) request.getAttribute("userId");
+
+            Map<String, Object> responseData = new HashMap<>();
+
+            if (signatureFileUtil.signatureFileExists(userId)) {
+                // 서명 파일 URL 생성 (다운로드 경로)
+                // SignatureFileUtil을 사용하여 URL 경로 생성
+                String signatureUrl = signatureFileUtil.getSignatureDownloadUrl(userId);
+                
+                responseData.put("signatureUrl", signatureUrl);
+                responseData.put("hasSignature", true);
+            } else {
+                responseData.put("hasSignature", false);
+            }
+
+            return successResponse(responseData);
+
+        } catch (ApiException e) {
+            return errorResponse("서명 조회에 실패했습니다.", e);
+        } catch (Exception e) {
+            return errorResponse("서명 조회에 실패했습니다.", e);
+        }
+    }
+
+    /**
+     * 서명 삭제 API
+     *
+     * @param request HTTP 요청
+     * @return 성공/실패 메시지
+     */
+    @DeleteMapping("/signature")
+    public ResponseEntity<ApiResponse<Object>> deleteSignature(HttpServletRequest request) {
+        log.info("서명 삭제 요청");
+
+        try {
+            Long userId = (Long) request.getAttribute("userId");
+
+            boolean deleted = signatureFileUtil.deleteSignatureFile(userId);
+
+            Map<String, Object> responseData = new HashMap<>();
+            if (deleted) {
+                responseData.put("message", "서명이 삭제되었습니다.");
+            } else {
+                responseData.put("message", "서명이 존재하지 않습니다.");
+            }
+
+            return successResponse(responseData);
+
+        } catch (ApiException e) {
+            return errorResponse("서명 삭제에 실패했습니다.", e);
+        } catch (Exception e) {
+            return errorResponse("서명 삭제에 실패했습니다.", e);
+        }
+    }
+
+    /**
+     * 사용 가능한 폰트 목록 조회 API
+     *
+     * @return 폰트 목록
+     */
+    @GetMapping("/signature/fonts")
+    public ResponseEntity<ApiResponse<Object>> getAvailableFonts() {
+        log.info("사용 가능한 폰트 목록 조회 요청");
+
+        try {
+            // 허용된 폰트 목록 (7개)
+            List<Map<String, String>> fonts = new ArrayList<>();
+            
+            Map<String, String> font1 = new HashMap<>();
+            font1.put("name", "강부장님체");
+            font1.put("file", "나눔손글씨 강부장님체.ttf");
+            fonts.add(font1);
+
+            Map<String, String> font2 = new HashMap<>();
+            font2.put("name", "강인한위로");
+            font2.put("file", "나눔손글씨 강인한 위로.ttf");
+            fonts.add(font2);
+
+            Map<String, String> font3 = new HashMap<>();
+            font3.put("name", "나무정원");
+            font3.put("file", "나눔손글씨 나무정원.ttf");
+            fonts.add(font3);
+
+            Map<String, String> font4 = new HashMap<>();
+            font4.put("name", "대광유리");
+            font4.put("file", "나눔손글씨 대광유리.ttf");
+            fonts.add(font4);
+
+            Map<String, String> font5 = new HashMap<>();
+            font5.put("name", "열일체");
+            font5.put("file", "나눔손글씨 열일체.ttf");
+            fonts.add(font5);
+
+            Map<String, String> font6 = new HashMap<>();
+            font6.put("name", "와일드");
+            font6.put("file", "나눔손글씨 와일드.ttf");
+            fonts.add(font6);
+
+            Map<String, String> font7 = new HashMap<>();
+            font7.put("name", "혁이체");
+            font7.put("file", "나눔손글씨 혁이체.ttf");
+            fonts.add(font7);
+
+            // 실제 파일 존재 여부 확인 및 필터링
+            List<Map<String, String>> availableFonts = fonts.stream()
+                    .filter(font -> {
+                        try {
+                            ClassPathResource fontResource = new ClassPathResource("fonts/" + font.get("file"));
+                            return fontResource.exists();
+                        } catch (Exception e) {
+                            log.warn("폰트 파일 확인 실패: {}", font.get("file"), e);
+                            return false;
+                        }
+                    })
+                    .collect(Collectors.toList());
+
+            Map<String, Object> responseData = new HashMap<>();
+            responseData.put("fonts", availableFonts);
+
+            return successResponse(responseData);
+
+        } catch (Exception e) {
+            log.error("폰트 목록 조회 실패", e);
+            return errorResponse("폰트 목록 조회에 실패했습니다.", e);
+        }
+    }
+
+    /**
+     * 서명 파일 다운로드 엔드포인트
+     *
+     * @param request HTTP 요청
+     * @param fileName 파일명 (예: "123_signature.png")
+     * @return 서명 파일
+     */
+    @GetMapping("/download/signature/{fileName}")
+    public ResponseEntity<Resource> downloadSignatureFile(
+            HttpServletRequest request,
+            @PathVariable String fileName) {
+        log.info("서명 파일 다운로드 요청: fileName={}", fileName);
+
+        try {
+            Long requesterId = (Long) request.getAttribute("userId");
+
+            // 파일명에서 userId 추출
+            if (!fileName.endsWith("_signature.png")) {
+                log.warn("잘못된 파일명 형식: {}", fileName);
+                return ResponseEntity.notFound().build();
+            }
+
+            String userIdStr = fileName.replace("_signature.png", "");
+            Long fileUserId;
+            try {
+                fileUserId = Long.parseLong(userIdStr);
+            } catch (NumberFormatException e) {
+                log.warn("잘못된 파일명 형식: {}", fileName);
+                return ResponseEntity.notFound().build();
+            }
+
+            // 권한 체크: 자신의 서명만 다운로드 가능
+            if (!requesterId.equals(fileUserId)) {
+                log.warn("서명 파일 다운로드 권한 없음: requesterId={}, fileUserId={}", requesterId, fileUserId);
+                return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+            }
+
+            // 서명 파일 존재 여부 확인
+            if (!signatureFileUtil.signatureFileExists(fileUserId)) {
+                log.warn("서명 파일이 없음: userId={}", fileUserId);
+                return ResponseEntity.notFound().build();
+            }
+
+            // 서명 파일 로드
+            Resource resource = signatureFileUtil.loadSignatureFileAsResource(fileUserId);
+
+            // 파일명 인코딩
+            String encodedFileName = URLEncoder.encode(fileName, StandardCharsets.UTF_8)
+                    .replace("+", "%20");
+
+            // HTTP 헤더 설정
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.IMAGE_PNG);
+            headers.set(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + encodedFileName + "\"");
+
+            return ResponseEntity.ok()
+                    .headers(headers)
+                    .body(resource);
+
+        } catch (IOException e) {
+            log.error("서명 파일 다운로드 실패: fileName={}", fileName, e);
+            return ResponseEntity.notFound().build();
+        } catch (Exception e) {
+            log.error("서명 파일 다운로드 실패: fileName={}", fileName, e);
+            return ResponseEntity.internalServerError().build();
         }
     }
 }

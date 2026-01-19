@@ -470,8 +470,27 @@ public class VacationService {
         vacationHistory.setPreviousRemainingDays(previousRemainingDays);
         vacationHistory.setUsedVacationDays(usedVacationDays);
         vacationHistory.setRemainingVacationDays(calculatedRemainingVacationDays);
-        // 수정 시 무조건 AM 상태로 변경
-        vacationHistory.setApprovalStatus(com.vacation.api.enums.ApprovalStatus.MODIFIED.getName()); // 수정됨
+        
+        // 수정 시 작성자 권한에 따라 상태 변경
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ApiException(ApiErrorCode.USER_NOT_FOUND));
+        String authVal = user.getAuthVal();
+        
+        String newApprovalStatus;
+        if (com.vacation.api.enums.AuthVal.TEAM_MEMBER.getCode().equals(authVal)) {
+            // TW가 수정하면 → AM
+            newApprovalStatus = com.vacation.api.enums.ApprovalStatus.MODIFIED.getName();
+        } else if (com.vacation.api.enums.AuthVal.TEAM_LEADER.getCode().equals(authVal)) {
+            // TJ가 수정하면 → B
+            newApprovalStatus = com.vacation.api.enums.ApprovalStatus.TEAM_LEADER_APPROVED.getName();
+        } else if (com.vacation.api.enums.AuthVal.DIVISION_HEAD.getCode().equals(authVal)) {
+            // BB가 수정하면 → C
+            newApprovalStatus = com.vacation.api.enums.ApprovalStatus.DIVISION_HEAD_APPROVED.getName();
+        } else {
+            // 기타는 AM
+            newApprovalStatus = com.vacation.api.enums.ApprovalStatus.MODIFIED.getName();
+        }
+        vacationHistory.setApprovalStatus(newApprovalStatus);
 
         // 연차 차감이 필요한 경우에만 UserVacationInfo 업데이트
         if (isCountedAsUsedVacation) {

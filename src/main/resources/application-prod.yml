@@ -47,16 +47,17 @@ management:
       show-details: never  # 프로덕션에서는 상세 정보 숨김
 
 # 로그 설정은 logback-spring.xml에서 관리
-# 로그 파일 경로 설정
-logging:
-  file:
-    path: ${LOG_PATH:-/data/api/logs}
-  level:
-    root: INFO
-    com.vacation.api: INFO  # 프로덕션에서는 INFO 레벨 권장
-    org.springframework.web: WARN
-    org.hibernate.SQL: WARN
-    org.hibernate.type.descriptor.sql.BasicBinder: WARN
+# logging 설정을 여기에 두면 logback-spring.xml의 설정을 오버라이드할 수 있음
+# 로그 파일 경로는 환경변수 LOG_PATH로 설정 (기본값: /data/api/logs)
+# logging:
+#   file:
+#     path: ${LOG_PATH:-/data/api/logs}
+#   level:
+#     root: INFO
+#     com.vacation.api: INFO  # 프로덕션에서는 INFO 레벨 권장
+#     org.springframework.web: WARN
+#     org.hibernate.SQL: WARN
+#     org.hibernate.type.descriptor.sql.BasicBinder: WARN
 
 # SpringDoc OpenAPI (Swagger) 설정 (프로덕션에서는 비활성화 권장)
 springdoc:
@@ -70,3 +71,6 @@ file:
   upload:
     path:
       prod: /upload
+  signature:
+    path:
+      prod: /signature

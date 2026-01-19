@@ -25,6 +25,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -99,6 +100,16 @@ public class ApprovalService {
         }
 
         vacationHistory.setApprovalStatus(ApprovalStatus.TEAM_LEADER_APPROVED.getName());
+        
+        // 승인자 정보 저장
+        if (AuthVal.TEAM_LEADER.getCode().equals(approverAuthVal)) {
+            vacationHistory.setTjApprovalId(approverId);
+            vacationHistory.setTjApprovalDate(LocalDate.now());
+        } else if (AuthVal.MASTER.getCode().equals(approverAuthVal)) {
+            vacationHistory.setMaApprovalId(approverId);
+            vacationHistory.setMaApprovalDate(LocalDate.now());
+        }
+        
         vacationHistoryRepository.save(vacationHistory);
 
         // 알람 생성: 신청자 및 본부장에게
@@ -223,6 +234,16 @@ public class ApprovalService {
         }
 
         vacationHistory.setApprovalStatus(ApprovalStatus.DIVISION_HEAD_APPROVED.getName());
+        
+        // 승인자 정보 저장
+        if (AuthVal.DIVISION_HEAD.getCode().equals(approverAuthVal)) {
+            vacationHistory.setBbApprovalId(approverId);
+            vacationHistory.setBbApprovalDate(LocalDate.now());
+        } else if (AuthVal.MASTER.getCode().equals(approverAuthVal)) {
+            vacationHistory.setMaApprovalId(approverId);
+            vacationHistory.setMaApprovalDate(LocalDate.now());
+        }
+        
         vacationHistoryRepository.save(vacationHistory);
 
         // 알람 생성: 신청자에게
@@ -344,6 +365,16 @@ public class ApprovalService {
         }
 
         expenseClaim.setApprovalStatus(ApprovalStatus.TEAM_LEADER_APPROVED.getName());
+        
+        // 승인자 정보 저장
+        if (AuthVal.TEAM_LEADER.getCode().equals(approverAuthVal)) {
+            expenseClaim.setTjApprovalId(approverId);
+            expenseClaim.setTjApprovalDate(LocalDate.now());
+        } else if (AuthVal.MASTER.getCode().equals(approverAuthVal)) {
+            expenseClaim.setMaApprovalId(approverId);
+            expenseClaim.setMaApprovalDate(LocalDate.now());
+        }
+        
         expenseClaimRepository.save(expenseClaim);
 
         // 알람 생성: 신청자 및 본부장에게
@@ -454,6 +485,16 @@ public class ApprovalService {
         }
 
         expenseClaim.setApprovalStatus(ApprovalStatus.DIVISION_HEAD_APPROVED.getName());
+        
+        // 승인자 정보 저장
+        if (AuthVal.DIVISION_HEAD.getCode().equals(approverAuthVal)) {
+            expenseClaim.setBbApprovalId(approverId);
+            expenseClaim.setBbApprovalDate(LocalDate.now());
+        } else if (AuthVal.MASTER.getCode().equals(approverAuthVal)) {
+            expenseClaim.setMaApprovalId(approverId);
+            expenseClaim.setMaApprovalDate(LocalDate.now());
+        }
+        
         expenseClaimRepository.save(expenseClaim);
 
         // 알람 생성: 신청자에게
@@ -564,6 +605,16 @@ public class ApprovalService {
         }
 
         rentalSupport.setApprovalStatus(ApprovalStatus.TEAM_LEADER_APPROVED.getName());
+        
+        // 승인자 정보 저장
+        if (AuthVal.TEAM_LEADER.getCode().equals(approverAuthVal)) {
+            rentalSupport.setTjApprovalId(approverId);
+            rentalSupport.setTjApprovalDate(LocalDate.now());
+        } else if (AuthVal.MASTER.getCode().equals(approverAuthVal)) {
+            rentalSupport.setMaApprovalId(approverId);
+            rentalSupport.setMaApprovalDate(LocalDate.now());
+        }
+        
         rentalSupportRepository.save(rentalSupport);
 
         // 알람 생성: 신청자 및 본부장에게
@@ -674,6 +725,16 @@ public class ApprovalService {
         }
 
         rentalSupport.setApprovalStatus(ApprovalStatus.DIVISION_HEAD_APPROVED.getName());
+        
+        // 승인자 정보 저장
+        if (AuthVal.DIVISION_HEAD.getCode().equals(approverAuthVal)) {
+            rentalSupport.setBbApprovalId(approverId);
+            rentalSupport.setBbApprovalDate(LocalDate.now());
+        } else if (AuthVal.MASTER.getCode().equals(approverAuthVal)) {
+            rentalSupport.setMaApprovalId(approverId);
+            rentalSupport.setMaApprovalDate(LocalDate.now());
+        }
+        
         rentalSupportRepository.save(rentalSupport);
 
         // 알람 생성: 신청자에게
@@ -784,6 +845,16 @@ public class ApprovalService {
         }
 
         rentalProposal.setApprovalStatus(ApprovalStatus.TEAM_LEADER_APPROVED.getName());
+        
+        // 승인자 정보 저장
+        if (AuthVal.TEAM_LEADER.getCode().equals(approverAuthVal)) {
+            rentalProposal.setTjApprovalId(approverId);
+            rentalProposal.setTjApprovalDate(LocalDate.now());
+        } else if (AuthVal.MASTER.getCode().equals(approverAuthVal)) {
+            rentalProposal.setMaApprovalId(approverId);
+            rentalProposal.setMaApprovalDate(LocalDate.now());
+        }
+        
         rentalProposalRepository.save(rentalProposal);
 
         // 알람 생성: 신청자 및 본부장에게
@@ -894,6 +965,16 @@ public class ApprovalService {
         }
 
         rentalProposal.setApprovalStatus(ApprovalStatus.DIVISION_HEAD_APPROVED.getName());
+        
+        // 승인자 정보 저장
+        if (AuthVal.DIVISION_HEAD.getCode().equals(approverAuthVal)) {
+            rentalProposal.setBbApprovalId(approverId);
+            rentalProposal.setBbApprovalDate(LocalDate.now());
+        } else if (AuthVal.MASTER.getCode().equals(approverAuthVal)) {
+            rentalProposal.setMaApprovalId(approverId);
+            rentalProposal.setMaApprovalDate(LocalDate.now());
+        }
+        
         rentalProposalRepository.save(rentalProposal);
 
         // 알람 생성: 신청자에게
@@ -1368,5 +1449,185 @@ public class ApprovalService {
             }
         }
         return rentalProposalList;
+    }
+
+    /**
+     * 휴가 신청 최종 승인 (관리자)
+     *
+     * @param seq 휴가 신청 시퀀스
+     * @param approverId 승인자 ID
+     */
+    @Transactional
+    public void approveVacationByMaster(Long seq, Long approverId) {
+        log.info("휴가 신청 관리자 최종 승인: seq={}, approverId={}", seq, approverId);
+
+        VacationHistory vacationHistory = vacationHistoryRepository.findById(seq)
+                .orElseThrow(() -> {
+                    log.warn("존재하지 않는 휴가 신청: seq={}", seq);
+                    return new ApiException(ApiErrorCode.INVALID_REQUEST_FORMAT, "존재하지 않는 휴가 신청입니다.");
+                });
+
+        // 승인 가능한 상태 확인 (C만 승인 가능)
+        String currentStatus = vacationHistory.getApprovalStatus();
+        if (currentStatus == null || !ApprovalStatus.DIVISION_HEAD_APPROVED.getName().equals(currentStatus)) {
+            log.warn("승인 불가능한 상태: seq={}, status={}", seq, currentStatus);
+            throw new ApiException(ApiErrorCode.INVALID_REQUEST_FORMAT, "승인할 수 없는 상태입니다.");
+        }
+
+        // 권한 확인 (관리자만 승인 가능)
+        User approver = userRepository.findById(approverId)
+                .orElseThrow(() -> new ApiException(ApiErrorCode.USER_NOT_FOUND));
+        
+        String approverAuthVal = approver.getAuthVal();
+        if (!AuthVal.MASTER.getCode().equals(approverAuthVal)) {
+            log.warn("관리자 권한이 아님: approverId={}, authVal={}", approverId, approverAuthVal);
+            throw new ApiException(ApiErrorCode.ACCESS_DENIED, "관리자만 최종 승인할 수 있습니다.");
+        }
+
+        vacationHistory.setApprovalStatus(ApprovalStatus.DONE.getName());
+        vacationHistory.setMaApprovalId(approverId);
+        vacationHistory.setMaApprovalDate(LocalDate.now());
+        vacationHistoryRepository.save(vacationHistory);
+
+        // 알람 생성: 신청자에게
+        alarmService.createDivisionHeadApprovedAlarm(
+                vacationHistory.getUserId(), ApplicationType.VACATION.getCode(), seq);
+
+        log.info("휴가 신청 관리자 최종 승인 완료: seq={}", seq);
+    }
+
+    /**
+     * 개인 비용 청구 최종 승인 (관리자)
+     *
+     * @param seq 개인 비용 청구 시퀀스
+     * @param approverId 승인자 ID
+     */
+    @Transactional
+    public void approveExpenseClaimByMaster(Long seq, Long approverId) {
+        log.info("개인 비용 청구 관리자 최종 승인: seq={}, approverId={}", seq, approverId);
+
+        ExpenseClaim expenseClaim = expenseClaimRepository.findById(seq)
+                .orElseThrow(() -> {
+                    log.warn("존재하지 않는 개인 비용 청구: seq={}", seq);
+                    return new ApiException(ApiErrorCode.INVALID_REQUEST_FORMAT, "존재하지 않는 개인 비용 청구입니다.");
+                });
+
+        // 승인 가능한 상태 확인 (C만 승인 가능)
+        String currentStatus = expenseClaim.getApprovalStatus();
+        if (currentStatus == null || !ApprovalStatus.DIVISION_HEAD_APPROVED.getName().equals(currentStatus)) {
+            log.warn("승인 불가능한 상태: seq={}, status={}", seq, currentStatus);
+            throw new ApiException(ApiErrorCode.INVALID_REQUEST_FORMAT, "승인할 수 없는 상태입니다.");
+        }
+
+        // 권한 확인 (관리자만 승인 가능)
+        User approver = userRepository.findById(approverId)
+                .orElseThrow(() -> new ApiException(ApiErrorCode.USER_NOT_FOUND));
+        
+        String approverAuthVal = approver.getAuthVal();
+        if (!AuthVal.MASTER.getCode().equals(approverAuthVal)) {
+            log.warn("관리자 권한이 아님: approverId={}, authVal={}", approverId, approverAuthVal);
+            throw new ApiException(ApiErrorCode.ACCESS_DENIED, "관리자만 최종 승인할 수 있습니다.");
+        }
+
+        expenseClaim.setApprovalStatus(ApprovalStatus.DONE.getName());
+        expenseClaim.setMaApprovalId(approverId);
+        expenseClaim.setMaApprovalDate(LocalDate.now());
+        expenseClaimRepository.save(expenseClaim);
+
+        // 알람 생성: 신청자에게
+        alarmService.createDivisionHeadApprovedAlarm(
+                expenseClaim.getUserId(), ApplicationType.EXPENSE.getCode(), seq);
+
+        log.info("개인 비용 청구 관리자 최종 승인 완료: seq={}", seq);
+    }
+
+    /**
+     * 월세 지원 신청 최종 승인 (관리자)
+     *
+     * @param seq 월세 지원 신청 시퀀스
+     * @param approverId 승인자 ID
+     */
+    @Transactional
+    public void approveRentalSupportByMaster(Long seq, Long approverId) {
+        log.info("월세 지원 신청 관리자 최종 승인: seq={}, approverId={}", seq, approverId);
+
+        RentalSupport rentalSupport = rentalSupportRepository.findById(seq)
+                .orElseThrow(() -> {
+                    log.warn("존재하지 않는 월세 지원 신청: seq={}", seq);
+                    return new ApiException(ApiErrorCode.INVALID_REQUEST_FORMAT, "존재하지 않는 월세 지원 신청입니다.");
+                });
+
+        // 승인 가능한 상태 확인 (C만 승인 가능)
+        String currentStatus = rentalSupport.getApprovalStatus();
+        if (currentStatus == null || !ApprovalStatus.DIVISION_HEAD_APPROVED.getName().equals(currentStatus)) {
+            log.warn("승인 불가능한 상태: seq={}, status={}", seq, currentStatus);
+            throw new ApiException(ApiErrorCode.INVALID_REQUEST_FORMAT, "승인할 수 없는 상태입니다.");
+        }
+
+        // 권한 확인 (관리자만 승인 가능)
+        User approver = userRepository.findById(approverId)
+                .orElseThrow(() -> new ApiException(ApiErrorCode.USER_NOT_FOUND));
+        
+        String approverAuthVal = approver.getAuthVal();
+        if (!AuthVal.MASTER.getCode().equals(approverAuthVal)) {
+            log.warn("관리자 권한이 아님: approverId={}, authVal={}", approverId, approverAuthVal);
+            throw new ApiException(ApiErrorCode.ACCESS_DENIED, "관리자만 최종 승인할 수 있습니다.");
+        }
+
+        rentalSupport.setApprovalStatus(ApprovalStatus.DONE.getName());
+        rentalSupport.setMaApprovalId(approverId);
+        rentalSupport.setMaApprovalDate(LocalDate.now());
+        rentalSupportRepository.save(rentalSupport);
+
+        // 알람 생성: 신청자에게
+        alarmService.createDivisionHeadApprovedAlarm(
+                rentalSupport.getUserId(), ApplicationType.RENTAL.getCode(), seq);
+
+        log.info("월세 지원 신청 관리자 최종 승인 완료: seq={}", seq);
+    }
+
+    /**
+     * 월세 품의서 최종 승인 (관리자)
+     *
+     * @param seq 월세 품의서 시퀀스
+     * @param approverId 승인자 ID
+     */
+    @Transactional
+    public void approveRentalProposalByMaster(Long seq, Long approverId) {
+        log.info("월세 품의서 관리자 최종 승인: seq={}, approverId={}", seq, approverId);
+
+        RentalProposal rentalProposal = rentalProposalRepository.findById(seq)
+                .orElseThrow(() -> {
+                    log.warn("존재하지 않는 월세 품의서: seq={}", seq);
+                    return new ApiException(ApiErrorCode.INVALID_REQUEST_FORMAT, "존재하지 않는 월세 품의서입니다.");
+                });
+
+        // 승인 가능한 상태 확인 (C만 승인 가능)
+        String currentStatus = rentalProposal.getApprovalStatus();
+        if (currentStatus == null || !ApprovalStatus.DIVISION_HEAD_APPROVED.getName().equals(currentStatus)) {
+            log.warn("승인 불가능한 상태: seq={}, status={}", seq, currentStatus);
+            throw new ApiException(ApiErrorCode.INVALID_REQUEST_FORMAT, "승인할 수 없는 상태입니다.");
+        }
+
+        // 권한 확인 (관리자만 승인 가능)
+        User approver = userRepository.findById(approverId)
+                .orElseThrow(() -> new ApiException(ApiErrorCode.USER_NOT_FOUND));
+        
+        String approverAuthVal = approver.getAuthVal();
+        if (!AuthVal.MASTER.getCode().equals(approverAuthVal)) {
+            log.warn("관리자 권한이 아님: approverId={}, authVal={}", approverId, approverAuthVal);
+            throw new ApiException(ApiErrorCode.ACCESS_DENIED, "관리자만 최종 승인할 수 있습니다.");
+        }
+
+        rentalProposal.setApprovalStatus(ApprovalStatus.DONE.getName());
+        rentalProposal.setMaApprovalId(approverId);
+        rentalProposal.setMaApprovalDate(LocalDate.now());
+        rentalProposalRepository.save(rentalProposal);
+
+        // 알람 생성: 신청자에게
+        alarmService.createDivisionHeadApprovedAlarm(
+                rentalProposal.getUserId(), ApplicationType.RENTAL_PROPOSAL.getCode(), seq);
+
+        log.info("월세 품의서 관리자 최종 승인 완료: seq={}", seq);
     }
 }
