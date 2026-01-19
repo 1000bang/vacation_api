@@ -13,6 +13,7 @@ import com.vacation.api.domain.user.response.RefreshTokenResponse;
 import com.vacation.api.domain.user.response.UserInfoResponse;
 import com.vacation.api.domain.user.service.UserService;
 import com.vacation.api.enums.SignaturePlaceholder;
+import com.vacation.api.enums.SignatureFont;
 import com.vacation.api.exception.ApiException;
 import com.vacation.api.response.data.ApiResponse;
 import com.vacation.api.util.SignatureFileUtil;
@@ -30,10 +31,10 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
-import java.util.stream.Collectors;
 
 /**
  * 사용자 관련 Controller
@@ -429,7 +430,7 @@ public class UserController extends BaseController {
     /**
      * 서명 미리보기 API (저장하지 않음)
      *
-     * @param fontType 폰트 타입
+     * @param fontType 폰트 파일명
      * @param userName 사용자 이름
      * @return 서명 이미지 (PNG)
      */
@@ -440,10 +441,30 @@ public class UserController extends BaseController {
         log.info("서명 미리보기 요청: fontType={}, userName={}", fontType, userName);
 
         try {
+            // Enum에서 폰트 찾기
+            SignatureFont font = SignatureFont.findByFileName(fontType);
+            if (font == null || !"Y".equals(font.getUseYn())) {
+                log.warn("사용할 수 없는 폰트: {}", fontType);
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                        .contentType(MediaType.TEXT_PLAIN)
+                        .body("사용할 수 없는 폰트입니다.".getBytes(StandardCharsets.UTF_8));
+            }
+
+            // 폰트 파일 존재 여부 확인 (JAR 내부에서도 작동하도록 getInputStream() 시도)
+            ClassPathResource fontResource = new ClassPathResource("fonts/" + font.getFileName());
+            try (InputStream testStream = fontResource.getInputStream()) {
+                // InputStream을 열 수 있으면 파일이 존재함
+            } catch (IOException e) {
+                log.warn("폰트 파일을 찾을 수 없음: {}", font.getFileName(), e);
+                return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                        .contentType(MediaType.TEXT_PLAIN)
+                        .body("해당 폰트를 찾을 수 없습니다.".getBytes(StandardCharsets.UTF_8));
+            }
+
             // 서명 이미지 생성 (저장하지 않음)
             byte[] imageBytes = signatureImageUtil.generateSignatureImage(
                 userName.trim(),
-                fontType,
+                font.getFileName(),
                 SignaturePlaceholder.SignatureSize.SIG1
             );
 
@@ -535,6 +556,7 @@ public class UserController extends BaseController {
 
     /**
      * 사용 가능한 폰트 목록 조회 API
+     * Enum에 정의된 폰트 중 사용 가능한 것만 반환
      *
      * @return 폰트 목록
      */
@@ -543,56 +565,19 @@ public class UserController extends BaseController {
         log.info("사용 가능한 폰트 목록 조회 요청");
 
         try {
-            // 허용된 폰트 목록 (7개)
-            List<Map<String, String>> fonts = new ArrayList<>();
+            List<Map<String, String>> availableFonts = new ArrayList<>();
             
-            Map<String, String> font1 = new HashMap<>();
-            font1.put("name", "강부장님체");
-            font1.put("file", "나눔손글씨 강부장님체.ttf");
-            fonts.add(font1);
-
-            Map<String, String> font2 = new HashMap<>();
-            font2.put("name", "강인한위로");
-            font2.put("file", "나눔손글씨 강인한 위로.ttf");
-            fonts.add(font2);
-
-            Map<String, String> font3 = new HashMap<>();
-            font3.put("name", "나무정원");
-            font3.put("file", "나눔손글씨 나무정원.ttf");
-            fonts.add(font3);
-
-            Map<String, String> font4 = new HashMap<>();
-            font4.put("name", "대광유리");
-            font4.put("file", "나눔손글씨 대광유리.ttf");
-            fonts.add(font4);
-
-            Map<String, String> font5 = new HashMap<>();
-            font5.put("name", "열일체");
-            font5.put("file", "나눔손글씨 열일체.ttf");
-            fonts.add(font5);
-
-            Map<String, String> font6 = new HashMap<>();
-            font6.put("name", "와일드");
-            font6.put("file", "나눔손글씨 와일드.ttf");
-            fonts.add(font6);
-
-            Map<String, String> font7 = new HashMap<>();
-            font7.put("name", "혁이체");
-            font7.put("file", "나눔손글씨 혁이체.ttf");
-            fonts.add(font7);
-
-            // 실제 파일 존재 여부 확인 및 필터링
-            List<Map<String, String>> availableFonts = fonts.stream()
-                    .filter(font -> {
-                        try {
-                            ClassPathResource fontResource = new ClassPathResource("fonts/" + font.get("file"));
-                            return fontResource.exists();
-                        } catch (Exception e) {
-                            log.warn("폰트 파일 확인 실패: {}", font.get("file"), e);
-                            return false;
-                        }
-                    })
-                    .collect(Collectors.toList());
+            // Enum에서 사용 가능한 폰트만 가져오기 (useYn이 'Y'인 것만)
+            SignatureFont[] fonts = SignatureFont.getAvailableFonts();
+            
+            for (SignatureFont font : fonts) {
+                Map<String, String> fontMap = new HashMap<>();
+                fontMap.put("name", font.getDisplayName());
+                fontMap.put("file", font.getFileName());
+                availableFonts.add(fontMap);
+            }
+            
+            log.info("사용 가능한 폰트 개수: {}", availableFonts.size());
 
             Map<String, Object> responseData = new HashMap<>();
             responseData.put("fonts", availableFonts);

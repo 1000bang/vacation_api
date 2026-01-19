@@ -86,3 +86,13 @@ tasks.withType(JavaCompile) {
 clean {
 	delete file(querydslDir)
 }
+
+// 리소스 파일 포함 설정 (폰트 파일 등)
+processResources {
+	// 모든 리소스 파일 포함 (폰트 파일 포함)
+	include '**/*'
+	// 큰 파일도 포함
+	filesMatching('**/*.ttf') {
+		duplicatesStrategy = DuplicatesStrategy.INCLUDE
+	}
+}
