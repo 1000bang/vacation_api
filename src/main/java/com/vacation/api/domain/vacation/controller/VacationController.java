@@ -25,6 +25,7 @@ import com.vacation.api.util.SignatureImageUtil;
 import com.vacation.api.util.CommonUtil;
 import com.vacation.api.enums.AuthVal;
 import com.vacation.api.domain.user.repository.UserRepository;
+import com.vacation.api.domain.user.repository.UserSignatureRepository;
 import com.vacation.api.vo.VacationDocumentVO;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
@@ -64,6 +65,7 @@ public class VacationController extends BaseController {
     private final SignatureFileUtil signatureFileUtil;
     private final SignatureImageUtil signatureImageUtil;
     private final UserRepository userRepository;
+    private final UserSignatureRepository userSignatureRepository;
 
     public VacationController(VacationService vacationService, UserService userService,
                               ResponseMapper responseMapper, FileService fileService,
@@ -71,7 +73,8 @@ public class VacationController extends BaseController {
                               ZipFileUtil zipFileUtil,
                               SignatureFileUtil signatureFileUtil,
                               SignatureImageUtil signatureImageUtil,
-                              UserRepository userRepository) {
+                              UserRepository userRepository,
+                              UserSignatureRepository userSignatureRepository) {
         super(transactionIDCreator);
         this.vacationService = vacationService;
         this.userService = userService;
@@ -81,6 +84,7 @@ public class VacationController extends BaseController {
         this.signatureFileUtil = signatureFileUtil;
         this.signatureImageUtil = signatureImageUtil;
         this.userRepository = userRepository;
+        this.userSignatureRepository = userSignatureRepository;
     }
 
     /**
@@ -715,7 +719,8 @@ public class VacationController extends BaseController {
                     approvalStatus,
                     requestDateStr,
                     signatureFileUtil,
-                    signatureImageUtil
+                    signatureImageUtil,
+                    userSignatureRepository
             );
         } catch (Exception e) {
             log.error("서명 이미지 맵 생성 실패: applicantId={}, approvalStatus={}", 

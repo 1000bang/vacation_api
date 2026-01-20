@@ -683,22 +683,43 @@ public class FileGenerateUtil {
      * 문서 생성 시마다 동적으로 생성하며 저장하지 않습니다.
      *
      * @param date 날짜 문자열 (예: "2025.01.16")
+     * @param userId 사용자 ID (폰트 조회용)
      * @param signaturePlaceholder 서명 플레이스홀더 (SIG2 크기 사용)
      * @param signatureImageUtil 서명 이미지 유틸리티 인스턴스
+     * @param userSignatureRepository 사용자 서명 정보 Repository (null 가능)
      * @return 날짜 이미지 바이트 배열, 생성 실패 시 null
      */
-    public static byte[] createDateImage(String date, SignaturePlaceholder signaturePlaceholder, SignatureImageUtil signatureImageUtil) {
+    public static byte[] createDateImage(String date, Long userId, SignaturePlaceholder signaturePlaceholder, 
+                                        SignatureImageUtil signatureImageUtil, 
+                                        com.vacation.api.domain.user.repository.UserSignatureRepository userSignatureRepository) {
         if (date == null || date.trim().isEmpty() || signaturePlaceholder == null || signatureImageUtil == null) {
             return null;
         }
 
         try {
+            String fontToUse = "nanum-kang-bujang.ttf"; // 기본 폰트
+            
+            // DB에서 사용자의 폰트 정보 조회
+            if (userId != null && userSignatureRepository != null) {
+                try {
+                    java.util.Optional<com.vacation.api.domain.user.entity.UserSignature> userSignatureOpt = 
+                            userSignatureRepository.findByUserSeq(userId);
+                    if (userSignatureOpt.isPresent()) {
+                        String fontName = userSignatureOpt.get().getFontName();
+                        if (fontName != null && !fontName.equals("none")) {
+                            fontToUse = fontName; // 사용자가 선택한 폰트 사용
+                        }
+                        // "none"이면 기본 폰트 사용 (이미 설정됨)
+                    }
+                } catch (Exception e) {
+                    log.warn("사용자 서명 정보 조회 실패, 기본 폰트 사용: userId={}", userId, e);
+                }
+            }
+            
             // SIG2 크기로 날짜 이미지 생성
-            // 기본 폰트 사용 (나눔손글씨 강부장님체.ttf)
-            String defaultFont = "나눔손글씨 강부장님체.ttf";
-            return signatureImageUtil.generateDateImage(date, defaultFont);
+            return signatureImageUtil.generateDateImage(date, fontToUse);
         } catch (Exception e) {
-            log.error("날짜 이미지 생성 실패: date={}, placeholder={}", date, signaturePlaceholder, e);
+            log.error("날짜 이미지 생성 실패: date={}, userId={}, placeholder={}", date, userId, signaturePlaceholder, e);
             return null;
         }
     }
@@ -766,6 +787,7 @@ public class FileGenerateUtil {
      * @param requestDate 신청일 (날짜 형식: "2025.01.16")
      * @param signatureFileUtil 서명 파일 유틸리티 인스턴스
      * @param signatureImageUtil 서명 이미지 유틸리티 인스턴스
+     * @param userSignatureRepository 사용자 서명 정보 Repository (null 가능)
      * @return 서명 이미지 맵 (플레이스홀더 -> 이미지 바이트 배열)
      */
     public static Map<String, byte[]> createSignatureImageMap(
@@ -776,7 +798,8 @@ public class FileGenerateUtil {
             String approvalStatus,
             String requestDate,
             SignatureFileUtil signatureFileUtil,
-            SignatureImageUtil signatureImageUtil) {
+            SignatureImageUtil signatureImageUtil,
+            com.vacation.api.domain.user.repository.UserSignatureRepository userSignatureRepository) {
         
         Map<String, byte[]> signatureImageMap = new HashMap<>();
         
@@ -795,8 +818,8 @@ public class FileGenerateUtil {
                 signatureImageMap.put(SignaturePlaceholder.DAM_SIG1.getPlaceholder(), applicantSig1);
             }
             
-            // dam_sig2는 날짜만 표시
-            byte[] dateImage = createDateImage(requestDate, SignaturePlaceholder.DAM_SIG2, signatureImageUtil);
+            // dam_sig2는 날짜만 표시 (작성자 폰트 사용)
+            byte[] dateImage = createDateImage(requestDate, applicantUserId, SignaturePlaceholder.DAM_SIG2, signatureImageUtil, userSignatureRepository);
             if (dateImage != null) {
                 signatureImageMap.put(SignaturePlaceholder.DAM_SIG2.getPlaceholder(), dateImage);
             }
@@ -809,8 +832,8 @@ public class FileGenerateUtil {
                 signatureImageMap.put(SignaturePlaceholder.TIM_SIG1.getPlaceholder(), teamLeaderSig1);
             }
             
-            // tim_sig2는 날짜만 표시
-            byte[] timDateImage = createDateImage(requestDate, SignaturePlaceholder.TIM_SIG2, signatureImageUtil);
+            // tim_sig2는 날짜만 표시 (팀장 폰트 사용)
+            byte[] timDateImage = createDateImage(requestDate, teamLeaderUserId, SignaturePlaceholder.TIM_SIG2, signatureImageUtil, userSignatureRepository);
             if (timDateImage != null) {
                 signatureImageMap.put(SignaturePlaceholder.TIM_SIG2.getPlaceholder(), timDateImage);
             }
@@ -823,8 +846,8 @@ public class FileGenerateUtil {
                 signatureImageMap.put(SignaturePlaceholder.BU_SIG1.getPlaceholder(), divisionHeadSig1);
             }
             
-            // bu_sig2는 날짜만 표시
-            byte[] buDateImage = createDateImage(requestDate, SignaturePlaceholder.BU_SIG2, signatureImageUtil);
+            // bu_sig2는 날짜만 표시 (본부장 폰트 사용)
+            byte[] buDateImage = createDateImage(requestDate, divisionHeadUserId, SignaturePlaceholder.BU_SIG2, signatureImageUtil, userSignatureRepository);
             if (buDateImage != null) {
                 signatureImageMap.put(SignaturePlaceholder.BU_SIG2.getPlaceholder(), buDateImage);
             }

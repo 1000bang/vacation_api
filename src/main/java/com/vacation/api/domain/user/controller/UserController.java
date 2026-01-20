@@ -3,7 +3,9 @@ package com.vacation.api.domain.user.controller;
 import com.vacation.api.common.BaseController;
 import com.vacation.api.common.TransactionIDCreator;
 import com.vacation.api.domain.user.entity.User;
+import com.vacation.api.domain.user.entity.UserSignature;
 import com.vacation.api.domain.user.repository.UserRepository;
+import com.vacation.api.domain.user.repository.UserSignatureRepository;
 import com.vacation.api.domain.user.request.JoinRequest;
 import com.vacation.api.domain.user.request.LoginRequest;
 import com.vacation.api.domain.user.request.RefreshTokenRequest;
@@ -27,6 +29,7 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -51,15 +54,18 @@ public class UserController extends BaseController {
 
     private final UserService userService;
     private final UserRepository userRepository;
+    private final UserSignatureRepository userSignatureRepository;
     private final SignatureFileUtil signatureFileUtil;
     private final SignatureImageUtil signatureImageUtil;
 
-    public UserController(UserService userService, UserRepository userRepository, 
+    public UserController(UserService userService, UserRepository userRepository,
+                         UserSignatureRepository userSignatureRepository,
                          SignatureFileUtil signatureFileUtil, SignatureImageUtil signatureImageUtil,
                          TransactionIDCreator transactionIDCreator) {
         super(transactionIDCreator);
         this.userService = userService;
         this.userRepository = userRepository;
+        this.userSignatureRepository = userSignatureRepository;
         this.signatureFileUtil = signatureFileUtil;
         this.signatureImageUtil = signatureImageUtil;
     }
@@ -357,6 +363,7 @@ public class UserController extends BaseController {
      * @return 성공/실패 메시지
      */
     @PostMapping(value = "/signature", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @Transactional
     public ResponseEntity<ApiResponse<Object>> uploadSignature(
             HttpServletRequest request,
             @RequestPart(value = "signatureImage", required = false) MultipartFile signatureImage,
@@ -369,8 +376,9 @@ public class UserController extends BaseController {
             User user = userService.getUserInfo(userId);
 
             byte[] imageBytes;
+            String fontNameToSave; // DB에 저장할 폰트명
 
-            // 방법 1: 직접 업로드한 이미지 파일 사용
+            // 방법 1: 직접 업로드한 이미지 파일 사용 (캔버스 그리기)
             if (signatureImage != null && !signatureImage.isEmpty()) {
                 // 파일 형식 검증 (PNG만 허용)
                 String originalFilename = signatureImage.getOriginalFilename();
@@ -385,6 +393,7 @@ public class UserController extends BaseController {
                 }
 
                 imageBytes = signatureImage.getBytes();
+                fontNameToSave = "none"; // 캔버스 그리기는 "none"
             }
             // 방법 2: 폰트로 서명 생성
             else if (fontType != null && !fontType.trim().isEmpty() && userName != null && !userName.trim().isEmpty()) {
@@ -397,23 +406,46 @@ public class UserController extends BaseController {
                     fontType,
                     SignaturePlaceholder.SignatureSize.SIG1
                 );
+                fontNameToSave = fontType; // 폰트명 저장
             } else {
                 return errorResponse("400", "서명 이미지 파일 또는 폰트 타입과 사용자 이름을 제공해주세요.");
             }
 
-            // 기존 서명이 있으면 삭제
+            // 기존 서명 파일이 있으면 삭제
             if (signatureFileUtil.signatureFileExists(userId)) {
                 signatureFileUtil.deleteSignatureFile(userId);
                 log.info("기존 서명 파일 삭제: userId={}", userId);
             }
 
             // 서명 파일 저장
+            String fileName = userId + "_signature.png";
             signatureFileUtil.saveSignatureFile(userId, imageBytes);
+
+            // DB에 서명 정보 저장 (기존 레코드가 있으면 update, 없으면 insert)
+            UserSignature userSignature = userSignatureRepository.findByUserSeq(userId)
+                    .map(existing -> {
+                        // 기존 레코드 업데이트
+                        existing.setFileName(fileName);
+                        existing.setFontName(fontNameToSave);
+                        log.info("기존 서명 정보 업데이트: userId={}, fontName={}", userId, fontNameToSave);
+                        return existing;
+                    })
+                    .orElseGet(() -> {
+                        // 신규 레코드 생성
+                        log.info("신규 서명 정보 생성: userId={}, fontName={}", userId, fontNameToSave);
+                        return UserSignature.builder()
+                                .userSeq(userId)
+                                .fileName(fileName)
+                                .fontName(fontNameToSave)
+                                .build();
+                    });
+            
+            userSignatureRepository.save(userSignature);
 
             Map<String, Object> responseData = new HashMap<>();
             responseData.put("message", "서명이 저장되었습니다.");
 
-            log.info("서명 저장 완료: userId={}", userId);
+            log.info("서명 저장 완료: userId={}, fontName={}", userId, fontNameToSave);
             return successResponse(responseData);
 
         } catch (ApiException e) {
@@ -536,7 +568,11 @@ public class UserController extends BaseController {
         try {
             Long userId = (Long) request.getAttribute("userId");
 
+            // 파일 삭제
             boolean deleted = signatureFileUtil.deleteSignatureFile(userId);
+            
+            // DB 레코드 삭제
+            userSignatureRepository.deleteByUserSeq(userId);
 
             Map<String, Object> responseData = new HashMap<>();
             if (deleted) {
