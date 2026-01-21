@@ -2,7 +2,6 @@ spring:
   application:
     name: vacation-api
 
-#
   profiles:
     active: dev
 
@@ -18,6 +17,19 @@ spring:
       max-file-size: 10MB  # 개별 파일 최대 크기
       max-request-size: 10MB  # 전체 요청 최대 크기 (파일 + 데이터)
       enabled: true
+
+  # Redis 설정
+  redis:
+    enabled: ${REDIS_ENABLED:true}  # Redis 사용 여부 (false로 설정하면 Redis 없이도 동작)
+    host: ${REDIS_HOST:localhost}
+    port: ${REDIS_PORT:6379}
+    password: ${REDIS_PASSWORD:}
+    timeout: 3000  # 3초
+    lettuce:
+      pool:
+        max-active: 8
+        max-idle: 8
+        min-idle: 0
 
 server:
   port: 8080
@@ -40,6 +52,9 @@ management:
   endpoint:
     health:
       show-details: when-authorized
+  health:
+    redis:
+      enabled: false  # Redis Health Check 비활성화 (Redis가 없어도 애플리케이션 시작 가능)
 
 # 로그 설정은 logback-spring.xml에서 관리
 # logging 설정을 여기에 두면 logback-spring.xml의 설정을 오버라이드할 수 있음

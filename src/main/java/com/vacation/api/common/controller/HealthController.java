@@ -1,4 +1,4 @@
-package com.vacation.api.controller;
+package com.vacation.api.common.controller;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

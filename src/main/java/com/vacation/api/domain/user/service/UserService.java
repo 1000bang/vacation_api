@@ -7,6 +7,7 @@ import com.vacation.api.domain.user.request.LoginRequest;
 import com.vacation.api.enums.UserStatus;
 import com.vacation.api.exception.ApiErrorCode;
 import com.vacation.api.exception.ApiException;
+import com.vacation.api.common.service.RefreshTokenService;
 import com.vacation.api.util.JwtUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -37,6 +38,7 @@ public class UserService {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtUtil jwtUtil;
+    private final RefreshTokenService refreshTokenService;
     private final PlatformTransactionManager transactionManager;
 
     @PersistenceContext
@@ -157,9 +159,8 @@ public class UserService {
         String accessToken = jwtUtil.generateAccessToken(user.getUserId(), user.getEmail());
         String refreshToken = jwtUtil.generateRefreshToken(user.getUserId(), user.getEmail());
         
-        // Refresh Token을 DB에 저장
-        user.setRefreshToken(refreshToken);
-        userRepository.save(user);
+        // Refresh Token을 Redis에 저장
+        refreshTokenService.saveRefreshToken(user.getUserId(), refreshToken);
 
         log.info("로그인 성공: userId={}, email={}", user.getUserId(), user.getEmail());
 
@@ -248,17 +249,18 @@ public class UserService {
         Long userId = jwtUtil.getUserIdFromToken(refreshToken);
         String email = jwtUtil.getEmailFromToken(refreshToken);
 
-        // DB에 저장된 Refresh Token과 일치하는지 확인
+        // Redis에 저장된 Refresh Token과 일치하는지 확인
+        if (!refreshTokenService.validateRefreshToken(userId, refreshToken)) {
+            log.warn("저장된 Refresh Token과 일치하지 않음: userId={}", userId);
+            throw new ApiException(ApiErrorCode.INVALID_LOGIN);
+        }
+
+        // 사용자 정보 조회
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> {
                     log.warn("존재하지 않는 사용자: userId={}", userId);
                     return new ApiException(ApiErrorCode.INVALID_LOGIN);
                 });
-
-        if (!refreshToken.equals(user.getRefreshToken())) {
-            log.warn("저장된 Refresh Token과 일치하지 않음: userId={}", userId);
-            throw new ApiException(ApiErrorCode.INVALID_LOGIN);
-        }
 
         // 사용자 상태 확인
         if (user.getStatus() != UserStatus.APPROVED) {
@@ -271,6 +273,20 @@ public class UserService {
         log.info("Access Token 갱신 성공: userId={}, email={}", userId, email);
 
         return newAccessToken;
+    }
+
+    /**
+     * 로그아웃 (Refresh Token 삭제)
+     *
+     * @param userId 사용자 ID
+     */
+    public void logout(Long userId) {
+        log.info("로그아웃 요청: userId={}", userId);
+        
+        // Redis에서 Refresh Token 삭제
+        refreshTokenService.deleteRefreshToken(userId);
+        
+        log.info("로그아웃 완료: userId={}", userId);
     }
 
     /**

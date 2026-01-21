@@ -175,6 +175,29 @@ public class UserController extends BaseController {
     }
 
     /**
+     * 로그아웃 API
+     *
+     * @param request HTTP 요청
+     * @return ApiResponse
+     */
+    @PostMapping("/logout")
+    public ResponseEntity<ApiResponse<Object>> logout(HttpServletRequest request) {
+        log.info("로그아웃 요청 수신");
+
+        try {
+            Long userId = (Long) request.getAttribute("userId");
+            userService.logout(userId);
+
+            log.info("로그아웃 성공: userId={}", userId);
+            return successResponse("로그아웃되었습니다.");
+
+        } catch (Exception e) {
+            log.error("로그아웃 실패", e);
+            return errorResponse("로그아웃에 실패했습니다.", e);
+        }
+    }
+
+    /**
      * 사용자 정보 조회
      *
      * @param request HTTP 요청

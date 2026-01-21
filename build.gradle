@@ -40,8 +40,11 @@ dependencies {
 	runtimeOnly 'io.jsonwebtoken:jjwt-impl:0.12.3'
 	runtimeOnly 'io.jsonwebtoken:jjwt-jackson:0.12.3'
 	
-	// Rate Limiting 라이브러리
+	// Rate Limiting 라이브러리 (메모리 기반은 유지, Redis는 직접 구현)
 	implementation 'com.bucket4j:bucket4j-core:8.10.1'
+	
+	// Redis
+	implementation 'org.springframework.boot:spring-boot-starter-data-redis'
 	
 	// Health Check (Spring Boot Actuator)
 	implementation 'org.springframework.boot:spring-boot-starter-actuator'

@@ -3,7 +3,7 @@ package com.vacation.api.aop;
 import com.vacation.api.annotation.RateLimit;
 import com.vacation.api.exception.ApiErrorCode;
 import com.vacation.api.exception.ApiException;
-import com.vacation.api.service.RateLimitingService;
+import com.vacation.api.common.service.RateLimitingService;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

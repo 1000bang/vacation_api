@@ -41,10 +41,13 @@ management:
   endpoints:
     web:
       exposure:
-        include: health,info
+        include: health,info,metrics
   endpoint:
     health:
       show-details: never  # 프로덕션에서는 상세 정보 숨김
+  health:
+    redis:
+      enabled: true  # 프로덕션에서는 Redis Health Check 활성화
 
 # 로그 설정은 logback-spring.xml에서 관리
 # logging 설정을 여기에 두면 logback-spring.xml의 설정을 오버라이드할 수 있음
@@ -65,6 +68,26 @@ springdoc:
     enabled: false  # 프로덕션에서는 보안상 비활성화
   swagger-ui:
     enabled: false  # 프로덕션에서는 보안상 비활성화
+
+# Redis 설정 (프로덕션 - 필수)
+spring:
+  redis:
+    enabled: true  # 프로덕션에서는 Redis 필수
+    host: ${REDIS_HOST:localhost}
+    port: ${REDIS_PORT:6379}
+    password: ${REDIS_PASSWORD:}
+    timeout: 5000  # 5초 (프로덕션에서는 타임아웃 증가)
+    lettuce:
+      pool:
+        max-active: 16  # 프로덕션에서는 연결 풀 증가
+        max-idle: 8
+        min-idle: 4
+
+# Actuator 설정 (프로덕션) - Redis Health Check 활성화
+management:
+  health:
+    redis:
+      enabled: true  # 프로덕션에서는 Redis Health Check 활성화
 
 # 파일 업로드 설정 (프로덕션)
 file:
