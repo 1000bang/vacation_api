@@ -1,5 +1,8 @@
 package com.vacation.api.common.service;
 
+import io.micrometer.core.instrument.Gauge;
+import io.micrometer.core.instrument.MeterRegistry;
+import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -25,6 +28,7 @@ import java.util.concurrent.atomic.AtomicLong;
 public class RedisHealthMonitor {
 
     private final RedisTemplate<String, String> redisTemplate;
+    private final MeterRegistry meterRegistry;
 
     @Value("${spring.profiles.active:dev}")
     private String activeProfile;
@@ -34,6 +38,30 @@ public class RedisHealthMonitor {
     private final AtomicLong successCount = new AtomicLong(0);
     private LocalDateTime lastFailureTime;
     private LocalDateTime lastSuccessTime;
+
+    /**
+     * 메트릭 초기화
+     */
+    @PostConstruct
+    public void initMetrics() {
+        // Redis Health Status (1=UP, 0=DOWN)
+        Gauge.builder("redis.health.status", isRedisHealthy, 
+            status -> status.get() ? 1 : 0)
+            .description("Redis health status (1=UP, 0=DOWN)")
+            .register(meterRegistry);
+        
+        // Redis Failure Count
+        Gauge.builder("redis.health.failure_count", failureCount, 
+            AtomicLong::get)
+            .description("Redis failure count")
+            .register(meterRegistry);
+        
+        // Redis Success Count
+        Gauge.builder("redis.health.success_count", successCount, 
+            AtomicLong::get)
+            .description("Redis success count")
+            .register(meterRegistry);
+    }
 
     /**
      * Redis 상태 체크 (1분마다 실행)

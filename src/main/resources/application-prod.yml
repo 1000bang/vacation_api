@@ -28,6 +28,19 @@ spring:
         # MySQL 8.0 이상 사용 시
         # dialect: org.hibernate.dialect.MySQL8Dialect
 
+  # Redis 설정 (프로덕션 - 필수)
+  redis:
+    enabled: true  # 프로덕션에서는 Redis 필수
+    host: ${REDIS_HOST:localhost}
+    port: ${REDIS_PORT:6379}
+    password: ${REDIS_PASSWORD:}
+    timeout: 5000  # 5초 (프로덕션에서는 타임아웃 증가)
+    lettuce:
+      pool:
+        max-active: 16  # 프로덕션에서는 연결 풀 증가
+        max-idle: 8
+        min-idle: 4
+
 # JWT 설정 (프로덕션)
 # 주의: 반드시 환경변수 JWT_SECRET을 설정해야 합니다.
 # 최소 32자 이상의 강력한 랜덤 문자열을 사용하세요.
@@ -41,10 +54,24 @@ management:
   endpoints:
     web:
       exposure:
-        include: health,info,metrics
+        include: health,info,metrics,prometheus
   endpoint:
     health:
       show-details: never  # 프로덕션에서는 상세 정보 숨김
+    prometheus:
+      enabled: true
+  metrics:
+    export:
+      prometheus:
+        enabled: true
+    tags:
+      application: ${spring.application.name}
+      environment: ${spring.profiles.active}
+    distribution:
+      percentiles-histogram:
+        http.server.requests: true
+      percentiles:
+        http.server.requests: 0.5, 0.95, 0.99
   health:
     redis:
       enabled: true  # 프로덕션에서는 Redis Health Check 활성화
@@ -68,26 +95,6 @@ springdoc:
     enabled: false  # 프로덕션에서는 보안상 비활성화
   swagger-ui:
     enabled: false  # 프로덕션에서는 보안상 비활성화
-
-# Redis 설정 (프로덕션 - 필수)
-spring:
-  redis:
-    enabled: true  # 프로덕션에서는 Redis 필수
-    host: ${REDIS_HOST:localhost}
-    port: ${REDIS_PORT:6379}
-    password: ${REDIS_PASSWORD:}
-    timeout: 5000  # 5초 (프로덕션에서는 타임아웃 증가)
-    lettuce:
-      pool:
-        max-active: 16  # 프로덕션에서는 연결 풀 증가
-        max-idle: 8
-        min-idle: 4
-
-# Actuator 설정 (프로덕션) - Redis Health Check 활성화
-management:
-  health:
-    redis:
-      enabled: true  # 프로덕션에서는 Redis Health Check 활성화
 
 # 파일 업로드 설정 (프로덕션)
 file:

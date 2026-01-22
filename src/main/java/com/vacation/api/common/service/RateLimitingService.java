@@ -3,6 +3,9 @@ package com.vacation.api.common.service;
 import io.github.bucket4j.Bandwidth;
 import io.github.bucket4j.Bucket;
 import io.github.bucket4j.Refill;
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.MeterRegistry;
+import jakarta.annotation.PostConstruct;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -31,9 +34,22 @@ public class RateLimitingService {
 
     private final RedisTemplate<String, String> redisTemplate;
     private final RedisHealthMonitor redisHealthMonitor;
+    private final MeterRegistry meterRegistry;
 
     // 메모리 기반 Fallback (Redis 실패 시 사용)
     private final Map<String, Bucket> memoryBuckets = new ConcurrentHashMap<>();
+    
+    private Counter rateLimitExceededCounter;
+
+    /**
+     * 메트릭 초기화
+     */
+    @PostConstruct
+    public void initMetrics() {
+        rateLimitExceededCounter = Counter.builder("rate_limit.exceeded.total")
+            .description("Total number of rate limit exceeded")
+            .register(meterRegistry);
+    }
 
     /**
      * IP 주소 추출
@@ -119,6 +135,7 @@ public class RateLimitingService {
             
             if (!allowed) {
                 log.warn("Rate limit 초과: IP={}, capacity={}/{}초", clientIp, capacity, windowSeconds);
+                rateLimitExceededCounter.increment();
             }
             
             return allowed;
@@ -175,6 +192,7 @@ public class RateLimitingService {
         boolean consumed = bucket.tryConsume(1);
         if (!consumed) {
             log.warn("Rate limit 초과 (메모리 기반): IP={}, capacity={}/{}초", clientIp, capacity, windowSeconds);
+            rateLimitExceededCounter.increment();
         }
         return consumed;
     }

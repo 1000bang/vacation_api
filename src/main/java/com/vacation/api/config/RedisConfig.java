@@ -6,6 +6,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.ApplicationListener;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Primary;
 import org.springframework.context.event.ContextRefreshedEvent;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
 import org.springframework.data.redis.connection.RedisStandaloneConfiguration;
@@ -67,6 +68,7 @@ public class RedisConfig {
     }
 
     @Bean
+    @Primary
     @ConditionalOnProperty(name = "spring.redis.enabled", havingValue = "true", matchIfMissing = true)
     public RedisTemplate<String, String> redisTemplate(RedisConnectionFactory connectionFactory) {
         if (connectionFactory == null) {
