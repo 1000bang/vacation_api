@@ -1076,13 +1076,17 @@ public class ApprovalService {
                     ApprovalStatus.TEAM_LEADER_APPROVED.getName(),
                     ApprovalStatus.TEAM_LEADER_REJECTED.getName(),
                     ApprovalStatus.DIVISION_HEAD_REJECTED.getName(),
-                    ApprovalStatus.DIVISION_HEAD_APPROVED.getName());
+                    ApprovalStatus.DIVISION_HEAD_APPROVED.getName(),
+                    ApprovalStatus.DONE.getName()); // D 상태: 최종 승인된 항목도 조회 가능
         } else if (AuthVal.DIVISION_HEAD.getCode().equals(authVal)) {
             List<User> teamMembers = userService.getUserInfoList(requesterId);
             userIds = teamMembers.stream()
                     .map(User::getUserId)
                     .toList();
-            approvalStatuses = List.of(ApprovalStatus.TEAM_LEADER_APPROVED.getName(), ApprovalStatus.DIVISION_HEAD_APPROVED.getName());
+            approvalStatuses = List.of(
+                    ApprovalStatus.TEAM_LEADER_APPROVED.getName(), 
+                    ApprovalStatus.DIVISION_HEAD_APPROVED.getName(),
+                    ApprovalStatus.DONE.getName()); // D 상태: 최종 승인된 항목도 조회 가능
         } else if (AuthVal.TEAM_LEADER.getCode().equals(authVal)) {
             List<User> teamMembers = userService.getUserInfoList(requesterId);
             userIds = teamMembers.stream()
