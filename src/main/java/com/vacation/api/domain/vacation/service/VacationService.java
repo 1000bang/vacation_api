@@ -153,7 +153,7 @@ public class VacationService {
     public List<VacationHistory> getCalendarVacationList(Long userId, Integer year, Integer month) {
         log.info("캘린더용 휴가 목록 조회: userId={}, year={}, month={}", userId, year, month);
 
-        User requester = userRepository.findById(userId)
+        User requester = userRepository.findByIdWithTeamManagement(userId)
                 .orElseThrow(() -> {
                     log.warn("존재하지 않는 사용자: userId={}", userId);
                     return new ApiException(ApiErrorCode.USER_NOT_FOUND);
@@ -161,6 +161,10 @@ public class VacationService {
 
         // 본부 전체 사용자 조회 (권한 무관)
         String division = requester.getDivision();
+        if (division == null) {
+            log.warn("사용자의 본부 정보가 없습니다: userId={}", userId);
+            throw new ApiException(ApiErrorCode.INVALID_REQUEST_FORMAT, "사용자의 본부 정보가 없습니다.");
+        }
         log.info("본부 전체 휴가 조회: 본부={}", division);
         
         // 현재 월 기준 전후 1개월 범위 계산

@@ -1,7 +1,6 @@
 package com.vacation.api.domain.vacation.repository;
 
 import com.querydsl.jpa.impl.JPAQueryFactory;
-import com.vacation.api.domain.user.entity.User;
 import com.vacation.api.domain.vacation.entity.VacationHistory;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;
@@ -10,6 +9,7 @@ import java.time.LocalDate;
 import java.util.List;
 
 import static com.vacation.api.domain.user.entity.QUser.user;
+import static com.vacation.api.domain.user.entity.QTeamManagement.teamManagement;
 import static com.vacation.api.domain.vacation.entity.QVacationHistory.vacationHistory;
 
 /**
@@ -48,8 +48,9 @@ public class VacationHistoryRepositoryImpl implements VacationHistoryRepositoryC
         return queryFactory
                 .selectFrom(vacationHistory)
                 .innerJoin(user).on(vacationHistory.userId.eq(user.userId))
+                .leftJoin(user.teamManagement, teamManagement)
                 .where(
-                        user.division.eq(division)
+                        teamManagement.division.eq(division)
                                 .and(user.authVal.in(authVals))
                                 .and(
                                         // 휴가 기간이 조회 범위와 겹치는 경우

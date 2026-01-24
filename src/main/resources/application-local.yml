@@ -18,7 +18,7 @@ spring:
   
   jpa:
     hibernate:
-      ddl-auto: update  # 로컬 환경에서는 create-drop으로 초기화
+      ddl-auto: create-drop  # 로컬 환경: 테이블 재생성 (division, team 컬럼 제거)
     show-sql: true
     properties:
       hibernate:

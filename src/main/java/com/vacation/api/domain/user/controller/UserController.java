@@ -10,6 +10,7 @@ import com.vacation.api.domain.user.request.JoinRequest;
 import com.vacation.api.domain.user.request.LoginRequest;
 import com.vacation.api.domain.user.request.RefreshTokenRequest;
 import com.vacation.api.domain.user.request.UpdateUserRequest;
+import com.vacation.api.domain.user.response.DivisionTeamResponse;
 import com.vacation.api.domain.user.response.LoginResponse;
 import com.vacation.api.domain.user.response.RefreshTokenResponse;
 import com.vacation.api.domain.user.response.UserInfoResponse;
@@ -714,6 +715,29 @@ public class UserController extends BaseController {
         } catch (Exception e) {
             log.error("서명 파일 다운로드 실패: fileName={}", fileName, e);
             return ResponseEntity.internalServerError().build();
+        }
+    }
+
+    /**
+     * 본부별 팀 목록 조회 API
+     * 회원가입, 내 정보 수정, 팀 관리 화면에서 사용
+     *
+     * @return ApiResponse (본부별 팀 목록)
+     */
+    @GetMapping("/team/list")
+    public ResponseEntity<ApiResponse<Object>> getDivisionTeamList() {
+        log.info("본부별 팀 목록 조회 요청");
+
+        try {
+            List<DivisionTeamResponse> divisionTeamList = userService.getDivisionTeamList();
+
+            String transactionId = getOrCreateTransactionId();
+            return ResponseEntity.ok()
+                    .body(new ApiResponse<>(transactionId, "0", divisionTeamList, null));
+
+        } catch (Exception e) {
+            log.error("본부별 팀 목록 조회 실패", e);
+            return errorResponse("본부별 팀 목록 조회에 실패했습니다.", e);
         }
     }
 }

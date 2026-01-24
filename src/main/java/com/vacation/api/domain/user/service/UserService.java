@@ -1,7 +1,9 @@
 package com.vacation.api.domain.user.service;
 
 import com.vacation.api.domain.user.entity.User;
+import com.vacation.api.domain.user.entity.TeamManagement;
 import com.vacation.api.domain.user.repository.UserRepository;
+import com.vacation.api.domain.user.repository.TeamManagementRepository;
 import com.vacation.api.domain.user.request.JoinRequest;
 import com.vacation.api.domain.user.request.LoginRequest;
 import com.vacation.api.enums.UserStatus;
@@ -20,8 +22,11 @@ import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
 
+import com.vacation.api.domain.user.response.DivisionTeamResponse;
+
 import java.time.LocalDateTime;
-import java.util.List;
+import java.util.*;
+import java.util.stream.Collectors;
 
 /**
  * 사용자 Service
@@ -36,6 +41,7 @@ import java.util.List;
 public class UserService {
 
     private final UserRepository userRepository;
+    private final TeamManagementRepository teamManagementRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtUtil jwtUtil;
     private final RefreshTokenService refreshTokenService;
@@ -63,13 +69,31 @@ public class UserService {
         // 비밀번호 암호화
         String encodedPassword = passwordEncoder.encode(joinRequest.getPassword());
 
+        // division, team으로 teamSeq 찾기
+        // team이 null이거나 빈 문자열이면 본부만 조회 (본부장용)
+        TeamManagement teamManagement;
+        if (joinRequest.getTeam() == null || joinRequest.getTeam().trim().isEmpty()) {
+            teamManagement = teamManagementRepository
+                    .findByDivisionAndTeamIsNull(joinRequest.getDivision())
+                    .orElseThrow(() -> {
+                        log.warn("존재하지 않는 본부: division={}", joinRequest.getDivision());
+                        return new ApiException(ApiErrorCode.INVALID_REQUEST_FORMAT, "존재하지 않는 본부입니다.");
+                    });
+        } else {
+            teamManagement = teamManagementRepository
+                    .findByDivisionAndTeam(joinRequest.getDivision(), joinRequest.getTeam())
+                    .orElseThrow(() -> {
+                        log.warn("존재하지 않는 팀: division={}, team={}", joinRequest.getDivision(), joinRequest.getTeam());
+                        return new ApiException(ApiErrorCode.INVALID_REQUEST_FORMAT, "존재하지 않는 팀입니다.");
+                    });
+        }
+
         // 사용자 생성
         User user = User.builder()
                 .email(joinRequest.getEmail())
                 .name(joinRequest.getName())
                 .password(encodedPassword)
-                .division(joinRequest.getDivision())
-                .team(joinRequest.getTeam())
+                .teamManagement(teamManagement)
                 .position(joinRequest.getPosition())
                 .status(UserStatus.PENDING)
                 .passwordChanged(false)
@@ -324,9 +348,33 @@ public class UserService {
         // TODO: 권한 체크 (특정 권한 이상인 자만 수정 가능)
         // 현재는 본인만 수정 가능하도록 구현
         
-        user.setDivision(updateRequest.getDivision());
-        user.setTeam(updateRequest.getTeam());
-        user.setPosition(updateRequest.getPosition());
+        // division, team으로 teamSeq 찾기
+        // team이 null이거나 빈 문자열이면 본부만 조회 (본부장용)
+        if (updateRequest.getDivision() != null) {
+            TeamManagement teamManagement;
+            if (updateRequest.getTeam() == null || updateRequest.getTeam().trim().isEmpty()) {
+                // 본부장: team이 없음
+                teamManagement = teamManagementRepository
+                        .findByDivisionAndTeamIsNull(updateRequest.getDivision())
+                        .orElseThrow(() -> {
+                            log.warn("존재하지 않는 본부: division={}", updateRequest.getDivision());
+                            return new ApiException(ApiErrorCode.INVALID_REQUEST_FORMAT, "존재하지 않는 본부입니다.");
+                        });
+            } else {
+                // 팀장/팀원: team이 있음
+                teamManagement = teamManagementRepository
+                        .findByDivisionAndTeam(updateRequest.getDivision(), updateRequest.getTeam())
+                        .orElseThrow(() -> {
+                            log.warn("존재하지 않는 팀: division={}, team={}", updateRequest.getDivision(), updateRequest.getTeam());
+                            return new ApiException(ApiErrorCode.INVALID_REQUEST_FORMAT, "존재하지 않는 팀입니다.");
+                        });
+            }
+            user.setTeamManagement(teamManagement);
+        }
+        // position이 null이 아니고 빈 문자열이 아닐 때만 업데이트
+        if (updateRequest.getPosition() != null && !updateRequest.getPosition().trim().isEmpty()) {
+            user.setPosition(updateRequest.getPosition());
+        }
         
         // 확장된 필드 업데이트 (null이 아닌 경우에만)
         if (updateRequest.getJoinDate() != null) {
@@ -384,16 +432,23 @@ public class UserService {
             return result;
         } else if ("bb".equals(authVal)) {
             // bonbujang: 해당 본부의 tw(팀원)와 tj(팀장)만 (자기 자신 제외)
+            // 같은 본부에 속한 모든 팀의 사용자 조회
             log.info("bonbujang 권한: 본부={}, tw와 tj만 조회", requester.getDivision());
             List<String> allowedAuthVals = List.of("tw", "tj");
             result = userRepository.findByDivisionAndAuthValInOrderByCreatedAtDesc(
                     requester.getDivision(), allowedAuthVals);
         } else if ("tj".equals(authVal)) {
-            // teamjang: 해당 본부/팀의 tw(팀원)만 (자기 자신 제외)
-            log.info("teamjang 권한: 본부={}, 팀={}, tw만 조회", requester.getDivision(), requester.getTeam());
+            // teamjang: 해당 팀의 tw(팀원)만 (자기 자신 제외)
+            // teamSeq로 비교
+            log.info("teamjang 권한: teamSeq={}, tw만 조회", requester.getTeamManagement() != null ? requester.getTeamManagement().getSeq() : null);
             List<String> allowedAuthVals = List.of("tw");
-            result = userRepository.findByDivisionAndTeamAndAuthValInOrderByCreatedAtDesc(
-                    requester.getDivision(), requester.getTeam(), allowedAuthVals);
+            if (requester.getTeamManagement() != null) {
+                result = userRepository.findByTeamSeqAndAuthValInOrderByCreatedAtDesc(
+                        requester.getTeamManagement().getSeq(), allowedAuthVals);
+            } else {
+                log.warn("팀장의 teamManagement가 null입니다: userId={}", userId);
+                result = List.of();
+            }
         } else {
             log.warn("권한 없음: userId={}, authVal={}", userId, authVal);
             throw new ApiException(ApiErrorCode.INVALID_REQUEST_FORMAT, "사용자 목록 조회 권한이 없습니다.");
@@ -448,7 +503,9 @@ public class UserService {
         
         // 본부장(bb): 같은 본부면 OK
         if ("bb".equals(requesterAuthVal)) {
-            boolean isMyBonbu = requester.getDivision().equals(targetUser.getDivision());
+            // division 문자열 비교
+            boolean isMyBonbu = requester.getTeamManagement() != null && targetUser.getTeamManagement() != null &&
+                    requester.getTeamManagement().getDivision().equals(targetUser.getTeamManagement().getDivision());
             if (isMyBonbu) {
                 log.info("본부장 권한: 같은 본부, 접근 허용");
                 return;
@@ -458,10 +515,10 @@ public class UserService {
             }
         }
         
-        // 팀장(tj): 같은 팀이면 OK
+        // 팀장(tj): 같은 팀이면 OK (teamSeq 비교)
         if ("tj".equals(requesterAuthVal)) {
-            boolean isMyTeam = requester.getDivision().equals(targetUser.getDivision()) 
-                    && requester.getTeam().equals(targetUser.getTeam());
+            boolean isMyTeam = requester.getTeamManagement() != null && targetUser.getTeamManagement() != null &&
+                    requester.getTeamManagement().getSeq().equals(targetUser.getTeamManagement().getSeq());
             if (isMyTeam) {
                 log.info("팀장 권한: 같은 팀, 접근 허용");
                 return;
@@ -474,6 +531,52 @@ public class UserService {
         // 기타 권한: 접근 거부
         log.warn("알 수 없는 권한: authVal={}, 접근 거부", requesterAuthVal);
         throw new ApiException(ApiErrorCode.ACCESS_DENIED, "권한이 없습니다.");
+    }
+
+    /**
+     * 본부별 팀 목록 조회
+     * division별로 그룹화하고, 각 division의 teams를 정렬하여 반환
+     *
+     * @return 본부별 팀 목록
+     */
+    public List<DivisionTeamResponse> getDivisionTeamList() {
+        log.info("본부별 팀 목록 조회 요청");
+
+        // team이 null이 아닌 모든 팀 관리 정보 조회 (division, team 순으로 정렬)
+        List<TeamManagement> teamList = teamManagementRepository
+                .findByTeamIsNotNullOrderByDivisionAscTeamAsc();
+
+        // division별로 그룹화
+        Map<String, List<String>> divisionTeamMap = teamList.stream()
+                .collect(Collectors.groupingBy(
+                        TeamManagement::getDivision,
+                        Collectors.mapping(
+                                TeamManagement::getTeam,
+                                Collectors.collectingAndThen(
+                                        Collectors.toList(),
+                                        teams -> {
+                                            // null 제거 및 정렬
+                                            List<String> sortedTeams = teams.stream()
+                                                    .filter(Objects::nonNull)
+                                                    .sorted()
+                                                    .collect(Collectors.toList());
+                                            return sortedTeams;
+                                        }
+                                )
+                        )
+                ));
+
+        // DivisionTeamResponse 리스트 생성
+        List<DivisionTeamResponse> result = divisionTeamMap.entrySet().stream()
+                .map(entry -> DivisionTeamResponse.builder()
+                        .division(entry.getKey())
+                        .teams(entry.getValue())
+                        .build())
+                .sorted(Comparator.comparing(DivisionTeamResponse::getDivision))
+                .collect(Collectors.toList());
+
+        log.info("본부별 팀 목록 조회 완료: division 개수={}", result.size());
+        return result;
     }
 }
 

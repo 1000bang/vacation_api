@@ -26,9 +26,8 @@ public class UpdateUserRequest {
     private String division;
 
     /**
-     * 팀
+     * 팀 (본부장인 경우 null 가능)
      */
-    @NotBlank(message = "팀은 필수입니다")
     private String team;
 
     /**

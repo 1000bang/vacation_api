@@ -43,6 +43,7 @@ public class SecurityConfig {
                 .requestMatchers("/user/join").permitAll()
                 .requestMatchers("/user/login").permitAll()
                 .requestMatchers("/user/refresh").permitAll()
+                .requestMatchers("/user/team/list").permitAll() // 회원가입 시 본부/팀 목록 조회용
                 .requestMatchers("/health/**").permitAll()
                 .requestMatchers("/actuator/**").permitAll()
                 // Swagger UI (개발 환경에서만 사용 권장)

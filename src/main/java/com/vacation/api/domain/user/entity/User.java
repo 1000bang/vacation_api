@@ -1,11 +1,13 @@
 package com.vacation.api.domain.user.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.vacation.api.enums.UserStatus;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import lombok.ToString;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -23,6 +25,7 @@ import java.time.LocalDateTime;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
+@ToString(exclude = "teamManagement") // 순환 참조 방지
 public class User {
 
     /**
@@ -52,22 +55,32 @@ public class User {
     private String password;
 
     /**
-     * 본부
+     * 팀 관리 시퀀스 (FK)
      */
-    @Column(name = "division", nullable = false)
-    private String division;
-
-    /**
-     * 팀
-     */
-    @Column(name = "team", nullable = false)
-    private String team;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "team_seq", foreignKey = @ForeignKey(ConstraintMode.NO_CONSTRAINT))
+    @JsonIgnore // JSON 직렬화 시 순환 참조 방지
+    private TeamManagement teamManagement;
 
     /**
      * 직급
      */
     @Column(name = "position", nullable = false)
     private String position;
+
+    /**
+     * 본부 (teamManagement에서 조회, 읽기 전용)
+     */
+    public String getDivision() {
+        return teamManagement != null ? teamManagement.getDivision() : null;
+    }
+
+    /**
+     * 팀 (teamManagement에서 조회, 읽기 전용)
+     */
+    public String getTeam() {
+        return teamManagement != null ? teamManagement.getTeam() : null;
+    }
 
     /**
      * 사용자 상태 (승인전, 승인, 등)

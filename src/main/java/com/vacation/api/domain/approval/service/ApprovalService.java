@@ -92,8 +92,9 @@ public class ApprovalService {
             User applicant = userRepository.findById(vacationHistory.getUserId())
                     .orElseThrow(() -> new ApiException(ApiErrorCode.USER_NOT_FOUND));
 
-            if (!applicant.getDivision().equals(approver.getDivision()) ||
-                !applicant.getTeam().equals(approver.getTeam())) {
+            // teamSeq로 비교 (같은 팀인지 확인)
+            if (applicant.getTeamManagement() == null || approver.getTeamManagement() == null ||
+                !applicant.getTeamManagement().getSeq().equals(approver.getTeamManagement().getSeq())) {
                 log.warn("같은 팀이 아님: applicant={}, approver={}", applicant.getUserId(), approverId);
                 throw new ApiException(ApiErrorCode.ACCESS_DENIED, "같은 팀의 신청만 승인할 수 있습니다.");
             }
@@ -161,8 +162,9 @@ public class ApprovalService {
             User applicant = userRepository.findById(vacationHistory.getUserId())
                     .orElseThrow(() -> new ApiException(ApiErrorCode.USER_NOT_FOUND));
 
-            if (!applicant.getDivision().equals(approver.getDivision()) ||
-                !applicant.getTeam().equals(approver.getTeam())) {
+            // teamSeq로 비교 (같은 팀인지 확인)
+            if (applicant.getTeamManagement() == null || approver.getTeamManagement() == null ||
+                !applicant.getTeamManagement().getSeq().equals(approver.getTeamManagement().getSeq())) {
                 log.warn("같은 팀이 아님: applicant={}, approver={}", applicant.getUserId(), approverId);
                 throw new ApiException(ApiErrorCode.ACCESS_DENIED, "같은 팀의 신청만 반려할 수 있습니다.");
             }
@@ -227,7 +229,9 @@ public class ApprovalService {
             User applicant = userRepository.findById(vacationHistory.getUserId())
                     .orElseThrow(() -> new ApiException(ApiErrorCode.USER_NOT_FOUND));
 
-            if (!applicant.getDivision().equals(approver.getDivision())) {
+            // 같은 본부 확인 (division 문자열 비교)
+            if (applicant.getTeamManagement() == null || approver.getTeamManagement() == null ||
+                !applicant.getTeamManagement().getDivision().equals(approver.getTeamManagement().getDivision())) {
                 log.warn("같은 본부가 아님: applicant={}, approver={}", applicant.getUserId(), approverId);
                 throw new ApiException(ApiErrorCode.ACCESS_DENIED, "같은 본부의 신청만 승인할 수 있습니다.");
             }
@@ -293,7 +297,9 @@ public class ApprovalService {
             User applicant = userRepository.findById(vacationHistory.getUserId())
                     .orElseThrow(() -> new ApiException(ApiErrorCode.USER_NOT_FOUND));
 
-            if (!applicant.getDivision().equals(approver.getDivision())) {
+            // 같은 본부 확인 (division 문자열 비교)
+            if (applicant.getTeamManagement() == null || approver.getTeamManagement() == null ||
+                !applicant.getTeamManagement().getDivision().equals(approver.getTeamManagement().getDivision())) {
                 log.warn("같은 본부가 아님: applicant={}, approver={}", applicant.getUserId(), approverId);
                 throw new ApiException(ApiErrorCode.ACCESS_DENIED, "같은 본부의 신청만 반려할 수 있습니다.");
             }
@@ -358,8 +364,9 @@ public class ApprovalService {
             User applicant = userRepository.findById(expenseClaim.getUserId())
                     .orElseThrow(() -> new ApiException(ApiErrorCode.USER_NOT_FOUND));
 
-            if (!applicant.getDivision().equals(approver.getDivision()) ||
-                !applicant.getTeam().equals(approver.getTeam())) {
+            // teamSeq로 비교 (같은 팀인지 확인)
+            if (applicant.getTeamManagement() == null || approver.getTeamManagement() == null ||
+                !applicant.getTeamManagement().getSeq().equals(approver.getTeamManagement().getSeq())) {
                 throw new ApiException(ApiErrorCode.ACCESS_DENIED, "같은 팀의 신청만 승인할 수 있습니다.");
             }
         }
@@ -420,8 +427,9 @@ public class ApprovalService {
             User applicant = userRepository.findById(expenseClaim.getUserId())
                     .orElseThrow(() -> new ApiException(ApiErrorCode.USER_NOT_FOUND));
 
-            if (!applicant.getDivision().equals(approver.getDivision()) ||
-                !applicant.getTeam().equals(approver.getTeam())) {
+            // teamSeq로 비교 (같은 팀인지 확인)
+            if (applicant.getTeamManagement() == null || approver.getTeamManagement() == null ||
+                !applicant.getTeamManagement().getSeq().equals(approver.getTeamManagement().getSeq())) {
                 throw new ApiException(ApiErrorCode.ACCESS_DENIED, "같은 팀의 신청만 반려할 수 있습니다.");
             }
         }
@@ -479,7 +487,9 @@ public class ApprovalService {
             User applicant = userRepository.findById(expenseClaim.getUserId())
                     .orElseThrow(() -> new ApiException(ApiErrorCode.USER_NOT_FOUND));
 
-            if (!applicant.getDivision().equals(approver.getDivision())) {
+            // 같은 본부 확인 (division 문자열 비교)
+            if (applicant.getTeamManagement() == null || approver.getTeamManagement() == null ||
+                !applicant.getTeamManagement().getDivision().equals(approver.getTeamManagement().getDivision())) {
                 throw new ApiException(ApiErrorCode.ACCESS_DENIED, "같은 본부의 신청만 승인할 수 있습니다.");
             }
         }
@@ -538,7 +548,9 @@ public class ApprovalService {
             User applicant = userRepository.findById(expenseClaim.getUserId())
                     .orElseThrow(() -> new ApiException(ApiErrorCode.USER_NOT_FOUND));
 
-            if (!applicant.getDivision().equals(approver.getDivision())) {
+            // 같은 본부 확인 (division 문자열 비교)
+            if (applicant.getTeamManagement() == null || approver.getTeamManagement() == null ||
+                !applicant.getTeamManagement().getDivision().equals(approver.getTeamManagement().getDivision())) {
                 throw new ApiException(ApiErrorCode.ACCESS_DENIED, "같은 본부의 신청만 반려할 수 있습니다.");
             }
         }
@@ -598,8 +610,9 @@ public class ApprovalService {
             User applicant = userRepository.findById(rentalSupport.getUserId())
                     .orElseThrow(() -> new ApiException(ApiErrorCode.USER_NOT_FOUND));
 
-            if (!applicant.getDivision().equals(approver.getDivision()) ||
-                !applicant.getTeam().equals(approver.getTeam())) {
+            // teamSeq로 비교 (같은 팀인지 확인)
+            if (applicant.getTeamManagement() == null || approver.getTeamManagement() == null ||
+                !applicant.getTeamManagement().getSeq().equals(approver.getTeamManagement().getSeq())) {
                 throw new ApiException(ApiErrorCode.ACCESS_DENIED, "같은 팀의 신청만 승인할 수 있습니다.");
             }
         }
@@ -660,8 +673,9 @@ public class ApprovalService {
             User applicant = userRepository.findById(rentalSupport.getUserId())
                     .orElseThrow(() -> new ApiException(ApiErrorCode.USER_NOT_FOUND));
 
-            if (!applicant.getDivision().equals(approver.getDivision()) ||
-                !applicant.getTeam().equals(approver.getTeam())) {
+            // teamSeq로 비교 (같은 팀인지 확인)
+            if (applicant.getTeamManagement() == null || approver.getTeamManagement() == null ||
+                !applicant.getTeamManagement().getSeq().equals(approver.getTeamManagement().getSeq())) {
                 throw new ApiException(ApiErrorCode.ACCESS_DENIED, "같은 팀의 신청만 반려할 수 있습니다.");
             }
         }
@@ -719,7 +733,9 @@ public class ApprovalService {
             User applicant = userRepository.findById(rentalSupport.getUserId())
                     .orElseThrow(() -> new ApiException(ApiErrorCode.USER_NOT_FOUND));
 
-            if (!applicant.getDivision().equals(approver.getDivision())) {
+            // 같은 본부 확인 (division 문자열 비교)
+            if (applicant.getTeamManagement() == null || approver.getTeamManagement() == null ||
+                !applicant.getTeamManagement().getDivision().equals(approver.getTeamManagement().getDivision())) {
                 throw new ApiException(ApiErrorCode.ACCESS_DENIED, "같은 본부의 신청만 승인할 수 있습니다.");
             }
         }
@@ -778,7 +794,9 @@ public class ApprovalService {
             User applicant = userRepository.findById(rentalSupport.getUserId())
                     .orElseThrow(() -> new ApiException(ApiErrorCode.USER_NOT_FOUND));
 
-            if (!applicant.getDivision().equals(approver.getDivision())) {
+            // 같은 본부 확인 (division 문자열 비교)
+            if (applicant.getTeamManagement() == null || approver.getTeamManagement() == null ||
+                !applicant.getTeamManagement().getDivision().equals(approver.getTeamManagement().getDivision())) {
                 throw new ApiException(ApiErrorCode.ACCESS_DENIED, "같은 본부의 신청만 반려할 수 있습니다.");
             }
         }
@@ -838,8 +856,9 @@ public class ApprovalService {
             User applicant = userRepository.findById(rentalProposal.getUserId())
                     .orElseThrow(() -> new ApiException(ApiErrorCode.USER_NOT_FOUND));
 
-            if (!applicant.getDivision().equals(approver.getDivision()) ||
-                !applicant.getTeam().equals(approver.getTeam())) {
+            // teamSeq로 비교 (같은 팀인지 확인)
+            if (applicant.getTeamManagement() == null || approver.getTeamManagement() == null ||
+                !applicant.getTeamManagement().getSeq().equals(approver.getTeamManagement().getSeq())) {
                 throw new ApiException(ApiErrorCode.ACCESS_DENIED, "같은 팀의 신청만 승인할 수 있습니다.");
             }
         }
@@ -900,8 +919,9 @@ public class ApprovalService {
             User applicant = userRepository.findById(rentalProposal.getUserId())
                     .orElseThrow(() -> new ApiException(ApiErrorCode.USER_NOT_FOUND));
 
-            if (!applicant.getDivision().equals(approver.getDivision()) ||
-                !applicant.getTeam().equals(approver.getTeam())) {
+            // teamSeq로 비교 (같은 팀인지 확인)
+            if (applicant.getTeamManagement() == null || approver.getTeamManagement() == null ||
+                !applicant.getTeamManagement().getSeq().equals(approver.getTeamManagement().getSeq())) {
                 throw new ApiException(ApiErrorCode.ACCESS_DENIED, "같은 팀의 신청만 반려할 수 있습니다.");
             }
         }
@@ -959,7 +979,9 @@ public class ApprovalService {
             User applicant = userRepository.findById(rentalProposal.getUserId())
                     .orElseThrow(() -> new ApiException(ApiErrorCode.USER_NOT_FOUND));
 
-            if (!applicant.getDivision().equals(approver.getDivision())) {
+            // 같은 본부 확인 (division 문자열 비교)
+            if (applicant.getTeamManagement() == null || approver.getTeamManagement() == null ||
+                !applicant.getTeamManagement().getDivision().equals(approver.getTeamManagement().getDivision())) {
                 throw new ApiException(ApiErrorCode.ACCESS_DENIED, "같은 본부의 신청만 승인할 수 있습니다.");
             }
         }
@@ -1018,7 +1040,9 @@ public class ApprovalService {
             User applicant = userRepository.findById(rentalProposal.getUserId())
                     .orElseThrow(() -> new ApiException(ApiErrorCode.USER_NOT_FOUND));
 
-            if (!applicant.getDivision().equals(approver.getDivision())) {
+            // 같은 본부 확인 (division 문자열 비교)
+            if (applicant.getTeamManagement() == null || approver.getTeamManagement() == null ||
+                !applicant.getTeamManagement().getDivision().equals(approver.getTeamManagement().getDivision())) {
                 throw new ApiException(ApiErrorCode.ACCESS_DENIED, "같은 본부의 신청만 반려할 수 있습니다.");
             }
         }

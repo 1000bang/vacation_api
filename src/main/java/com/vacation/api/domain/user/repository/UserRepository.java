@@ -45,43 +45,58 @@ public interface UserRepository extends JpaRepository<User, Long> {
      */
     List<User> findByAuthValInOrderByCreatedAtDesc(List<String> authVals);
 
+
     /**
-     * 본부로 사용자 조회
+     * 본부로 사용자 조회 (division 문자열 비교 - 하위 호환성)
      *
      * @param division 본부
      * @param authVals 권한 값 목록 (ma, bb, tj, tw)
      * @return 사용자 목록
      */
-    List<User> findByDivisionAndAuthValInOrderByCreatedAtDesc(String division, List<String> authVals);
+    @Query("SELECT u FROM User u WHERE u.teamManagement.division = :division AND u.authVal IN :authVals ORDER BY u.createdAt DESC")
+    List<User> findByDivisionAndAuthValInOrderByCreatedAtDesc(@Param("division") String division, @Param("authVals") List<String> authVals);
 
     /**
-     * 본부와 팀으로 사용자 조회
+     * 팀으로 사용자 조회 (teamSeq 기반)
+     *
+     * @param teamSeq 팀 관리 시퀀스
+     * @param authVals 권한 값 목록 (ma, bb, tj, tw)
+     * @return 사용자 목록
+     */
+    @Query("SELECT u FROM User u WHERE u.teamManagement.seq = :teamSeq AND u.authVal IN :authVals ORDER BY u.createdAt DESC")
+    List<User> findByTeamSeqAndAuthValInOrderByCreatedAtDesc(@Param("teamSeq") Long teamSeq, @Param("authVals") List<String> authVals);
+
+    /**
+     * 본부와 팀으로 사용자 조회 (division, team 문자열 비교 - 하위 호환성)
      *
      * @param division 본부
      * @param team 팀
      * @param authVals 권한 값 목록 (ma, bb, tj, tw)
      * @return 사용자 목록
      */
-    List<User> findByDivisionAndTeamAndAuthValInOrderByCreatedAtDesc(String division, String team, List<String> authVals);
+    @Query("SELECT u FROM User u WHERE u.teamManagement.division = :division AND u.teamManagement.team = :team AND u.authVal IN :authVals ORDER BY u.createdAt DESC")
+    List<User> findByDivisionAndTeamAndAuthValInOrderByCreatedAtDesc(@Param("division") String division, @Param("team") String team, @Param("authVals") List<String> authVals);
 
     /**
-     * 본부와 권한으로 사용자 조회
+     * 본부와 권한으로 사용자 조회 (division 문자열 비교 - 하위 호환성)
      *
      * @param division 본부
      * @param authVal 권한 값
      * @return 사용자 목록
      */
-    List<User> findByDivisionAndAuthVal(String division, String authVal);
+    @Query("SELECT u FROM User u WHERE u.teamManagement.division = :division AND u.authVal = :authVal")
+    List<User> findByDivisionAndAuthVal(@Param("division") String division, @Param("authVal") String authVal);
 
     /**
-     * 본부와 팀과 권한으로 사용자 조회
+     * 본부와 팀과 권한으로 사용자 조회 (division, team 문자열 비교 - 하위 호환성)
      *
      * @param division 본부
      * @param team 팀
      * @param authVal 권한 값
      * @return 사용자 목록
      */
-    List<User> findByDivisionAndTeamAndAuthVal(String division, String team, String authVal);
+    @Query("SELECT u FROM User u WHERE u.teamManagement.division = :division AND u.teamManagement.team = :team AND u.authVal = :authVal")
+    List<User> findByDivisionAndTeamAndAuthVal(@Param("division") String division, @Param("team") String team, @Param("authVal") String authVal);
 
     /**
      * 로그인 실패 횟수 증가 (직접 UPDATE 쿼리로 캐시 문제 우회)
@@ -104,5 +119,23 @@ public interface UserRepository extends JpaRepository<User, Long> {
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query(value = "UPDATE tbl_users_bas SET account_locked_until = :lockUntil WHERE user_id = :userId", nativeQuery = true)
     void lockAccount(@Param("userId") Long userId, @Param("lockUntil") LocalDateTime lockUntil);
+
+    /**
+     * 사용자 ID로 조회 (teamManagement 함께 fetch join)
+     *
+     * @param userId 사용자 ID
+     * @return 사용자 Optional
+     */
+    @Query("SELECT u FROM User u LEFT JOIN FETCH u.teamManagement WHERE u.userId = :userId")
+    Optional<User> findByIdWithTeamManagement(@Param("userId") Long userId);
+
+    /**
+     * 팀 관리 시퀀스로 사용자 수 조회
+     *
+     * @param teamSeq 팀 관리 시퀀스
+     * @return 사용자 수
+     */
+    @Query("SELECT COUNT(u) FROM User u WHERE u.teamManagement.seq = :teamSeq")
+    Long countByTeamManagementSeq(@Param("teamSeq") Long teamSeq);
 }
 
