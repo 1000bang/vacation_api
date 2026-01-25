@@ -1,5 +1,6 @@
 package com.vacation.api.domain.user.response;
 
+import com.vacation.api.enums.AuthVal;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -42,9 +43,9 @@ public class TeamUserResponse {
      * 권한 라벨
      */
     public String getAuthValLabel() {
-        if ("tj".equals(authVal)) {
+        if (AuthVal.TEAM_LEADER.getCode().equals(authVal)) {
             return "팀장";
-        } else if ("tw".equals(authVal)) {
+        } else if (AuthVal.TEAM_MEMBER.getCode().equals(authVal)) {
             return "팀원";
         }
         return authVal;

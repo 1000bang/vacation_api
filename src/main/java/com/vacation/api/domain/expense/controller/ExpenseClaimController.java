@@ -199,9 +199,10 @@ public class ExpenseClaimController extends BaseController {
         try {
             Long userId = (Long) request.getAttribute("userId");
             ExpenseClaim expenseClaim = expenseClaimService.createExpenseClaim(userId, expenseClaimRequest);
-            String transactionId = getOrCreateTransactionId();
-            return ResponseEntity.status(HttpStatus.CREATED)
-                    .body(new ApiResponse<>(transactionId, "0", expenseClaim, null));
+            User applicant = userService.getUserInfo(userId);
+            ExpenseClaimResponse resp = responseMapper.toExpenseClaimResponse(
+                    expenseClaim, applicant != null ? applicant.getName() : null, List.of());
+            return createdResponse(resp);
         } catch (ApiException e) {
             return errorResponse("개인 비용 청구 생성에 실패했습니다.", e);
         } catch (Exception e) {
@@ -293,10 +294,10 @@ public class ExpenseClaimController extends BaseController {
             } else {
                 // 결재 권한 체크
                 String authVal = requester.getAuthVal();
-                if ("ma".equals(authVal)) {
+                if (AuthVal.MASTER.getCode().equals(authVal)) {
                     // 관리자는 모든 신청서 다운로드 가능
                     canDownload = true;
-                } else if ("tj".equals(authVal) || "bb".equals(authVal)) {
+                } else if (AuthVal.TEAM_LEADER.getCode().equals(authVal) || AuthVal.DIVISION_HEAD.getCode().equals(authVal)) {
                     // 팀장/본부장은 같은 본부의 신청서만 다운로드 가능
                     User applicant = userService.getUserInfo(applicantId);
                     if (applicant != null && requester.getDivision().equals(applicant.getDivision())) {
@@ -431,10 +432,7 @@ public class ExpenseClaimController extends BaseController {
             
             // 파일 업로드
             Attachment attachment = fileService.uploadExpenseItemFile(file, ApplicationType.EXPENSE.getCode(), seq, expenseSubSeq, userId);
-            
-            String transactionId = getOrCreateTransactionId();
-            return ResponseEntity.status(HttpStatus.CREATED)
-                    .body(new ApiResponse<>(transactionId, "0", attachment, null));
+            return createdResponse(attachment);
         } catch (ApiException e) {
             return errorResponse("첨부파일 업로드에 실패했습니다.", e);
         } catch (Exception e) {

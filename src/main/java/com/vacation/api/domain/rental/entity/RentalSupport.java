@@ -1,5 +1,6 @@
 package com.vacation.api.domain.rental.entity;
 
+import com.vacation.api.enums.ApprovalStatus;
 import com.vacation.api.enums.PaymentType;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
@@ -118,7 +119,7 @@ public class RentalSupport {
      */
     @Column(name = "approval_status", length = 2)
     @Builder.Default
-    private String approvalStatus = "A";
+    private String approvalStatus = ApprovalStatus.INITIAL.getName();
 
     /**
      * 팀장 승인자 ID

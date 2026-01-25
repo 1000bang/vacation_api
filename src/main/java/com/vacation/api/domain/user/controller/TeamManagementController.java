@@ -11,7 +11,6 @@ import com.vacation.api.response.data.ApiResponse;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -46,16 +45,7 @@ public class TeamManagementController extends BaseController {
     @GetMapping("/list")
     public ResponseEntity<ApiResponse<Object>> getAllTeamManagement(HttpServletRequest request) {
         log.info("전체 팀 관리 목록 조회 요청");
-
-        try {
-            List<TeamManagementResponse> teamList = teamManagementService.getAllTeamManagement();
-            return successResponse(teamList);
-        } catch (ApiException e) {
-            return errorResponse("팀 관리 목록 조회에 실패했습니다.", e);
-        } catch (Exception e) {
-            log.error("팀 관리 목록 조회 실패", e);
-            return errorResponse("팀 관리 목록 조회에 실패했습니다.", e);
-        }
+        return executeWithErrorHandling("팀 관리 목록 조회에 실패했습니다.", teamManagementService::getAllTeamManagement);
     }
 
     /**
@@ -70,16 +60,7 @@ public class TeamManagementController extends BaseController {
             HttpServletRequest request,
             @PathVariable String division) {
         log.info("본부별 팀 관리 목록 조회 요청: division={}", division);
-
-        try {
-            List<TeamManagementResponse> teamList = teamManagementService.getTeamManagementByDivision(division);
-            return successResponse(teamList);
-        } catch (ApiException e) {
-            return errorResponse("팀 관리 목록 조회에 실패했습니다.", e);
-        } catch (Exception e) {
-            log.error("팀 관리 목록 조회 실패", e);
-            return errorResponse("팀 관리 목록 조회에 실패했습니다.", e);
-        }
+        return executeWithErrorHandling("팀 관리 목록 조회에 실패했습니다.", () -> teamManagementService.getTeamManagementByDivision(division));
     }
 
     /**
@@ -97,8 +78,7 @@ public class TeamManagementController extends BaseController {
 
         try {
             TeamManagementResponse response = teamManagementService.createTeamManagement(teamRequest);
-            return ResponseEntity.status(HttpStatus.CREATED)
-                    .body(new ApiResponse<>(getOrCreateTransactionId(), "0", response, null));
+            return createdResponse(response);
         } catch (ApiException e) {
             return errorResponse("팀 관리 생성에 실패했습니다.", e);
         } catch (Exception e) {
@@ -169,16 +149,7 @@ public class TeamManagementController extends BaseController {
             HttpServletRequest request,
             @PathVariable Long teamSeq) {
         log.info("팀별 사용자 목록 조회 요청: teamSeq={}", teamSeq);
-
-        try {
-            List<TeamUserResponse> users = teamManagementService.getUsersByTeamSeq(teamSeq);
-            return successResponse(users);
-        } catch (ApiException e) {
-            return errorResponse("팀별 사용자 목록 조회에 실패했습니다.", e);
-        } catch (Exception e) {
-            log.error("팀별 사용자 목록 조회 실패", e);
-            return errorResponse("팀별 사용자 목록 조회에 실패했습니다.", e);
-        }
+        return executeWithErrorHandling("팀별 사용자 목록 조회에 실패했습니다.", () -> teamManagementService.getUsersByTeamSeq(teamSeq));
     }
 
     /**
@@ -193,15 +164,6 @@ public class TeamManagementController extends BaseController {
             HttpServletRequest request,
             @PathVariable String division) {
         log.info("본부별 사용자 목록 조회 요청: division={}", division);
-
-        try {
-            List<TeamUserResponse> users = teamManagementService.getUsersByDivision(division);
-            return successResponse(users);
-        } catch (ApiException e) {
-            return errorResponse("본부별 사용자 목록 조회에 실패했습니다.", e);
-        } catch (Exception e) {
-            log.error("본부별 사용자 목록 조회 실패", e);
-            return errorResponse("본부별 사용자 목록 조회에 실패했습니다.", e);
-        }
+        return executeWithErrorHandling("본부별 사용자 목록 조회에 실패했습니다.", () -> teamManagementService.getUsersByDivision(division));
     }
 }

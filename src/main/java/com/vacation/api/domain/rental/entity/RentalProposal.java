@@ -1,5 +1,6 @@
 package com.vacation.api.domain.rental.entity;
 
+import com.vacation.api.enums.ApprovalStatus;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -92,7 +93,7 @@ public class RentalProposal {
      */
     @Column(name = "approval_status", length = 2)
     @Builder.Default
-    private String approvalStatus = "A";
+    private String approvalStatus = ApprovalStatus.INITIAL.getName();
 
     /**
      * 팀장 승인자 ID

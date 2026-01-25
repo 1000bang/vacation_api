@@ -6,6 +6,7 @@ import com.vacation.api.domain.user.entity.User;
 import com.vacation.api.domain.user.repository.UserRepository;
 import com.vacation.api.enums.ApplicationType;
 import com.vacation.api.enums.ApprovalStatus;
+import com.vacation.api.enums.AuthVal;
 import com.vacation.api.enums.RedirectUrl;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -43,11 +44,11 @@ public class AlarmService {
 
         // 같은 팀의 팀장 찾기
         List<User> teamLeaders = userRepository.findByDivisionAndTeamAndAuthVal(
-                applicant.getDivision(), applicant.getTeam(), "tj");
+                applicant.getDivision(), applicant.getTeam(), AuthVal.TEAM_LEADER.getCode());
         
         // 팀장이 없으면 본부장에게 알람
         if (teamLeaders.isEmpty()) {
-            List<User> divisionHeads = userRepository.findByDivisionAndAuthVal(applicant.getDivision(), "bb");
+            List<User> divisionHeads = userRepository.findByDivisionAndAuthVal(applicant.getDivision(), AuthVal.DIVISION_HEAD.getCode());
             for (User divisionHead : divisionHeads) {
                 UserAlarm alarm = UserAlarm.builder()
                         .userId(divisionHead.getUserId())
@@ -107,7 +108,7 @@ public class AlarmService {
         log.info("신청자 알람 생성 완료: applicantId={}", applicantId);
 
         // 같은 본부의 본부장 찾기
-        List<User> divisionHeads = userRepository.findByDivisionAndAuthVal(applicant.getDivision(), "bb");
+        List<User> divisionHeads = userRepository.findByDivisionAndAuthVal(applicant.getDivision(), AuthVal.DIVISION_HEAD.getCode());
 
         for (User divisionHead : divisionHeads) {
             UserAlarm alarm = UserAlarm.builder()
@@ -171,9 +172,9 @@ public class AlarmService {
         
         // 반려 상태에 따라 알람 타입 결정
         ApprovalStatus alarmStatus;
-        if ("RB".equals(rejectionStatus) || ApprovalStatus.TEAM_LEADER_REJECTED.getName().equals(rejectionStatus)) {
+        if (ApprovalStatus.TEAM_LEADER_REJECTED.getName().equals(rejectionStatus)) {
             alarmStatus = ApprovalStatus.TEAM_LEADER_REJECTED;
-        } else if ("RC".equals(rejectionStatus) || ApprovalStatus.DIVISION_HEAD_REJECTED.getName().equals(rejectionStatus)) {
+        } else if (ApprovalStatus.DIVISION_HEAD_REJECTED.getName().equals(rejectionStatus)) {
             alarmStatus = ApprovalStatus.DIVISION_HEAD_REJECTED;
         } else {
             // 기본값: 팀장 반려로 간주

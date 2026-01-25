@@ -10,6 +10,8 @@ import com.vacation.api.domain.rental.request.RentalSupportRequest;
 import com.vacation.api.domain.user.entity.User;
 import com.vacation.api.domain.user.repository.UserRepository;
 import com.vacation.api.enums.ApplicationType;
+import com.vacation.api.enums.AuthVal;
+import com.vacation.api.enums.ApprovalStatus;
 import com.vacation.api.enums.PaymentType;
 import com.vacation.api.exception.ApiErrorCode;
 import com.vacation.api.exception.ApiException;
@@ -35,7 +37,7 @@ import java.util.List;
 @Slf4j
 @Service
 @RequiredArgsConstructor
-public class RentaltService {
+public class RentalService {
 
     private final RentalProposalRepository rentalProposalRepository;
     private final UserRepository userRepository;
@@ -68,11 +70,10 @@ public class RentaltService {
 
         String authVal = requester.getAuthVal();
         
-        if ("ma".equals(authVal)) {
-            // 관리자(ma)는 모든 월세 품의서 조회 가능
+        if (AuthVal.MASTER.getCode().equals(authVal)) {
             return rentalProposalRepository.findById(seq)
                     .orElse(null);
-        } else if ("bb".equals(authVal)) {
+        } else if (AuthVal.DIVISION_HEAD.getCode().equals(authVal)) {
             // 본부장(bb)은 자신의 본부만 모든 월세 품의서 조회 가능
             RentalProposal rentalProposal = rentalProposalRepository.findById(seq)
                     .orElse(null);
@@ -84,8 +85,7 @@ public class RentaltService {
                 }
             }
             return null;
-        } else if ("tj".equals(authVal)) {
-            // 팀장(tj)은 자신의 팀만 모든 월세 품의서 조회 가능
+        } else if (AuthVal.TEAM_LEADER.getCode().equals(authVal)) {
             RentalProposal rentalProposal = rentalProposalRepository.findById(seq)
                     .orElse(null);
             if (rentalProposal != null) {
@@ -174,7 +174,7 @@ public class RentaltService {
         rentalProposal.setBillingAmount(request.getBillingAmount());
         rentalProposal.setBillingStartDate(request.getBillingStartDate());
         rentalProposal.setBillingReason(request.getBillingReason());
-        rentalProposal.setApprovalStatus("AM"); // 수정 시 무조건 AM 상태로 변경
+        rentalProposal.setApprovalStatus(ApprovalStatus.MODIFIED.getName());
         
         RentalProposal updated = rentalProposalRepository.save(rentalProposal);
         log.info("월세 품의 정보 수정 완료: seq={}, userId={}, approvalStatus={}", seq, userId, updated.getApprovalStatus());
@@ -465,7 +465,7 @@ public class RentaltService {
         rentalSupport.setPaymentAmount(request.getPaymentAmount());
         rentalSupport.setBillingAmount(request.getBillingAmount());
         // 수정 시 무조건 AM 상태로 변경
-        rentalSupport.setApprovalStatus("AM"); // 수정됨
+        rentalSupport.setApprovalStatus(ApprovalStatus.MODIFIED.getName());
         
         RentalSupport updated = rentalSupportRepository.save(rentalSupport);
         log.info("월세 지원 신청 수정 완료: seq={}, userId={}", seq, userId);

@@ -14,6 +14,7 @@ import com.vacation.api.domain.vacation.response.UserVacationInfoResponse;
 import com.vacation.api.domain.vacation.response.VacationHistoryResponse;
 import com.vacation.api.domain.vacation.service.VacationService;
 import com.vacation.api.enums.ApplicationType;
+import com.vacation.api.enums.ApprovalStatus;
 import com.vacation.api.exception.ApiException;
 import com.vacation.api.response.data.ApiResponse;
 import com.vacation.api.common.TransactionIDCreator;
@@ -361,7 +362,7 @@ public class VacationController extends BaseController {
             // 반려 상태인 경우 반려 사유 조회
             String rejectionReason = null;
             String approvalStatus = vacationHistory.getApprovalStatus();
-            if ("RB".equals(approvalStatus) || "RC".equals(approvalStatus)) {
+            if (ApprovalStatus.TEAM_LEADER_REJECTED.getName().equals(approvalStatus) || ApprovalStatus.DIVISION_HEAD_REJECTED.getName().equals(approvalStatus)) {
                 rejectionReason = vacationService.getRejectionReason(seq);
             }
             
@@ -413,10 +414,10 @@ public class VacationController extends BaseController {
                     // 파일 업로드 실패해도 신청은 성공으로 처리
                 }
             }
-            
-            String transactionId = getOrCreateTransactionId();
-            return ResponseEntity.status(HttpStatus.CREATED)
-                    .body(new ApiResponse<>(transactionId, "0", vacationHistory, null));
+            User applicant = userService.getUserInfo(userId);
+            VacationHistoryResponse resp = responseMapper.toVacationHistoryResponse(
+                    vacationHistory, applicant != null ? applicant.getName() : null, null, null);
+            return createdResponse(resp);
         } catch (ApiException e) {
             return errorResponse("휴가 신청에 실패했습니다.", e);
         } catch (Exception e) {
@@ -523,10 +524,10 @@ public class VacationController extends BaseController {
             } else {
                 // 결재 권한 체크
                 String authVal = requester.getAuthVal();
-                if ("ma".equals(authVal)) {
+                if (AuthVal.MASTER.getCode().equals(authVal)) {
                     // 관리자는 모든 신청서 다운로드 가능
                     canDownload = true;
-                } else if ("tj".equals(authVal) || "bb".equals(authVal)) {
+                } else if (AuthVal.TEAM_LEADER.getCode().equals(authVal) || AuthVal.DIVISION_HEAD.getCode().equals(authVal)) {
                     // 팀장/본부장은 같은 본부의 신청서만 다운로드 가능
                     User applicant = userService.getUserInfo(applicantId);
                     if (applicant != null && requester.getDivision().equals(applicant.getDivision())) {

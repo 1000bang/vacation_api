@@ -11,6 +11,7 @@ import com.vacation.api.domain.user.request.LoginRequest;
 import com.vacation.api.domain.user.request.RefreshTokenRequest;
 import com.vacation.api.domain.user.request.UpdateUserRequest;
 import com.vacation.api.domain.user.response.DivisionTeamResponse;
+import com.vacation.api.domain.user.response.JoinResponse;
 import com.vacation.api.domain.user.response.LoginResponse;
 import com.vacation.api.domain.user.response.RefreshTokenResponse;
 import com.vacation.api.domain.user.response.UserInfoResponse;
@@ -84,13 +85,15 @@ public class UserController extends BaseController {
         log.info("회원가입 요청 수신: email={}", joinRequest.getEmail());
 
         try {
-            // 회원가입 처리
             User user = userService.join(joinRequest);
-
+            JoinResponse res = JoinResponse.builder()
+                    .userId(user.getUserId())
+                    .email(user.getEmail())
+                    .name(user.getName())
+                    .status(user.getStatus() != null ? user.getStatus().name() : null)
+                    .build();
             log.info("회원가입 성공: userId={}, email={}", user.getUserId(), user.getEmail());
-            String transactionId = getOrCreateTransactionId();
-            return ResponseEntity.status(HttpStatus.CREATED)
-                    .body(new ApiResponse<>(transactionId, "0", user, null));
+            return createdResponse(res);
 
         } catch (ApiException e) {
             return errorResponse("회원가입에 실패했습니다.", e);
@@ -730,11 +733,7 @@ public class UserController extends BaseController {
 
         try {
             List<DivisionTeamResponse> divisionTeamList = userService.getDivisionTeamList();
-
-            String transactionId = getOrCreateTransactionId();
-            return ResponseEntity.ok()
-                    .body(new ApiResponse<>(transactionId, "0", divisionTeamList, null));
-
+            return successResponse(divisionTeamList);
         } catch (Exception e) {
             log.error("본부별 팀 목록 조회 실패", e);
             return errorResponse("본부별 팀 목록 조회에 실패했습니다.", e);

@@ -43,7 +43,7 @@ public abstract class BaseController {
     }
 
     /**
-     * 성공 응답 생성
+     * 성공 응답 생성 (200 OK)
      *
      * @param data 응답 데이터
      * @return ResponseEntity
@@ -51,6 +51,17 @@ public abstract class BaseController {
     protected <T> ResponseEntity<ApiResponse<T>> successResponse(T data) {
         String transactionId = getOrCreateTransactionId();
         return ResponseEntity.ok(new ApiResponse<>(transactionId, "0", data, null));
+    }
+
+    /**
+     * 생성 성공 응답 (201 Created)
+     *
+     * @param data 생성된 데이터
+     * @return ResponseEntity
+     */
+    protected <T> ResponseEntity<ApiResponse<T>> createdResponse(T data) {
+        String transactionId = getOrCreateTransactionId();
+        return ResponseEntity.status(HttpStatus.CREATED).body(new ApiResponse<>(transactionId, "0", data, null));
     }
 
     /**
@@ -135,20 +146,34 @@ public abstract class BaseController {
     }
 
     /**
-     * 공통 예외 처리 래퍼 메서드
-     * Controller에서 반복되는 try-catch 패턴을 간소화
-     * 
-     * @param errorMessage 에러 발생 시 사용할 메시지
+     * 공통 예외 처리 래퍼 (200 OK)
+     *
+     * @param errorMessage 에러 시 사용할 메시지
      * @param supplier 실행할 로직
      * @return ResponseEntity
      */
     @SuppressWarnings("unchecked")
-    protected <T> ResponseEntity<ApiResponse<T>> executeWithErrorHandling(
-            String errorMessage,
-            Supplier<T> supplier) {
+    protected <T> ResponseEntity<ApiResponse<T>> executeWithErrorHandling(String errorMessage, Supplier<T> supplier) {
         try {
-            T result = supplier.get();
-            return successResponse(result);
+            return successResponse(supplier.get());
+        } catch (ApiException e) {
+            return (ResponseEntity<ApiResponse<T>>) (ResponseEntity<?>) errorResponse(errorMessage, e);
+        } catch (Exception e) {
+            return (ResponseEntity<ApiResponse<T>>) (ResponseEntity<?>) errorResponse(errorMessage, e);
+        }
+    }
+
+    /**
+     * 공통 예외 처리 래퍼 (201 Created)
+     *
+     * @param errorMessage 에러 시 사용할 메시지
+     * @param supplier 실행할 로직
+     * @return ResponseEntity
+     */
+    @SuppressWarnings("unchecked")
+    protected <T> ResponseEntity<ApiResponse<T>> executeWithErrorHandlingCreated(String errorMessage, Supplier<T> supplier) {
+        try {
+            return createdResponse(supplier.get());
         } catch (ApiException e) {
             return (ResponseEntity<ApiResponse<T>>) (ResponseEntity<?>) errorResponse(errorMessage, e);
         } catch (Exception e) {

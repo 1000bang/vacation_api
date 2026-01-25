@@ -13,7 +13,7 @@ public enum ApiErrorCode {
     DUPLICATE_EMAIL("903", "이미 존재하는 이메일입니다."),
     INVALID_LOGIN("904", "이메일 또는 비밀번호가 올바르지 않습니다."),
     USER_NOT_APPROVED("905", "승인되지 않은 사용자입니다."),
-    ACCOUNT_LOCKED("913", "계정이 잠금되었습니다."),
+    ACCOUNT_LOCKED("918", "계정이 잠금되었습니다."),
     INVALID_REFRESH_TOKEN("906", "유효하지 않은 Refresh Token입니다."),
     USER_NOT_FOUND("907", "사용자를 찾을 수 없습니다."),
     RENTAL_SUPPORT_NOT_FOUND("908", "월세 지원 정보를 찾을 수 없습니다."),

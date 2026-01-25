@@ -10,7 +10,7 @@ import com.vacation.api.domain.rental.request.RentalProposalRequest;
 import com.vacation.api.domain.rental.request.RentalSupportRequest;
 import com.vacation.api.domain.rental.response.RentalProposalResponse;
 import com.vacation.api.domain.rental.response.RentalSupportResponse;
-import com.vacation.api.domain.rental.service.RentaltService;
+import com.vacation.api.domain.rental.service.RentalService;
 import com.vacation.api.domain.user.entity.User;
 import com.vacation.api.domain.user.service.UserService;
 import com.vacation.api.enums.ApplicationType;
@@ -59,7 +59,7 @@ import java.util.Map;
 @RequestMapping("/rental")
 public class RentalController extends BaseController {
 
-    private final RentaltService rentaltService;
+    private final RentalService rentalService;
     private final UserService userService;
     private final ResponseMapper responseMapper;
     private final FileService fileService;
@@ -69,7 +69,7 @@ public class RentalController extends BaseController {
     private final UserRepository userRepository;
     private final UserSignatureRepository userSignatureRepository;
 
-    public RentalController(RentaltService rentaltService, UserService userService, 
+    public RentalController(RentalService rentalService, UserService userService, 
                            ResponseMapper responseMapper, FileService fileService,
                            TransactionIDCreator transactionIDCreator,
                            ZipFileUtil zipFileUtil,
@@ -78,7 +78,7 @@ public class RentalController extends BaseController {
                            UserRepository userRepository,
                            UserSignatureRepository userSignatureRepository) {
         super(transactionIDCreator);
-        this.rentaltService = rentaltService;
+        this.rentalService = rentalService;
         this.userService = userService;
         this.responseMapper = responseMapper;
         this.fileService = fileService;
@@ -101,7 +101,7 @@ public class RentalController extends BaseController {
 
         try {
             Long userId = (Long) request.getAttribute("userId");
-            List<RentalProposal> rentalProposalList = rentaltService.getRentalSupportList(userId);
+            List<RentalProposal> rentalProposalList = rentalService.getRentalSupportList(userId);
             
             // 각 항목에 applicant 추가하여 Response VO로 변환
             List<RentalProposalResponse> responseList = responseMapper.toRentalProposalResponseList(
@@ -132,7 +132,7 @@ public class RentalController extends BaseController {
 
         try {
             Long userId = (Long) request.getAttribute("userId");
-            RentalProposal rentalProposal = rentaltService.getRentalSupport(seq, userId);
+            RentalProposal rentalProposal = rentalService.getRentalSupport(seq, userId);
             
             if (rentalProposal == null) {
                 return successResponse(null);
@@ -174,7 +174,7 @@ public class RentalController extends BaseController {
 
         try {
             Long userId = (Long) request.getAttribute("userId");
-            RentalProposal rentalProposal = rentaltService.createRentalSupport(userId, rentalProposalRequest);
+            RentalProposal rentalProposal = rentalService.createRentalSupport(userId, rentalProposalRequest);
             
             // 파일이 있으면 업로드
             if (file != null && !file.isEmpty()) {
@@ -185,10 +185,10 @@ public class RentalController extends BaseController {
                     // 파일 업로드 실패해도 신청은 성공으로 처리
                 }
             }
-            
-            String transactionId = getOrCreateTransactionId();
-            return ResponseEntity.status(org.springframework.http.HttpStatus.CREATED)
-                    .body(new ApiResponse<>(transactionId, "0", rentalProposal, null));
+            User applicant = userService.getUserInfo(userId);
+            RentalProposalResponse resp = responseMapper.toRentalProposalResponse(
+                    rentalProposal, applicant != null ? applicant.getName() : null, null);
+            return createdResponse(resp);
         } catch (ApiException e) {
             return errorResponse("월세 품의 정보 생성에 실패했습니다.", e);
         } catch (Exception e) {
@@ -215,7 +215,7 @@ public class RentalController extends BaseController {
 
         try {
             Long userId = (Long) request.getAttribute("userId");
-            RentalProposal rentalProposal = rentaltService.updateRentalSupport(seq, userId, rentalProposalRequest);
+            RentalProposal rentalProposal = rentalService.updateRentalSupport(seq, userId, rentalProposalRequest);
             
             // 파일이 있으면 업로드
             if (file != null && !file.isEmpty()) {
@@ -250,7 +250,7 @@ public class RentalController extends BaseController {
 
         try {
             Long userId = (Long) request.getAttribute("userId");
-            rentaltService.deleteRentalSupport(seq, userId);
+            rentalService.deleteRentalSupport(seq, userId);
             return successResponse("삭제되었습니다.");
         } catch (ApiException e) {
             return errorResponse("월세 지원 정보 삭제에 실패했습니다.", e);
@@ -280,10 +280,10 @@ public class RentalController extends BaseController {
             Long userId = (Long) request.getAttribute("userId");
             
             // totalCount 조회 (COUNT 쿼리)
-            long totalCount = rentaltService.getRentalSupportApplicationCount(userId);
+            long totalCount = rentalService.getRentalSupportApplicationCount(userId);
             
             // 페이징된 목록 조회
-            List<RentalSupport> rentalSupportList = rentaltService.getRentalSupportApplicationList(userId, page, size);
+            List<RentalSupport> rentalSupportList = rentalService.getRentalSupportApplicationList(userId, page, size);
             
             // 각 항목에 applicant 추가하여 Response VO로 변환
             List<RentalSupportResponse> responseList = responseMapper.toRentalSupportResponseList(
@@ -320,7 +320,7 @@ public class RentalController extends BaseController {
 
         try {
             Long userId = (Long) request.getAttribute("userId");
-            RentalSupport rentalSupport = rentaltService.getRentalSupportApplication(seq, userId);
+            RentalSupport rentalSupport = rentalService.getRentalSupportApplication(seq, userId);
             
             if (rentalSupport == null) {
                 return successResponse(null);
@@ -370,7 +370,7 @@ public class RentalController extends BaseController {
 
         try {
             Long userId = (Long) request.getAttribute("userId");
-            RentalSupport rentalSupport = rentaltService.createRentalSupportApplication(userId, rentalSupportRequest);
+            RentalSupport rentalSupport = rentalService.createRentalSupportApplication(userId, rentalSupportRequest);
             
             // 파일이 있으면 업로드
             if (file != null && !file.isEmpty()) {
@@ -385,10 +385,10 @@ public class RentalController extends BaseController {
                     // 파일 업로드 실패해도 신청은 성공으로 처리
                 }
             }
-            
-            String transactionId = getOrCreateTransactionId();
-            return ResponseEntity.status(HttpStatus.CREATED)
-                    .body(new ApiResponse<>(transactionId, "0", rentalSupport, null));
+            User applicant = userService.getUserInfo(userId);
+            RentalSupportResponse resp = responseMapper.toRentalSupportResponse(
+                    rentalSupport, applicant != null ? applicant.getName() : null, null);
+            return createdResponse(resp);
         } catch (ApiException e) {
             return errorResponse("월세 지원 신청 생성에 실패했습니다.", e);
         } catch (Exception e) {
@@ -415,7 +415,7 @@ public class RentalController extends BaseController {
 
         try {
             Long userId = (Long) request.getAttribute("userId");
-            RentalSupport rentalSupport = rentaltService.updateRentalSupportApplication(seq, userId, rentalSupportRequest);
+            RentalSupport rentalSupport = rentalService.updateRentalSupportApplication(seq, userId, rentalSupportRequest);
             
             // 파일이 있으면 업로드 (기존 파일은 자동 삭제됨)
             if (file != null && !file.isEmpty()) {
@@ -454,7 +454,7 @@ public class RentalController extends BaseController {
 
         try {
             Long userId = (Long) request.getAttribute("userId");
-            rentaltService.deleteRentalSupportApplication(seq, userId);
+            rentalService.deleteRentalSupportApplication(seq, userId);
             return successResponse("삭제되었습니다.");
         } catch (ApiException e) {
             return errorResponse("월세 지원 신청 삭제에 실패했습니다.", e);
@@ -481,7 +481,7 @@ public class RentalController extends BaseController {
             User requester = userService.getUserInfo(requesterId);
             
             // 월세 지원 신청 조회 (seq만으로 조회)
-            RentalSupport rentalSupport = rentaltService.getRentalSupportApplicationById(seq);
+            RentalSupport rentalSupport = rentalService.getRentalSupportApplicationById(seq);
             if (rentalSupport == null) {
                 log.warn("존재하지 않는 월세 지원 신청: seq={}", seq);
                 return ResponseEntity.notFound().build();
@@ -497,10 +497,10 @@ public class RentalController extends BaseController {
             } else {
                 // 결재 권한 체크
                 String authVal = requester.getAuthVal();
-                if ("ma".equals(authVal)) {
+                if (AuthVal.MASTER.getCode().equals(authVal)) {
                     // 관리자는 모든 신청서 다운로드 가능
                     canDownload = true;
-                } else if ("tj".equals(authVal) || "bb".equals(authVal)) {
+                } else if (AuthVal.TEAM_LEADER.getCode().equals(authVal) || AuthVal.DIVISION_HEAD.getCode().equals(authVal)) {
                     // 팀장/본부장은 같은 본부의 신청서만 다운로드 가능
                     User applicant = userService.getUserInfo(applicantId);
                     if (applicant != null && requester.getDivision().equals(applicant.getDivision())) {
@@ -519,7 +519,7 @@ public class RentalController extends BaseController {
             User applicant = userService.getUserInfo(applicantId);
             
             // VO 생성
-            RentalSupportApplicationVO vo = rentaltService.createRentalSupportApplicationVO(
+            RentalSupportApplicationVO vo = rentalService.createRentalSupportApplicationVO(
                     rentalSupport, applicant);
             
             // 서명 이미지 맵 생성 (승인 상태 포함)
@@ -599,7 +599,7 @@ public class RentalController extends BaseController {
             Long userId = (Long) request.getAttribute("userId");
             
             // 월세 품의 정보 조회
-            RentalProposal rentalProposal = rentaltService.getRentalSupport(seq, userId);
+            RentalProposal rentalProposal = rentalService.getRentalSupport(seq, userId);
             if (rentalProposal == null) {
                 return ResponseEntity.notFound().build();
             }
@@ -608,7 +608,7 @@ public class RentalController extends BaseController {
             User user = userService.getUserInfo(userId);
             
             // VO 생성
-            RentalSupportProposalVO vo = rentaltService.createRentalSupportProposalVO(
+            RentalSupportProposalVO vo = rentalService.createRentalSupportProposalVO(
                     rentalProposal, user);
             
             // DOCX 생성 (서명은 null로 전달하여 빈 문자열로 처리)
@@ -680,7 +680,7 @@ public class RentalController extends BaseController {
             Long requesterId = (Long) request.getAttribute("userId");
             
             // 월세 품의서 조회 (권한 체크)
-            RentalProposal rentalProposal = rentaltService.getRentalSupport(seq, requesterId);
+            RentalProposal rentalProposal = rentalService.getRentalSupport(seq, requesterId);
             if (rentalProposal == null) {
                 log.warn("존재하지 않는 월세 품의서 또는 권한 없음: seq={}, requesterId={}", seq, requesterId);
                 return ResponseEntity.notFound().build();
@@ -731,7 +731,7 @@ public class RentalController extends BaseController {
             Long requesterId = (Long) request.getAttribute("userId");
             
             // 월세 지원 신청 조회 (권한 체크)
-            RentalSupport rentalSupport = rentaltService.getRentalSupportApplication(seq, requesterId);
+            RentalSupport rentalSupport = rentalService.getRentalSupportApplication(seq, requesterId);
             if (rentalSupport == null) {
                 log.warn("존재하지 않는 월세 지원 신청 또는 권한 없음: seq={}, requesterId={}", seq, requesterId);
                 return ResponseEntity.notFound().build();

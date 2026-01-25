@@ -2,6 +2,8 @@ package com.vacation.api.domain.expense.service;
 
 import com.vacation.api.domain.alarm.service.AlarmService;
 import com.vacation.api.enums.ApplicationType;
+import com.vacation.api.enums.ApprovalStatus;
+import com.vacation.api.enums.AuthVal;
 import com.vacation.api.domain.expense.entity.ExpenseClaim;
 import com.vacation.api.domain.expense.entity.ExpenseSub;
 import com.vacation.api.domain.expense.repository.ExpenseClaimRepository;
@@ -78,11 +80,11 @@ public class ExpenseClaimService {
 
         String authVal = requester.getAuthVal();
         
-        if ("ma".equals(authVal)) {
+        if (AuthVal.MASTER.getCode().equals(authVal)) {
             // 관리자(ma)는 모든 개인 비용 청구 조회 가능
             return expenseClaimRepository.findById(seq)
                     .orElse(null);
-        } else if ("bb".equals(authVal)) {
+        } else if (AuthVal.DIVISION_HEAD.getCode().equals(authVal)) {
             // 본부장(bb)은 자신의 본부만 모든 개인 비용 청구 조회 가능
             ExpenseClaim expenseClaim = expenseClaimRepository.findById(seq)
                     .orElse(null);
@@ -94,7 +96,7 @@ public class ExpenseClaimService {
                 }
             }
             return null;
-        } else if ("tj".equals(authVal)) {
+        } else if (AuthVal.TEAM_LEADER.getCode().equals(authVal)) {
             // 팀장(tj)은 자신의 팀만 모든 개인 비용 청구 조회 가능
             ExpenseClaim expenseClaim = expenseClaimRepository.findById(seq)
                     .orElse(null);
@@ -246,7 +248,7 @@ public class ExpenseClaimService {
         expenseClaim.setChildCnt(request.getExpenseItems().size());
         expenseClaim.setTotalAmount(totalAmount);
         // 수정 시 무조건 AM 상태로 변경
-        expenseClaim.setApprovalStatus("AM"); // 수정됨
+        expenseClaim.setApprovalStatus(ApprovalStatus.MODIFIED.getName()); // 수정됨
 
         // 기존 자식 항목 삭제
         expenseSubRepository.deleteByParentSeq(seq);

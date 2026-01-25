@@ -23,6 +23,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import com.vacation.api.domain.user.response.DivisionTeamResponse;
+import com.vacation.api.enums.AuthVal;
 
 import java.time.LocalDateTime;
 import java.util.*;
@@ -423,25 +424,25 @@ public class UserService {
         String authVal = requester.getAuthVal();
         List<User> result;
         
-        if ("ma".equals(authVal)) {
+        if (AuthVal.MASTER.getCode().equals(authVal)) {
             // master: 전체 목록 (모든 권한 포함, 자기 자신 포함)
             log.info("master 권한: 전체 목록 조회 (자기 자신 포함)");
-            List<String> allowedAuthVals = List.of("ma", "bb", "tj", "tw");
+            List<String> allowedAuthVals = List.of(AuthVal.MASTER.getCode(), AuthVal.DIVISION_HEAD.getCode(), AuthVal.TEAM_LEADER.getCode(), AuthVal.TEAM_MEMBER.getCode());
             result = userRepository.findByAuthValInOrderByCreatedAtDesc(allowedAuthVals);
             log.info("필터링된 사용자 수: {} (전체)", result.size());
             return result;
-        } else if ("bb".equals(authVal)) {
+        } else if (AuthVal.DIVISION_HEAD.getCode().equals(authVal)) {
             // bonbujang: 해당 본부의 tw(팀원)와 tj(팀장)만 (자기 자신 제외)
             // 같은 본부에 속한 모든 팀의 사용자 조회
             log.info("bonbujang 권한: 본부={}, tw와 tj만 조회", requester.getDivision());
-            List<String> allowedAuthVals = List.of("tw", "tj");
+            List<String> allowedAuthVals = List.of(AuthVal.TEAM_MEMBER.getCode(), AuthVal.TEAM_LEADER.getCode());
             result = userRepository.findByDivisionAndAuthValInOrderByCreatedAtDesc(
                     requester.getDivision(), allowedAuthVals);
-        } else if ("tj".equals(authVal)) {
+        } else if (AuthVal.TEAM_LEADER.getCode().equals(authVal)) {
             // teamjang: 해당 팀의 tw(팀원)만 (자기 자신 제외)
             // teamSeq로 비교
             log.info("teamjang 권한: teamSeq={}, tw만 조회", requester.getTeamManagement() != null ? requester.getTeamManagement().getSeq() : null);
-            List<String> allowedAuthVals = List.of("tw");
+            List<String> allowedAuthVals = List.of(AuthVal.TEAM_MEMBER.getCode());
             if (requester.getTeamManagement() != null) {
                 result = userRepository.findByTeamSeqAndAuthValInOrderByCreatedAtDesc(
                         requester.getTeamManagement().getSeq(), allowedAuthVals);
@@ -490,19 +491,19 @@ public class UserService {
         String requesterAuthVal = requester.getAuthVal();
         
         // 마스터(ma): 전체 열람 가능
-        if ("ma".equals(requesterAuthVal)) {
+        if (AuthVal.MASTER.getCode().equals(requesterAuthVal)) {
             log.info("마스터 권한: 접근 허용");
             return;
         }
         
         // 팀원(tw): 권한 없음
-        if ("tw".equals(requesterAuthVal)) {
+        if (AuthVal.TEAM_MEMBER.getCode().equals(requesterAuthVal)) {
             log.warn("팀원 권한: 접근 거부");
             throw new ApiException(ApiErrorCode.ACCESS_DENIED, "권한이 없습니다.");
         }
         
         // 본부장(bb): 같은 본부면 OK
-        if ("bb".equals(requesterAuthVal)) {
+        if (AuthVal.DIVISION_HEAD.getCode().equals(requesterAuthVal)) {
             // division 문자열 비교
             boolean isMyBonbu = requester.getTeamManagement() != null && targetUser.getTeamManagement() != null &&
                     requester.getTeamManagement().getDivision().equals(targetUser.getTeamManagement().getDivision());
@@ -516,7 +517,7 @@ public class UserService {
         }
         
         // 팀장(tj): 같은 팀이면 OK (teamSeq 비교)
-        if ("tj".equals(requesterAuthVal)) {
+        if (AuthVal.TEAM_LEADER.getCode().equals(requesterAuthVal)) {
             boolean isMyTeam = requester.getTeamManagement() != null && targetUser.getTeamManagement() != null &&
                     requester.getTeamManagement().getSeq().equals(targetUser.getTeamManagement().getSeq());
             if (isMyTeam) {

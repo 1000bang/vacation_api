@@ -14,6 +14,7 @@ import com.vacation.api.domain.vacation.request.VacationRequest;
 import com.vacation.api.exception.ApiErrorCode;
 import com.vacation.api.exception.ApiException;
 import com.vacation.api.enums.ApplicationType;
+import com.vacation.api.enums.ApprovalStatus;
 import com.vacation.api.enums.AuthVal;
 import com.vacation.api.util.ApprovalStatusResolver;
 import com.vacation.api.vo.VacationDocumentVO;
@@ -595,9 +596,11 @@ public class VacationService {
 
         // 삭제 가능한 상태 확인 (null, A, RB, RC만 삭제 가능)
         String approvalStatus = vacationHistory.getApprovalStatus();
-        // null이면 "A"로 간주 (초기 생성 상태)
-        String actualStatus = approvalStatus == null ? "A" : approvalStatus;
-        if (!"A".equals(actualStatus) && !"RB".equals(actualStatus) && !"RC".equals(actualStatus)) {
+        // null이면 A(초기)로 간주
+        String actualStatus = approvalStatus == null ? ApprovalStatus.INITIAL.getName() : approvalStatus;
+        if (!ApprovalStatus.INITIAL.getName().equals(actualStatus) 
+                && !ApprovalStatus.TEAM_LEADER_REJECTED.getName().equals(actualStatus) 
+                && !ApprovalStatus.DIVISION_HEAD_REJECTED.getName().equals(actualStatus)) {
             log.warn("삭제 불가능한 상태: seq={}, approvalStatus={}", seq, approvalStatus);
             throw new ApiException(ApiErrorCode.INVALID_REQUEST_FORMAT, "요청 중이거나 반려된 신청만 삭제할 수 있습니다.");
         }

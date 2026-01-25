@@ -7,6 +7,7 @@ import com.vacation.api.domain.user.repository.UserRepository;
 import com.vacation.api.domain.user.request.TeamManagementRequest;
 import com.vacation.api.domain.user.response.TeamManagementResponse;
 import com.vacation.api.domain.user.response.TeamUserResponse;
+import com.vacation.api.enums.AuthVal;
 import com.vacation.api.exception.ApiErrorCode;
 import com.vacation.api.exception.ApiException;
 import lombok.RequiredArgsConstructor;
@@ -218,7 +219,7 @@ public class TeamManagementService {
             throw new ApiException(ApiErrorCode.INVALID_REQUEST_FORMAT, "존재하지 않는 팀입니다.");
         }
 
-        List<String> authVals = List.of("tj", "tw"); // 팀장과 팀원만 조회
+        List<String> authVals = List.of(AuthVal.TEAM_LEADER.getCode(), AuthVal.TEAM_MEMBER.getCode()); // 팀장과 팀원만 조회
         List<User> users = userRepository.findByTeamSeqAndAuthValInOrderByCreatedAtDesc(teamSeq, authVals);
 
         return users.stream()
@@ -242,7 +243,7 @@ public class TeamManagementService {
         log.info("본부별 사용자 목록 조회: division={}", division);
 
         // 본부장과 마스터 조회 (bb, ma 권한, team이 null인 TeamManagement)
-        List<String> authVals = List.of("bb", "ma"); // 본부장과 마스터 조회
+        List<String> authVals = List.of(AuthVal.DIVISION_HEAD.getCode(), AuthVal.MASTER.getCode()); // 본부장과 마스터 조회
         List<User> users = userRepository.findByDivisionAndAuthValInOrderByCreatedAtDesc(division, authVals);
 
         return users.stream()
