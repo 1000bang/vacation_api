@@ -1,6 +1,6 @@
 package com.vacation.api.domain.alarm.controller;
 
-import com.vacation.api.common.BaseController;
+import com.vacation.api.common.controller.BaseController;
 import com.vacation.api.common.TransactionIDCreator;
 import com.vacation.api.domain.alarm.entity.UserAlarm;
 import com.vacation.api.domain.alarm.response.AlarmResponse;

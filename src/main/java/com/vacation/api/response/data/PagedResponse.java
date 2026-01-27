@@ -1,4 +1,4 @@
-package com.vacation.api.common;
+package com.vacation.api.response.data;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;

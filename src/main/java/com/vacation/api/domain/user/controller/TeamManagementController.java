@@ -1,10 +1,9 @@
 package com.vacation.api.domain.user.controller;
 
-import com.vacation.api.common.BaseController;
+import com.vacation.api.common.controller.BaseController;
 import com.vacation.api.common.TransactionIDCreator;
 import com.vacation.api.domain.user.request.TeamManagementRequest;
 import com.vacation.api.domain.user.response.TeamManagementResponse;
-import com.vacation.api.domain.user.response.TeamUserResponse;
 import com.vacation.api.domain.user.service.TeamManagementService;
 import com.vacation.api.exception.ApiException;
 import com.vacation.api.response.data.ApiResponse;
@@ -13,8 +12,6 @@ import jakarta.validation.Valid;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-
-import java.util.List;
 
 /**
  * 팀 관리 Controller

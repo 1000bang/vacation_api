@@ -1,7 +1,9 @@
-package com.vacation.api.common;
+package com.vacation.api.common.controller;
 
+import com.vacation.api.common.TransactionIDCreator;
 import com.vacation.api.domain.user.entity.User;
 import com.vacation.api.domain.user.service.UserService;
+import com.vacation.api.exception.ApiErrorCode;
 import com.vacation.api.exception.ApiException;
 import com.vacation.api.response.data.ApiResponse;
 import lombok.extern.slf4j.Slf4j;
@@ -96,11 +98,11 @@ public abstract class BaseController {
         errorData.put("errorMessage", e.getMessage() != null ? e.getMessage() : errorMessage);
         
         HttpStatus status = HttpStatus.BAD_REQUEST;
-        if (e.getApiErrorCode() == com.vacation.api.exception.ApiErrorCode.ACCESS_DENIED) {
+        if (e.getApiErrorCode() == ApiErrorCode.ACCESS_DENIED) {
             status = HttpStatus.FORBIDDEN;
-        } else if (e.getApiErrorCode() == com.vacation.api.exception.ApiErrorCode.USER_NOT_FOUND) {
+        } else if (e.getApiErrorCode() == ApiErrorCode.USER_NOT_FOUND) {
             status = HttpStatus.NOT_FOUND;
-        } else if (e.getApiErrorCode() == com.vacation.api.exception.ApiErrorCode.INVALID_LOGIN) {
+        } else if (e.getApiErrorCode() == ApiErrorCode.INVALID_LOGIN) {
             status = HttpStatus.UNAUTHORIZED;
         }
         

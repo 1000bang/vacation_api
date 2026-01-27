@@ -200,32 +200,30 @@ public class UserService {
      * @return 증가된 실패 횟수
      */
     public int incrementLoginFailureCount(Long userId) {
-        // 별도 트랜잭션으로 실행 (메인 트랜잭션과 완전히 분리)
         TransactionTemplate transactionTemplate = new TransactionTemplate(transactionManager);
         transactionTemplate.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
         transactionTemplate.setIsolationLevel(TransactionDefinition.ISOLATION_READ_COMMITTED);
         
-        // UPDATE 쿼리 실행 (예외가 발생해도 커밋되도록)
-        transactionTemplate.execute(status -> {
-            int rows = userRepository.incrementLoginFailureCount(userId);
-            log.info("로그인 실패 횟수 UPDATE 쿼리 실행: userId={}, 업데이트된 행 수: {}", userId, rows);
-            return rows;
-        });
-        
-        // 트랜잭션 커밋 후 캐시 비우기
-        entityManager.clear();
-        
-        // 증가된 실패 횟수 조회 (새로운 트랜잭션에서)
         return transactionTemplate.execute(status -> {
-            User user = userRepository.findById(userId)
-                    .orElseThrow(() -> {
-                        log.warn("존재하지 않는 사용자: userId={}", userId);
-                        return new ApiException(ApiErrorCode.USER_NOT_FOUND);
-                    });
+            // UPDATE 쿼리 실행
+            int rows = userRepository.incrementLoginFailureCount(userId);
+            if (rows == 0) {
+                log.warn("로그인 실패 횟수 증가 실패: 사용자 없음, userId={}", userId);
+                return 0; // 사용자가 없으면 0 반환
+            }
             
-            int failureCount = user.getLoginFailureCount() == null ? 0 : user.getLoginFailureCount();
-            log.info("로그인 실패 횟수 증가 완료: userId={}, 실패 횟수: {}/5", userId, failureCount);
-            return failureCount;
+            // 증가된 실패 횟수 조회
+            User user = userRepository.findById(userId).orElse(null);
+            if (user == null) {
+                log.warn("사용자 조회 실패: userId={}", userId);
+                return 0;
+            }
+            
+            Integer failureCount = user.getLoginFailureCount();
+            int count = (failureCount != null) ? failureCount : 0;
+            
+            log.info("로그인 실패 횟수 증가 완료: userId={}, 실패 횟수: {}/5", userId, count);
+            return count;
         });
     }
 
@@ -312,6 +310,17 @@ public class UserService {
         refreshTokenService.deleteRefreshToken(userId);
         
         log.info("로그아웃 완료: userId={}", userId);
+    }
+
+    /**
+     * 이메일로 사용자 조회
+     *
+     * @param email 이메일
+     * @return 사용자 Optional
+     */
+    public Optional<User> findByEmail(String email) {
+        log.info("이메일로 사용자 조회: email={}", email);
+        return userRepository.findByEmail(email);
     }
 
     /**

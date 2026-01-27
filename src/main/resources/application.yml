@@ -36,8 +36,6 @@ server:
 
 # JWT 설정
 # 주의: 프로덕션 환경에서는 반드시 환경변수 JWT_SECRET을 설정해야 합니다.
-# 예: export JWT_SECRET="your-very-long-and-random-secret-key-minimum-32-characters"
-# 또는 application-prod.yml에서 설정
 jwt:
   secret: ${JWT_SECRET}
   expiration: 3600000  # Access Token: 1시간 (밀리초)
@@ -56,12 +54,6 @@ management:
     redis:
       enabled: false  # Redis Health Check 비활성화 (Redis가 없어도 애플리케이션 시작 가능)
 
-# 로그 설정은 logback-spring.xml에서 관리
-# logging 설정을 여기에 두면 logback-spring.xml의 설정을 오버라이드할 수 있음
-# logging:
-#   level:
-#     com.vacation.api: DEBUG
-#     org.springframework.web: INFO
 
 # SpringDoc OpenAPI (Swagger) 설정
 springdoc:

@@ -1,7 +1,7 @@
 package com.vacation.api.domain.vacation.controller;
 
-import com.vacation.api.common.BaseController;
-import com.vacation.api.common.PagedResponse;
+import com.vacation.api.common.controller.BaseController;
+import com.vacation.api.response.data.PagedResponse;
 import com.vacation.api.domain.attachment.entity.Attachment;
 import com.vacation.api.domain.attachment.service.FileService;
 import com.vacation.api.domain.user.entity.User;
@@ -21,12 +21,9 @@ import com.vacation.api.common.TransactionIDCreator;
 import com.vacation.api.util.FileGenerateUtil;
 import com.vacation.api.util.ResponseMapper;
 import com.vacation.api.util.ZipFileUtil;
-import com.vacation.api.util.SignatureFileUtil;
-import com.vacation.api.util.SignatureImageUtil;
 import com.vacation.api.util.CommonUtil;
 import com.vacation.api.enums.AuthVal;
 import com.vacation.api.domain.user.repository.UserRepository;
-import com.vacation.api.domain.user.repository.UserSignatureRepository;
 import com.vacation.api.vo.VacationDocumentVO;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
@@ -63,29 +60,23 @@ public class VacationController extends BaseController {
     private final ResponseMapper responseMapper;
     private final FileService fileService;
     private final ZipFileUtil zipFileUtil;
-    private final SignatureFileUtil signatureFileUtil;
-    private final SignatureImageUtil signatureImageUtil;
+    private final FileGenerateUtil fileGenerateUtil;
     private final UserRepository userRepository;
-    private final UserSignatureRepository userSignatureRepository;
 
     public VacationController(VacationService vacationService, UserService userService,
                               ResponseMapper responseMapper, FileService fileService,
                               TransactionIDCreator transactionIDCreator,
                               ZipFileUtil zipFileUtil,
-                              SignatureFileUtil signatureFileUtil,
-                              SignatureImageUtil signatureImageUtil,
-                              UserRepository userRepository,
-                              UserSignatureRepository userSignatureRepository) {
+                              FileGenerateUtil fileGenerateUtil,
+                              UserRepository userRepository) {
         super(transactionIDCreator);
         this.vacationService = vacationService;
         this.userService = userService;
         this.responseMapper = responseMapper;
         this.fileService = fileService;
         this.zipFileUtil = zipFileUtil;
-        this.signatureFileUtil = signatureFileUtil;
-        this.signatureImageUtil = signatureImageUtil;
+        this.fileGenerateUtil = fileGenerateUtil;
         this.userRepository = userRepository;
-        this.userSignatureRepository = userSignatureRepository;
     }
 
     /**
@@ -712,16 +703,13 @@ public class VacationController extends BaseController {
             }
             
             // 서명 이미지 맵 생성 (승인 상태 포함)
-            return FileGenerateUtil.createSignatureImageMap(
+            return fileGenerateUtil.createSignatureImageMap(
                     applicant.getUserId(),
                     teamLeaderUserId,
                     divisionHeadUserId,
                     applicantAuthVal,
                     approvalStatus,
-                    requestDateStr,
-                    signatureFileUtil,
-                    signatureImageUtil,
-                    userSignatureRepository
+                    requestDateStr
             );
         } catch (Exception e) {
             log.error("서명 이미지 맵 생성 실패: applicantId={}, approvalStatus={}", 

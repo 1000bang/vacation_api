@@ -11,6 +11,9 @@ import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.xssf.usermodel.*;
 import org.apache.poi.xwpf.usermodel.*;
 import org.springframework.core.io.ClassPathResource;
+import org.springframework.stereotype.Component;
+import lombok.RequiredArgsConstructor;
+import com.vacation.api.domain.user.repository.UserSignatureRepository;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -31,7 +34,13 @@ import static com.vacation.api.util.CommonUtil.*;
  * @since 2025-01-05
  */
 @Slf4j
+@Component
+@RequiredArgsConstructor
 public class FileGenerateUtil {
+
+    private final SignatureFileUtil signatureFileUtil;
+    private final SignatureImageUtil signatureImageUtil;
+    private final UserSignatureRepository userSignatureRepository;
 
     /**
      * 서명 기능 활성화 여부
@@ -658,11 +667,10 @@ public class FileGenerateUtil {
      * 사용자 서명 파일 로드
      *
      * @param userId 사용자 ID
-     * @param signatureFileUtil 서명 파일 유틸리티 인스턴스
      * @return 서명 이미지 바이트 배열, 파일이 없으면 null
      */
-    public static byte[] loadUserSignature(Long userId, SignatureFileUtil signatureFileUtil) {
-        if (userId == null || signatureFileUtil == null) {
+    public byte[] loadUserSignature(Long userId) {
+        if (userId == null) {
             return null;
         }
 
@@ -685,14 +693,10 @@ public class FileGenerateUtil {
      * @param date 날짜 문자열 (예: "2025.01.16")
      * @param userId 사용자 ID (폰트 조회용)
      * @param signaturePlaceholder 서명 플레이스홀더 (SIG2 크기 사용)
-     * @param signatureImageUtil 서명 이미지 유틸리티 인스턴스
-     * @param userSignatureRepository 사용자 서명 정보 Repository (null 가능)
      * @return 날짜 이미지 바이트 배열, 생성 실패 시 null
      */
-    public static byte[] createDateImage(String date, Long userId, SignaturePlaceholder signaturePlaceholder, 
-                                        SignatureImageUtil signatureImageUtil, 
-                                        com.vacation.api.domain.user.repository.UserSignatureRepository userSignatureRepository) {
-        if (date == null || date.trim().isEmpty() || signaturePlaceholder == null || signatureImageUtil == null) {
+    public byte[] createDateImage(String date, Long userId, SignaturePlaceholder signaturePlaceholder) {
+        if (date == null || date.trim().isEmpty() || signaturePlaceholder == null) {
             return null;
         }
 
@@ -700,7 +704,7 @@ public class FileGenerateUtil {
             String fontToUse = "nanum-kang-bujang.ttf"; // 기본 폰트
             
             // DB에서 사용자의 폰트 정보 조회
-            if (userId != null && userSignatureRepository != null) {
+            if (userId != null) {
                 try {
                     java.util.Optional<com.vacation.api.domain.user.entity.UserSignature> userSignatureOpt = 
                             userSignatureRepository.findByUserSeq(userId);
@@ -785,21 +789,15 @@ public class FileGenerateUtil {
      * @param applicantAuthVal 작성자 권한
      * @param approvalStatus 승인 상태 (A, AM, B, RB, C, RC)
      * @param requestDate 신청일 (날짜 형식: "2025.01.16")
-     * @param signatureFileUtil 서명 파일 유틸리티 인스턴스
-     * @param signatureImageUtil 서명 이미지 유틸리티 인스턴스
-     * @param userSignatureRepository 사용자 서명 정보 Repository (null 가능)
      * @return 서명 이미지 맵 (플레이스홀더 -> 이미지 바이트 배열)
      */
-    public static Map<String, byte[]> createSignatureImageMap(
+    public Map<String, byte[]> createSignatureImageMap(
             Long applicantUserId,
             Long teamLeaderUserId,
             Long divisionHeadUserId,
             com.vacation.api.enums.AuthVal applicantAuthVal,
             String approvalStatus,
-            String requestDate,
-            SignatureFileUtil signatureFileUtil,
-            SignatureImageUtil signatureImageUtil,
-            com.vacation.api.domain.user.repository.UserSignatureRepository userSignatureRepository) {
+            String requestDate) {
         
         Map<String, byte[]> signatureImageMap = new HashMap<>();
         
@@ -813,13 +811,13 @@ public class FileGenerateUtil {
         
         // 작성자 서명: DAM_SIG1, DAM_SIG2
         if (includeDamSig) {
-            byte[] applicantSig1 = loadUserSignature(applicantUserId, signatureFileUtil);
+            byte[] applicantSig1 = loadUserSignature(applicantUserId);
             if (applicantSig1 != null) {
                 signatureImageMap.put(SignaturePlaceholder.DAM_SIG1.getPlaceholder(), applicantSig1);
             }
             
             // dam_sig2는 날짜만 표시 (작성자 폰트 사용)
-            byte[] dateImage = createDateImage(requestDate, applicantUserId, SignaturePlaceholder.DAM_SIG2, signatureImageUtil, userSignatureRepository);
+            byte[] dateImage = createDateImage(requestDate, applicantUserId, SignaturePlaceholder.DAM_SIG2);
             if (dateImage != null) {
                 signatureImageMap.put(SignaturePlaceholder.DAM_SIG2.getPlaceholder(), dateImage);
             }
@@ -827,13 +825,13 @@ public class FileGenerateUtil {
         
         // 팀장 서명: TIM_SIG1, TIM_SIG2
         if (includeTimSig && teamLeaderUserId != null) {
-            byte[] teamLeaderSig1 = loadUserSignature(teamLeaderUserId, signatureFileUtil);
+            byte[] teamLeaderSig1 = loadUserSignature(teamLeaderUserId);
             if (teamLeaderSig1 != null) {
                 signatureImageMap.put(SignaturePlaceholder.TIM_SIG1.getPlaceholder(), teamLeaderSig1);
             }
             
             // tim_sig2는 날짜만 표시 (팀장 폰트 사용)
-            byte[] timDateImage = createDateImage(requestDate, teamLeaderUserId, SignaturePlaceholder.TIM_SIG2, signatureImageUtil, userSignatureRepository);
+            byte[] timDateImage = createDateImage(requestDate, teamLeaderUserId, SignaturePlaceholder.TIM_SIG2);
             if (timDateImage != null) {
                 signatureImageMap.put(SignaturePlaceholder.TIM_SIG2.getPlaceholder(), timDateImage);
             }
@@ -841,13 +839,13 @@ public class FileGenerateUtil {
         
         // 본부장 서명: BU_SIG1, BU_SIG2
         if (includeBuSig && divisionHeadUserId != null) {
-            byte[] divisionHeadSig1 = loadUserSignature(divisionHeadUserId, signatureFileUtil);
+            byte[] divisionHeadSig1 = loadUserSignature(divisionHeadUserId);
             if (divisionHeadSig1 != null) {
                 signatureImageMap.put(SignaturePlaceholder.BU_SIG1.getPlaceholder(), divisionHeadSig1);
             }
             
             // bu_sig2는 날짜만 표시 (본부장 폰트 사용)
-            byte[] buDateImage = createDateImage(requestDate, divisionHeadUserId, SignaturePlaceholder.BU_SIG2, signatureImageUtil, userSignatureRepository);
+            byte[] buDateImage = createDateImage(requestDate, divisionHeadUserId, SignaturePlaceholder.BU_SIG2);
             if (buDateImage != null) {
                 signatureImageMap.put(SignaturePlaceholder.BU_SIG2.getPlaceholder(), buDateImage);
             }

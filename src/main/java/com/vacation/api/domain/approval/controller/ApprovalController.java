@@ -1,6 +1,7 @@
 package com.vacation.api.domain.approval.controller;
 
-import com.vacation.api.common.BaseController;
+import com.vacation.api.common.controller.BaseController;
+import com.vacation.api.domain.approval.request.RejectionRequest;
 import com.vacation.api.domain.approval.response.PendingApprovalResponse;
 import com.vacation.api.domain.approval.service.ApprovalService;
 import com.vacation.api.exception.ApiErrorCode;
@@ -8,11 +9,10 @@ import com.vacation.api.exception.ApiException;
 import com.vacation.api.response.data.ApiResponse;
 import com.vacation.api.common.TransactionIDCreator;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.validation.Valid;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-
-import java.util.Map;
 
 /**
  * 승인/반려 Controller
@@ -89,16 +89,12 @@ public class ApprovalController extends BaseController {
     public ResponseEntity<ApiResponse<Object>> rejectVacationByTeamLeader(
             HttpServletRequest request,
             @PathVariable Long seq,
-            @RequestBody Map<String, String> requestBody) {
+            @RequestBody @Valid RejectionRequest rejectionRequest) {
         log.info("휴가 신청 팀장 반려 요청: seq={}", seq);
 
         try {
             Long approverId = (Long) request.getAttribute("userId");
-            String rejectionReason = requestBody.get("rejectionReason");
-            if (rejectionReason == null || rejectionReason.trim().isEmpty()) {
-                throw new ApiException(ApiErrorCode.INVALID_REQUEST_FORMAT, "반려 사유를 입력해주세요.");
-            }
-            approvalService.rejectVacationByTeamLeader(seq, approverId, rejectionReason);
+            approvalService.rejectVacationByTeamLeader(seq, approverId, rejectionRequest.getRejectionReason());
             return successResponse("반려되었습니다.");
         } catch (ApiException e) {
             return errorResponse("반려에 실패했습니다.", e);
@@ -136,16 +132,12 @@ public class ApprovalController extends BaseController {
     public ResponseEntity<ApiResponse<Object>> rejectVacationByDivisionHead(
             HttpServletRequest request,
             @PathVariable Long seq,
-            @RequestBody Map<String, String> requestBody) {
+            @RequestBody @Valid RejectionRequest rejectionRequest) {
         log.info("휴가 신청 본부장 반려 요청: seq={}", seq);
 
         try {
             Long approverId = (Long) request.getAttribute("userId");
-            String rejectionReason = requestBody.get("rejectionReason");
-            if (rejectionReason == null || rejectionReason.trim().isEmpty()) {
-                throw new ApiException(ApiErrorCode.INVALID_REQUEST_FORMAT, "반려 사유를 입력해주세요.");
-            }
-            approvalService.rejectVacationByDivisionHead(seq, approverId, rejectionReason);
+            approvalService.rejectVacationByDivisionHead(seq, approverId, rejectionRequest.getRejectionReason());
             return successResponse("반려되었습니다.");
         } catch (ApiException e) {
             return errorResponse("반려에 실패했습니다.", e);
@@ -183,16 +175,12 @@ public class ApprovalController extends BaseController {
     public ResponseEntity<ApiResponse<Object>> rejectExpenseClaimByTeamLeader(
             HttpServletRequest request,
             @PathVariable Long seq,
-            @RequestBody Map<String, String> requestBody) {
+            @RequestBody @Valid RejectionRequest rejectionRequest) {
         log.info("개인 비용 청구 팀장 반려 요청: seq={}", seq);
 
         try {
             Long approverId = (Long) request.getAttribute("userId");
-            String rejectionReason = requestBody.get("rejectionReason");
-            if (rejectionReason == null || rejectionReason.trim().isEmpty()) {
-                throw new ApiException(ApiErrorCode.INVALID_REQUEST_FORMAT, "반려 사유를 입력해주세요.");
-            }
-            approvalService.rejectExpenseClaimByTeamLeader(seq, approverId, rejectionReason);
+            approvalService.rejectExpenseClaimByTeamLeader(seq, approverId, rejectionRequest.getRejectionReason());
             return successResponse("반려되었습니다.");
         } catch (ApiException e) {
             return errorResponse("반려에 실패했습니다.", e);
@@ -230,16 +218,12 @@ public class ApprovalController extends BaseController {
     public ResponseEntity<ApiResponse<Object>> rejectExpenseClaimByDivisionHead(
             HttpServletRequest request,
             @PathVariable Long seq,
-            @RequestBody Map<String, String> requestBody) {
+            @RequestBody @Valid RejectionRequest rejectionRequest) {
         log.info("개인 비용 청구 본부장 반려 요청: seq={}", seq);
 
         try {
             Long approverId = (Long) request.getAttribute("userId");
-            String rejectionReason = requestBody.get("rejectionReason");
-            if (rejectionReason == null || rejectionReason.trim().isEmpty()) {
-                throw new ApiException(ApiErrorCode.INVALID_REQUEST_FORMAT, "반려 사유를 입력해주세요.");
-            }
-            approvalService.rejectExpenseClaimByDivisionHead(seq, approverId, rejectionReason);
+            approvalService.rejectExpenseClaimByDivisionHead(seq, approverId, rejectionRequest.getRejectionReason());
             return successResponse("반려되었습니다.");
         } catch (ApiException e) {
             return errorResponse("반려에 실패했습니다.", e);
@@ -277,16 +261,12 @@ public class ApprovalController extends BaseController {
     public ResponseEntity<ApiResponse<Object>> rejectRentalSupportByTeamLeader(
             HttpServletRequest request,
             @PathVariable Long seq,
-            @RequestBody Map<String, String> requestBody) {
+            @RequestBody @Valid RejectionRequest rejectionRequest) {
         log.info("월세 지원 신청 팀장 반려 요청: seq={}", seq);
 
         try {
             Long approverId = (Long) request.getAttribute("userId");
-            String rejectionReason = requestBody.get("rejectionReason");
-            if (rejectionReason == null || rejectionReason.trim().isEmpty()) {
-                throw new ApiException(ApiErrorCode.INVALID_REQUEST_FORMAT, "반려 사유를 입력해주세요.");
-            }
-            approvalService.rejectRentalSupportByTeamLeader(seq, approverId, rejectionReason);
+            approvalService.rejectRentalSupportByTeamLeader(seq, approverId, rejectionRequest.getRejectionReason());
             return successResponse("반려되었습니다.");
         } catch (ApiException e) {
             return errorResponse("반려에 실패했습니다.", e);
@@ -324,16 +304,12 @@ public class ApprovalController extends BaseController {
     public ResponseEntity<ApiResponse<Object>> rejectRentalSupportByDivisionHead(
             HttpServletRequest request,
             @PathVariable Long seq,
-            @RequestBody Map<String, String> requestBody) {
+            @RequestBody @Valid RejectionRequest rejectionRequest) {
         log.info("월세 지원 신청 본부장 반려 요청: seq={}", seq);
 
         try {
             Long approverId = (Long) request.getAttribute("userId");
-            String rejectionReason = requestBody.get("rejectionReason");
-            if (rejectionReason == null || rejectionReason.trim().isEmpty()) {
-                throw new ApiException(ApiErrorCode.INVALID_REQUEST_FORMAT, "반려 사유를 입력해주세요.");
-            }
-            approvalService.rejectRentalSupportByDivisionHead(seq, approverId, rejectionReason);
+            approvalService.rejectRentalSupportByDivisionHead(seq, approverId, rejectionRequest.getRejectionReason());
             return successResponse("반려되었습니다.");
         } catch (ApiException e) {
             return errorResponse("반려에 실패했습니다.", e);
@@ -371,16 +347,12 @@ public class ApprovalController extends BaseController {
     public ResponseEntity<ApiResponse<Object>> rejectRentalProposalByTeamLeader(
             HttpServletRequest request,
             @PathVariable Long seq,
-            @RequestBody Map<String, String> requestBody) {
+            @RequestBody @Valid RejectionRequest rejectionRequest) {
         log.info("월세 품의서 팀장 반려 요청: seq={}", seq);
 
         try {
             Long approverId = (Long) request.getAttribute("userId");
-            String rejectionReason = requestBody.get("rejectionReason");
-            if (rejectionReason == null || rejectionReason.trim().isEmpty()) {
-                throw new ApiException(ApiErrorCode.INVALID_REQUEST_FORMAT, "반려 사유를 입력해주세요.");
-            }
-            approvalService.rejectRentalProposalByTeamLeader(seq, approverId, rejectionReason);
+            approvalService.rejectRentalProposalByTeamLeader(seq, approverId, rejectionRequest.getRejectionReason());
             return successResponse("반려되었습니다.");
         } catch (ApiException e) {
             return errorResponse("반려에 실패했습니다.", e);
@@ -418,16 +390,12 @@ public class ApprovalController extends BaseController {
     public ResponseEntity<ApiResponse<Object>> rejectRentalProposalByDivisionHead(
             HttpServletRequest request,
             @PathVariable Long seq,
-            @RequestBody Map<String, String> requestBody) {
+            @RequestBody @Valid RejectionRequest rejectionRequest) {
         log.info("월세 품의서 본부장 반려 요청: seq={}", seq);
 
         try {
             Long approverId = (Long) request.getAttribute("userId");
-            String rejectionReason = requestBody.get("rejectionReason");
-            if (rejectionReason == null || rejectionReason.trim().isEmpty()) {
-                throw new ApiException(ApiErrorCode.INVALID_REQUEST_FORMAT, "반려 사유를 입력해주세요.");
-            }
-            approvalService.rejectRentalProposalByDivisionHead(seq, approverId, rejectionReason);
+            approvalService.rejectRentalProposalByDivisionHead(seq, approverId, rejectionRequest.getRejectionReason());
             return successResponse("반려되었습니다.");
         } catch (ApiException e) {
             return errorResponse("반려에 실패했습니다.", e);
