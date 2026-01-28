@@ -53,4 +53,14 @@ public interface UserAlarmRepository extends JpaRepository<UserAlarm, Long> {
     @Modifying
     @Query("UPDATE UserAlarm u SET u.isRead = true WHERE u.userId = :userId AND u.isRead = false")
     void markAllAsRead(@Param("userId") Long userId);
+
+    /**
+     * 7일 경과된 읽은 알람 삭제
+     *
+     * @param createdAt 기준 날짜 (7일 이전)
+     * @return 삭제된 알람 수
+     */
+    @Modifying
+    @Query("DELETE FROM UserAlarm u WHERE u.isRead = true AND u.createdAt < :createdAt")
+    int deleteByIsReadTrueAndCreatedAtBefore(@Param("createdAt") LocalDateTime createdAt);
 }

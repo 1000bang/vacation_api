@@ -1,5 +1,6 @@
 package com.vacation.api.scheduler;
 
+import com.vacation.api.domain.alarm.repository.UserAlarmRepository;
 import com.vacation.api.domain.vacation.entity.UserVacationInfo;
 import com.vacation.api.domain.vacation.entity.VacationHistory;
 import com.vacation.api.domain.vacation.repository.UserVacationInfoRepository;
@@ -11,23 +12,26 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 
 /**
- * 연차 상태 업데이트 스케줄러
- * 매일 12시에 실행되어 종료일이 오늘인 휴가를 처리합니다.
+ * 공통 스케줄러
+ * - 연차 상태 업데이트
+ * - 7일 경과된 읽은 알람 삭제
  *
  * @author vacation-api
  * @version 1.0
- * @since 2026-01-08
+ * @since 2026-01-26
  */
 @Slf4j
 @Component
 @RequiredArgsConstructor
-public class VacationStatusScheduler {
+public class CommonScheduler {
 
     private final VacationHistoryRepository vacationHistoryRepository;
     private final UserVacationInfoRepository userVacationInfoRepository;
+    private final UserAlarmRepository userAlarmRepository;
 
     /**
      * 매일 12시에 실행되는 스케줄러
@@ -121,5 +125,26 @@ public class VacationStatusScheduler {
         
         log.info("연차 상태 업데이트 스케줄러 완료: 성공={}, 실패={}", successCount, failCount);
     }
-}
 
+    /**
+     * 매일 새벽 2시에 실행되는 스케줄러
+     * 7일 경과된 읽은 알람을 삭제합니다.
+     */
+    @Scheduled(cron = "0 0 2 * * ?") // 매일 새벽 2시에 실행
+    @Transactional
+    public void deleteOldReadAlarms() {
+        log.info("7일 경과된 읽은 알람 삭제 스케줄러 시작");
+        
+        LocalDateTime sevenDaysAgo = LocalDateTime.now().minusDays(7);
+        log.info("삭제 기준일: {} (7일 이전)", sevenDaysAgo);
+        
+        try {
+            // 7일 경과된 읽은 알람 삭제
+            int deletedCount = userAlarmRepository.deleteByIsReadTrueAndCreatedAtBefore(sevenDaysAgo);
+            
+            log.info("7일 경과된 읽은 알람 삭제 완료: 삭제된 알람 수={}", deletedCount);
+        } catch (Exception e) {
+            log.error("7일 경과된 읽은 알람 삭제 실패", e);
+        }
+    }
+}
